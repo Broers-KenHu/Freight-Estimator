@@ -1,0 +1,3 @@
+carrier_code,order_no,consignment_no,invoice_no,invoice_date,actual_freight
+HUNTER,DEMO-1001,CON-DEMO-1001,INV-1001,2026-05-22,112.50
+ALLIED,DEMO-1001,CON-DEMO-1001,INV-1002,2026-05-22,130.00

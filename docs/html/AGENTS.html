@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" style="--rec-label: 'Recommended'">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>AGENTS.md</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       TOKENS
+       ============================================================ */
+    :root {
+      --bg: #FAFAF7;
+      --surface: #FFFFFF;
+      --surface-2: #F5F5F0;
+      --surface-3: #EFEEE8;
+      --text: #1A1A1A;
+      --text-muted: #4A4A45;
+      --text-subtle: #6B6B66;
+      --accent: #D97757;
+      --accent-hover: #C56843;
+      --accent-soft: #FBEEE6;
+      --accent-border: #F0D5C4;
+      --accent-strong: #A85533;
+      --border: #E5E4DC;
+      --border-strong: #CDCDC4;
+      --code-bg: #F5F2EC;
+      --code-text: #2A2A2A;
+      --info: #2563EB;
+      --info-soft: #EFF6FF;
+      --info-border: #BFDBFE;
+      --warn: #B45309;
+      --warn-soft: #FFFBEB;
+      --warn-border: #FDE68A;
+      --danger: #B91C1C;
+      --danger-soft: #FEF2F2;
+      --danger-border: #FECACA;
+      --success: #047857;
+      --success-soft: #ECFDF5;
+      --success-border: #A7F3D0;
+      --decision: #6D28D9;
+      --decision-soft: #F5F3FF;
+      --decision-border: #DDD6FE;
+      --shadow-sm: 0 1px 2px rgba(20, 14, 8, 0.04);
+      --shadow: 0 1px 2px rgba(20, 14, 8, 0.04), 0 4px 12px rgba(20, 14, 8, 0.06);
+      --shadow-lg: 0 8px 24px rgba(20, 14, 8, 0.10);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans CJK JP', 'Noto Sans CJK KR', sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --z-progress: 200;
+      --z-topbar: 100;
+      --z-drawer: 300;
+      --z-backdrop: 250;
+    }
+
+    [data-theme="dark"] {
+      --bg: #1A1714;
+      --surface: #221E1A;
+      --surface-2: #2A2520;
+      --surface-3: #322C26;
+      --text: #F5F0E8;
+      --text-muted: #C8C0B6;
+      --text-subtle: #9A938A;
+      --accent: #E89572;
+      --accent-hover: #F2A87F;
+      --accent-soft: #3A2A22;
+      --accent-border: #5A3D2E;
+      --accent-strong: #F5B493;
+      --border: #2E2924;
+      --border-strong: #463F38;
+      --code-bg: #1E1B17;
+      --code-text: #E8E2D8;
+      --info: #93C5FD;
+      --info-soft: #1E2A3D;
+      --info-border: #2A4365;
+      --warn: #FBBF24;
+      --warn-soft: #332817;
+      --warn-border: #5C4520;
+      --danger: #FCA5A5;
+      --danger-soft: #3A1F1F;
+      --danger-border: #5C2A2A;
+      --success: #6EE7B7;
+      --success-soft: #1A3329;
+      --success-border: #1F5C45;
+      --decision: #C4B5FD;
+      --decision-soft: #2A1F40;
+      --decision-border: #4A3870;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.35);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    /* ============================================================
+       BASE
+       ============================================================ */
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    ::selection { background: var(--accent-soft); color: var(--accent-strong); }
+
+    /* Skip link */
+    .skip-link {
+      position: absolute;
+      top: -100px; left: 8px;
+      padding: 10px 16px;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+      z-index: 1000;
+      transition: top 0.15s;
+    }
+    .skip-link:focus { top: 8px; }
+
+    /* SVG sprite container (hidden) */
+    .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+    .icon { display: inline-block; flex-shrink: 0; vertical-align: middle; stroke: currentColor; fill: none; }
+
+    /* Scroll progress bar */
+    .scroll-progress {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      width: 0;
+      background: var(--accent);
+      z-index: var(--z-progress);
+      transition: width 0.05s linear;
+    }
+
+    /* ============================================================
+       TOPBAR
+       ============================================================ */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: var(--z-topbar);
+      background: rgba(250, 250, 247, 0.85);
+      backdrop-filter: saturate(180%) blur(12px);
+      -webkit-backdrop-filter: saturate(180%) blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    [data-theme="dark"] .topbar { background: rgba(26, 23, 20, 0.85); }
+    .topbar-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      color: var(--text);
+      font-size: 14px;
+    }
+    .brand-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+      animation: brand-pulse 2.8s ease-in-out infinite;
+    }
+    @keyframes brand-pulse {
+      0%, 100% { box-shadow: 0 0 0 4px var(--accent-soft); }
+      50%      { box-shadow: 0 0 0 7px transparent; }
+    }
+    .topbar-actions { display: flex; gap: 6px; align-items: center; }
+    .icon-btn {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+      padding: 0;
+    }
+    .icon-btn .icon { width: 18px; height: 18px; stroke-width: 2; }
+    .icon-btn[hidden] { display: none; }
+
+    /* ============================================================
+       LAYOUT
+       ============================================================ */
+    .layout {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 48px;
+      padding: 32px 24px 96px;
+    }
+    .content { min-width: 0; }
+
+    /* ============================================================
+       TOC (desktop + mobile drawer)
+       ============================================================ */
+    .toc {
+      position: sticky;
+      top: 80px;
+      align-self: start;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+    .toc::-webkit-scrollbar { width: 6px; }
+    .toc::-webkit-scrollbar-track { background: transparent; }
+    .toc::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+    .toc-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 12px 12px;
+    }
+    .toc-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-subtle);
+      margin: 0;
+    }
+    .toc-close { display: none; }
+    .toc-nav { display: flex; flex-direction: column; gap: 2px; }
+    .toc-nav a {
+      display: flex; align-items: center;
+      min-height: 36px;
+      padding: 8px 14px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13.5px;
+      border-left: 2px solid transparent;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+      line-height: 1.4;
+    }
+    .toc-nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      font-weight: 500;
+    }
+    .toc-nav a.lvl-3 { padding-left: 26px; font-size: 12.5px; }
+    .toc-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: var(--z-backdrop);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    /* ============================================================
+       DOC HEADER
+       ============================================================ */
+    .doc-header {
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .doc-eyebrow {
+      display: inline-flex; align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      border: 1px solid var(--accent-border);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      margin-bottom: 16px;
+    }
+    .doc-title {
+      font-size: clamp(28px, 3vw + 16px, 40px);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin: 0 0 12px;
+      color: var(--text);
+      text-wrap: balance;
+    }
+    .doc-subtitle {
+      font-size: clamp(15px, 0.6vw + 13px, 18px);
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin: 0 0 20px;
+      max-width: 75ch;
+      text-wrap: pretty;
+    }
+    .doc-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--text-subtle);
+    }
+    .doc-meta-item { display: inline-flex; align-items: center; gap: 6px; }
+    .doc-meta .icon { width: 14px; height: 14px; stroke-width: 2; }
+
+    /* ============================================================
+       CONTENT (typography)
+       ============================================================ */
+    .content h1, .content h2, .content h3, .content h4 {
+      color: var(--text);
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+      scroll-margin-top: 80px;
+      text-wrap: balance;
+    }
+    .content h2 {
+      font-size: 26px;
+      font-weight: 600;
+      margin: 56px 0 16px;
+      padding-top: 8px;
+      position: relative;
+    }
+    .content h3 {
+      font-size: 19px;
+      font-weight: 600;
+      margin: 36px 0 12px;
+      position: relative;
+    }
+    .content h4 {
+      font-size: 13px;
+      font-weight: 600;
+      margin: 24px 0 8px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .content > p,
+    .content > ul,
+    .content > ol,
+    .content > blockquote { max-width: 75ch; }
+    .content p { margin: 0 0 16px; text-wrap: pretty; overflow-wrap: anywhere; }
+    .content a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-border); }
+    .content ul, .content ol { padding-left: 24px; margin: 0 0 16px; }
+    .content li { margin: 4px 0; }
+    .content strong { color: var(--text); font-weight: 600; }
+    .content em { color: var(--text-muted); }
+    .content hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    /* Anchor links injected by JS on h2/h3 with id */
+    .anchor {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px;
+      margin-left: 6px;
+      color: var(--text-subtle);
+      opacity: 0;
+      transform: translateY(-1px);
+      transition: opacity 0.15s, color 0.15s;
+      border-bottom: none !important;
+      border-radius: var(--radius-sm);
+    }
+    .anchor .icon { width: 14px; height: 14px; stroke-width: 2; }
+
+    /* Images */
+    .content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin: 20px 0;
+      display: block;
+    }
+    .content figure { margin: 20px 0; }
+    .content figure img { margin: 0; }
+    .content figcaption {
+      font-size: 13px;
+      color: var(--text-subtle);
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    /* Task lists (- [ ] / - [x]) */
+    .content .task-list-item { list-style: none; margin-left: -22px; }
+    .content .task-list-item-checkbox {
+      margin-right: 8px;
+      vertical-align: -2px;
+      accent-color: var(--accent);
+    }
+
+    /* Footnotes */
+    .content .footnote-ref a,
+    .content sup a {
+      font-size: 0.75em;
+      vertical-align: super;
+      border-bottom: none;
+      padding: 0 2px;
+    }
+    .content .footnotes {
+      margin-top: 56px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* ============================================================
+       CODE
+       ============================================================ */
+    .content code {
+      font-family: var(--font-mono);
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.88em;
+      color: var(--code-text);
+      border: 1px solid var(--border);
+      overflow-wrap: anywhere;
+    }
+    .content pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-size: 13.5px;
+      line-height: 1.6;
+      margin: 16px 0;
+      position: relative;
+    }
+    .content pre code {
+      background: none; padding: 0; border: none;
+      color: var(--code-text);
+      font-size: inherit;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 32px; height: 32px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--text-subtle);
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+      padding: 0;
+    }
+    .copy-btn .icon { width: 14px; height: 14px; stroke-width: 2; }
+    .copy-btn.copied { color: var(--success); border-color: var(--success-border); opacity: 1; }
+
+    /* ============================================================
+       TIMELINE / STEPS
+       ============================================================ */
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 24px 0;
+      position: relative;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 19px;
+      top: 20px;
+      bottom: 20px;
+      width: 2px;
+      background: linear-gradient(180deg, var(--accent-border), var(--border));
+    }
+    .step {
+      display: grid;
+      grid-template-columns: 40px 1fr;
+      gap: 16px;
+      align-items: start;
+      padding: 16px 4px;
+      position: relative;
+      border-radius: var(--radius);
+      transition: background-color 0.15s;
+    }
+    .step-num {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      border: 2px solid var(--accent);
+      color: var(--accent);
+      border-radius: 50%;
+      font-weight: 600;
+      font-size: 14px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      z-index: 1;
+      transition: background-color 0.15s, color 0.15s, transform 0.15s;
+    }
+    .step.done .step-num { background: var(--accent); color: #fff; }
+    .step-body { padding-top: 6px; min-width: 0; }
+    .step-body h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .step-body p { margin: 0 0 8px; color: var(--text-muted); font-size: 14.5px; max-width: 75ch; }
+    .step-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* ============================================================
+       CALLOUTS
+       ============================================================ */
+    .callout {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 14px;
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      border: 1px solid;
+      margin: 20px 0;
+      font-size: 14.5px;
+      line-height: 1.6;
+      max-width: 75ch;
+    }
+    .callout-icon { width: 20px; height: 20px; margin-top: 2px; stroke-width: 2; }
+    .callout-body { min-width: 0; }
+    .callout-title { font-weight: 600; margin: 0 0 4px; font-size: 14px; }
+    .callout-body p:last-child { margin-bottom: 0; }
+    .callout-body code { background: rgba(0,0,0,0.04); }
+    [data-theme="dark"] .callout-body code { background: rgba(255,255,255,0.06); }
+
+    .callout-info     { background: var(--info-soft);     border-color: var(--info-border);     color: var(--text); }
+    .callout-info     .callout-title, .callout-info     .callout-icon { color: var(--info); }
+    .callout-warn     { background: var(--warn-soft);     border-color: var(--warn-border);     color: var(--text); }
+    .callout-warn     .callout-title, .callout-warn     .callout-icon { color: var(--warn); }
+    .callout-danger   { background: var(--danger-soft);   border-color: var(--danger-border);   color: var(--text); }
+    .callout-danger   .callout-title, .callout-danger   .callout-icon { color: var(--danger); }
+    .callout-success  { background: var(--success-soft);  border-color: var(--success-border);  color: var(--text); }
+    .callout-success  .callout-title, .callout-success  .callout-icon { color: var(--success); }
+    .callout-decision { background: var(--decision-soft); border-color: var(--decision-border); color: var(--text); }
+    .callout-decision .callout-title, .callout-decision .callout-icon { color: var(--decision); }
+    .callout-tip      { background: var(--accent-soft);   border-color: var(--accent-border);   color: var(--text); }
+    .callout-tip      .callout-title, .callout-tip      .callout-icon { color: var(--accent-strong); }
+
+    /* ============================================================
+       KEY-POINT HIGHLIGHT
+       ============================================================ */
+    .highlight {
+      background: linear-gradient(135deg, var(--accent-soft), var(--surface-2));
+      border-left: 4px solid var(--accent);
+      padding: 18px 22px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 24px 0;
+      font-size: 16px;
+      line-height: 1.65;
+      max-width: 75ch;
+    }
+    .highlight-label {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-strong);
+      margin-bottom: 6px;
+    }
+
+    /* ============================================================
+       MERMAID
+       ============================================================ */
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin: 24px 0;
+      box-shadow: var(--shadow-sm);
+      overflow-x: auto;
+    }
+    .diagram-caption {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+      font-size: 13px;
+      color: var(--text-subtle);
+      text-align: center;
+    }
+    .mermaid { text-align: center; min-height: 80px; }
+    .mermaid svg { max-width: 100%; height: auto; }
+    .mermaid:not([data-processed]) {
+      opacity: 0.4;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-subtle);
+      white-space: pre-wrap;
+      text-align: left;
+    }
+
+    /* ============================================================
+       PROS / CONS
+       ============================================================ */
+    .proscons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .proscons-col {
+      padding: 16px 20px;
+      border-radius: var(--radius);
+      border: 1px solid;
+    }
+    .proscons-col h4 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .proscons-col ul { margin: 0; padding-left: 18px; }
+    .proscons-col li { margin: 6px 0; }
+    .pros { background: var(--success-soft); border-color: var(--success-border); }
+    .pros h4 { color: var(--success); }
+    .cons { background: var(--danger-soft); border-color: var(--danger-border); }
+    .cons h4 { color: var(--danger); }
+
+    /* ============================================================
+       COMPARISON CARDS
+       ============================================================ */
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin: 24px 0;
+    }
+    .compare-card {
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.18s, box-shadow 0.18s;
+      position: relative;
+    }
+    .compare-card.recommended { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .compare-card.recommended::before {
+      content: var(--rec-label, "★ Recommended");
+      position: absolute; top: -10px; right: 14px;
+      background: var(--accent); color: #fff;
+      padding: 2px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+    }
+    .compare-card h4 { margin: 0 0 8px; font-size: 15px; color: var(--text); text-transform: none; letter-spacing: normal; }
+    .compare-card p { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+    /* ============================================================
+       COLLAPSIBLE
+       ============================================================ */
+    details.collapsible {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 16px 0;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    details.collapsible[open] { box-shadow: var(--shadow-sm); }
+    details.collapsible > summary {
+      cursor: pointer;
+      padding: 14px 18px;
+      font-weight: 500;
+      color: var(--text);
+      list-style: none;
+      display: flex; align-items: center; gap: 10px;
+      user-select: none;
+      transition: background 0.15s;
+      min-height: 44px;
+    }
+    details.collapsible > summary::-webkit-details-marker { display: none; }
+    details.collapsible > summary::before {
+      content: "›";
+      display: inline-block;
+      transition: transform 0.18s;
+      color: var(--accent);
+      font-size: 18px;
+      font-weight: 700;
+    }
+    details.collapsible[open] > summary::before { transform: rotate(90deg); }
+    .collapsible-body { padding: 4px 18px 18px; border-top: 1px solid var(--border); }
+    .collapsible-body > *:first-child { margin-top: 12px; }
+
+    /* ============================================================
+       TABLES (wrapped via .table-wrap or naturally responsive)
+       ============================================================ */
+    .table-wrap {
+      overflow-x: auto;
+      margin: 20px 0;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      max-width: 100%;
+    }
+    .content table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--surface);
+      margin: 0;
+    }
+    /* Standalone tables (not inside .table-wrap) keep visual border */
+    .content > table {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 20px 0;
+      display: block;
+      overflow-x: auto;
+    }
+    .content th {
+      background: var(--surface-2);
+      color: var(--text);
+      font-weight: 600;
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .content td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+    .content tr:last-child td { border-bottom: none; }
+
+    /* ============================================================
+       BLOCKQUOTE
+       ============================================================ */
+    .content blockquote {
+      margin: 20px 0;
+      padding: 4px 20px;
+      border-left: 3px solid var(--accent-border);
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* ============================================================
+       FOOTER
+       ============================================================ */
+    .doc-footer {
+      margin-top: 80px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-subtle);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .doc-footer a { color: var(--accent); text-decoration: none; }
+
+    /* ============================================================
+       FOCUS-VISIBLE (a11y)
+       ============================================================ */
+    *:focus { outline: none; }
+    *:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+      border-radius: var(--radius-sm);
+    }
+    .toc-nav a:focus-visible { outline-offset: -2px; }
+    .icon-btn:focus-visible { outline-offset: 2px; }
+    .anchor:focus-visible { opacity: 1; outline-offset: 2px; }
+    details.collapsible > summary:focus-visible { outline-offset: -2px; }
+
+    /* ============================================================
+       HOVER (only on hover-capable devices to avoid sticky-tap on mobile)
+       ============================================================ */
+    @media (hover: hover) {
+      .icon-btn:hover { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
+      .toc-nav a:hover { color: var(--accent); background: var(--accent-soft); }
+      .content a:hover { color: var(--accent-hover); border-bottom-color: var(--accent); }
+      .compare-card:hover { border-color: var(--accent-border); box-shadow: var(--shadow); }
+      .compare-card.recommended:hover { border-color: var(--accent); }
+      .content tr:hover td { background: var(--surface-2); }
+      details.collapsible > summary:hover { background: var(--surface-2); }
+      .step:hover { background: var(--surface-2); }
+      .step:hover .step-num { transform: scale(1.05); }
+      .anchor:hover { color: var(--accent); }
+      .content h2:hover .anchor,
+      .content h3:hover .anchor { opacity: 1; }
+      .copy-btn:hover { color: var(--accent); border-color: var(--accent-border); }
+      .content pre:hover .copy-btn { opacity: 1; }
+    }
+    /* On touch devices, copy-btn is always visible at low opacity */
+    @media (hover: none) {
+      .copy-btn { opacity: 0.6; }
+      .anchor { opacity: 0.4; }
+    }
+
+    /* ============================================================
+       MOBILE (≤900px) — TOC becomes off-canvas drawer
+       ============================================================ */
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 20px 16px 80px;
+      }
+      .topbar-inner { padding: 8px 12px; }
+      .doc-header { margin-bottom: 28px; padding-bottom: 20px; }
+
+      .toc-mobile-trigger { display: inline-flex !important; }
+
+      .toc {
+        position: fixed;
+        top: 0; left: 0;
+        width: min(300px, 82vw);
+        height: 100dvh;
+        max-height: 100dvh;
+        background: var(--surface);
+        z-index: var(--z-drawer);
+        padding: 16px 8px 24px 16px;
+        box-shadow: var(--shadow-lg);
+        transform: translateX(-105%);
+        transition: transform 0.25s ease;
+      }
+      .toc-head { padding: 4px 4px 12px 8px; }
+      .toc-close {
+        display: inline-flex !important;
+        width: 36px; height: 36px;
+        align-items: center; justify-content: center;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0;
+      }
+      .toc-close .icon { width: 18px; height: 18px; stroke-width: 2; }
+      body.toc-open .toc { transform: translateX(0); }
+      body.toc-open .toc-backdrop {
+        display: block;
+        opacity: 1;
+      }
+      .toc-backdrop {
+        display: block;
+        opacity: 0;
+        pointer-events: none;
+      }
+      body.toc-open .toc-backdrop { pointer-events: auto; }
+      body.toc-open { overflow: hidden; }
+    }
+    @media (min-width: 901px) {
+      .toc-mobile-trigger { display: none !important; }
+    }
+
+    /* ============================================================
+       REDUCED MOTION (a11y)
+       ============================================================ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      html { scroll-behavior: auto; }
+      .brand-dot { animation: none; box-shadow: 0 0 0 4px var(--accent-soft); }
+    }
+
+    /* ============================================================
+       PRINT
+       ============================================================ */
+    @media print {
+      .topbar, .toc, .toc-backdrop, .icon-btn, .copy-btn, .anchor, .scroll-progress { display: none !important; }
+      .layout { grid-template-columns: 1fr; padding: 0; max-width: 100%; }
+      body { background: #fff; color: #000; }
+      a { color: #000; }
+      .content pre, .callout, .compare-card, .step, .diagram { break-inside: avoid; }
+      .doc-footer { break-before: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Skip link for keyboard users -->
+  <a href="#main" class="skip-link">Skip to content</a>
+
+  <!-- Scroll progress -->
+  <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
+
+  <!-- SVG icon sprite (Lucide-style) -->
+  <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+    <symbol id="i-danger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></symbol>
+    <symbol id="i-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+    <symbol id="i-decision" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-tip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14a5 5 0 1 0-6.18 0 4 4 0 0 1 1.59 2h2.99a4 4 0 0 1 1.6-2Z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+  </svg>
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <button class="icon-btn toc-mobile-trigger" id="toc-toggle" onclick="openToc()" aria-label="Contents" title="Contents">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg>
+        </button>
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span>System Design</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" onclick="window.print()" title="Print / Save PDF" aria-label="Print / Save PDF">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-printer"/></svg>
+        </button>
+        <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use id="theme-icon-use" href="#i-moon"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- TOC drawer backdrop (mobile) -->
+  <div class="toc-backdrop" onclick="closeToc()" aria-hidden="true"></div>
+
+  <div class="layout">
+    <aside class="toc" id="toc" aria-label="Contents">
+      <div class="toc-head">
+        <p class="toc-title">Contents</p>
+        <button class="toc-close" onclick="closeToc()" aria-label="Close">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+        </button>
+      </div>
+      <nav class="toc-nav" id="toc-nav">
+        <a href="#project" class="lvl-2">Project</a>
+<a href="#environment-and-secrets" class="lvl-2">Environment And Secrets</a>
+<a href="#system-critical-points" class="lvl-2">System Critical Points</a>
+<a href="#current-data-state" class="lvl-2">Current Data State</a>
+<a href="#real-source-mapping" class="lvl-2">Real Source Mapping</a>
+<a href="#rates-and-calculators" class="lvl-2">Rates And Calculators</a>
+<a href="#manual-quote-behavior" class="lvl-2">Manual Quote Behavior</a>
+<a href="#important-backend-files" class="lvl-2">Important Backend Files</a>
+<a href="#frontend-notes" class="lvl-2">Frontend Notes</a>
+<a href="#safe-operating-rules" class="lvl-2">Safe Operating Rules</a>
+<a href="#commands" class="lvl-2">Commands</a>
+<a href="#last-known-real-manual-quote-smoke-test" class="lvl-2">Last Known Real Manual Quote Smoke Test</a>
+      </nav>
+    </aside>
+
+    <main class="content" id="main">
+      <header class="doc-header">
+        <span class="doc-eyebrow">SYSTEM DESIGN</span>
+        <h1 class="doc-title">AGENTS.md</h1>
+        <p class="doc-subtitle">Working notes for Codex agents continuing this project after context compaction.</p>
+        <div class="doc-meta">
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-file"/></svg>
+            AGENTS.md
+          </span>
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-calendar"/></svg>
+            2026-06-22
+          </span>
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clock"/></svg>
+            ~18 min read
+          </span>
+        </div>
+      </header>
+
+      <!-- CONTENT_START -->
+
+<p>Working notes for Codex agents continuing this project after context compaction.</p>
+
+<h2 id="project">Project</h2>
+
+<ul>
+<li>Project root: <code>C:\Users\KenHu\.vscode\CourieDelivery</code></li>
+<li>Backend: Django / DRF in <code>backend</code>, served on <code>http://127.0.0.1:8010</code></li>
+<li>Frontend: React / Vite / Ant Design in <code>frontend</code>, served on <code>http://127.0.0.1:5173</code></li>
+<li>Browser is usually already open at <code>http://127.0.0.1:5173/</code></li>
+<li>This directory is not currently a git repository, so do not rely on <code>git status</code>.</li>
+</ul>
+
+<h2 id="environment-and-secrets">Environment And Secrets</h2>
+
+<ul>
+<li>Read runtime connection details from <code>backend\.env</code>; do not hardcode or repeat passwords in summaries.</li>
+<li>Main application DB is PostgreSQL database <code>CourieDelivery</code>.</li>
+<li>External raw PostgreSQL source DB is <code>data_raw</code>.</li>
+<li>External SQL Server source DB is <code>PostageCalculator</code>.</li>
+<li>Use existing management commands for sync/import work instead of ad hoc DB writes where possible.</li>
+<li>Main operational sync command: <code>manage.py sync_operational_data</code>.</li>
+<li>Before full ERP/order sync, run: <code>manage.py ensure_data_raw_sync_indexes --only-missing</code></li>
+<li>Full: <code>manage.py sync_operational_data --full --order-batch-size 5000 --lsp-batch-size 1000 --log-batch-size 3000</code></li>
+<li>Incremental: <code>manage.py sync_operational_data --incremental --order-batch-size 5000 --lsp-batch-size 1000 --log-batch-size 3000</code></li>
+<li>It runs ERP/LSP/WMS master sync, ERP order/manual-order sync, LSP API quote/log sync, removes non-ERP legacy <code>HistoricalOrder</code> rows by default, and opens all active platform/warehouse/carrier-service relationships.</li>
+<li>When opening quote channels, it must only enable channels whose carrier is active and whose service is either active or null; inactive services such as DFE PALLET must remain disabled.</li>
+<li>Design/operations doc: <code>docs\erp_lsp_operational_sync.md</code>.</li>
+<li>Current Codex app 10-hour incremental automation id: <code>freight-intelligence-erp-lsp-incremental-sync</code>; it now verifies <code>data_raw.erp</code> source indexes before running incremental sync.</li>
+<li><code>data_raw.erp</code> Airbyte tables may have no native indexes; <code>ensure_data_raw_sync_indexes</code> creates non-destructive <code>fi_src_*</code> indexes on source order/SKU/tracking/address/estimate tables.</li>
+<li>The same command also creates <code>fi_src_lsp_*</code> indexes for LSP booking/quote-task lookup. With <code>--only-missing</code>, all existing ERP/LSP source indexes should be skipped quickly and should not ANALYZE large tables.</li>
+<li>Do not import LSP rate tables into pricing as part of this operational sync; user previously chose CourieDelivery/PostageCalculator rate templates over LSP rates.</li>
+<li>Operational data policy: keep only ERP/WMS/LSP live synced data in operational tables; remove non-ERP legacy <code>HistoricalOrder</code> rows unless the user explicitly asks for a troubleshooting exception.</li>
+<li>LSP OpenAPI quote snapshots must be matched carefully:</li>
+<li>Primary quote link: <code>lsp_openapi_quote_task.quote_id -&gt; lsp_quote_task.id</code>.</li>
+<li><code>lsp_quote_task.order_code</code> is usually an LSP/internal request order code and often does <strong>not</strong> match ERP.</li>
+<li>Preferred booking bridge: <code>lsp_quote_task.shipment_code -&gt; lsp_booking_order.shipment_code</code>.</li>
+<li>Preferred ERP bridge after booking: <code>lsp_booking_order.reference_no</code> or booking <code>shipment_code</code> -&gt; <code>data_raw.erp.hpoms_owner_order.rd3_order_id/platform_reference_no/owner_order_no</code>; package suffix normalization such as trailing <code>_1</code> or <code>-P1</code> can be attempted, but do not use broad fuzzy matching.</li>
+<li><code>lsp_booking_order.tracking_number</code> rarely matches ERP shipment tracking for these LSP API quote rows; use it as supporting evidence, not the primary ERP bridge.</li>
+<li>Current observed source mix: W-NSY/WSY01 rows are mostly standalone/API/test-style quote traffic with no ERP reference; LDX/LDX01 rows contain booking reference data and are the main ERP-matchable subset.</li>
+<li>Keep unmatched snapshots as independent historical request/response evidence; do not delete or force-match them.</li>
+<li>PostgreSQL optimization from <code>docs\Freight_Intelligence_Intranet_PostgreSQL_Optimization_Guide.docx</code> has project-level implementation notes in <code>docs\postgresql_optimization_applied.md</code>.</li>
+<li>Current app-level PostgreSQL tuning lives in <code>backend\config\settings.py</code>: connection reuse, health checks, connect/statement/lock/idle transaction timeouts, and <code>application_name</code>.</li>
+<li>PostgreSQL search/audit indexes are in migration <code>backend\freight\migrations\0022_postgresql_search_and_audit_indexes.py</code>; it is PostgreSQL-only, enables <code>pg_trgm</code>, and creates indexes concurrently for SKU, order/tracking, invoice reconciliation, quote history/trace, Freight Audit Matrix, and LSP logs.</li>
+<li>Use <code>manage.py check_postgres_optimization --show-missing</code> to verify extension/index status and key table sizes. <code>pg_stat_statements</code>, PgBouncer, server memory parameters, PITR backups, and table partitioning are still server/DBA deployment tasks.</li>
+</ul>
+
+<h2 id="system-critical-points">System Critical Points</h2>
+
+<ul>
+<li>This is an internal AU freight estimation and audit system, not a customer-facing checkout. Prefer dense, operational Ant Design screens over marketing-style UI.</li>
+<li>Authentication/access control:</li>
+<li>Login UI is an AuthGate over the whole React app; unauthenticated users should not see business pages.</li>
+<li>Account modes are <code>LOCAL</code>, <code>ENTRA</code>, and <code>HYBRID</code> on <code>UserProfile</code>.</li>
+<li>Local login endpoint: <code>/api/auth/login</code>, returns a CourieDelivery signed access token.</li>
+<li>Microsoft Entra login uses MSAL in the frontend. Silent SSO should be attempted first when MSAL env vars are configured.</li>
+<li>Production Entra setup must use a custom API scope/audience; backend validates Entra access-token audience via <code>MSAL_AUDIENCE</code>.</li>
+<li>Do not enable <code>AUTH_ALLOW_DEV_USER</code> or <code>VITE_ALLOW_DEV_AUTH</code> in production.</li>
+<li>Permission system docs: <code>docs\security_access_control.md</code>.</li>
+<li>Local Microsoft Entra setup docs: <code>docs\microsoft_entra_local_sso_setup.md</code>.</li>
+<li>DRF authorization is enforced by <code>freight.permissions.HasFreightPermission</code>; roles are templates plus per-user <code>permission_overrides</code>.</li>
+<li>Entra login requires a custom API scope. Frontend only enables MSAL when <code>VITE_MSAL_CLIENT_ID</code>, <code>VITE_MSAL_TENANT_ID</code>, and <code>VITE_MSAL_SCOPE</code> are all configured. Backend validates Entra access tokens only when <code>MSAL_TENANT_ID</code> and <code>MSAL_AUDIENCE</code> are configured.</li>
+<li><code>MSAL_ALLOW_UNVERIFIED_DEV_TOKENS</code> defaults to <code>False</code>; do not enable it outside an explicit local diagnostic test.</li>
+<li>System data flow:</li>
+<li>WMS/ERP/InvoiceReader/PostageCalculator external systems are synced or imported into CourieDelivery snapshot/template tables.</li>
+<li>Quote calculation always runs from CourieDelivery data, not directly from remote source tables in request-time UI flows.</li>
+<li>Remote source reads should be inside management commands or explicit sync actions.</li>
+<li>ERP estimate scope is order-level unless proven otherwise from source DDL/data:</li>
+<li><code>ErpShipmentSnapshot.estimated_freight</code> currently comes from <code>hpoms_owner_order.postage_shipping_estimated_amount</code> then <code>shipping_estimated_amount</code>.</li>
+<li>Never compare one tracking/consignment system estimate directly to ERP Est.</li>
+<li>For multi-tracking orders, quote each tracking when needed, aggregate back to owner-order level, then compare with ERP Est.</li>
+<li>Invoice actual scope is invoice/tracking charge data:</li>
+<li>Match InvoiceReader charges to ERP shipments by tracking first.</li>
+<li>If several tracking rows belong to one owner order, sum actual freight before comparing to order-level ERP/system estimates.</li>
+<li>Quote engine behavior:</li>
+<li><code>quote_manual</code> uses platform/warehouse/carrier eligibility.</li>
+<li><code>quote_selected_channels</code> intentionally bypasses eligibility for audit matrix comparisons and runs specified enabled <code>QuoteChannel</code>s.</li>
+<li>SKU snapshots and combo expansion happen before quote calculation; keep these snapshots for traceability.</li>
+<li>Freight Audit Matrix is the preferred historical recalculation/audit surface:</li>
+<li><code>CONSIGNMENT</code> mode is one row per owner order; it quotes tracking groups and aggregates per carrier/channel to the order row.</li>
+<li><code>ORDER</code> mode quotes all order SKU lines together.</li>
+<li><code>ITEM</code> mode is for single SKU-line checks and should not compare to order-level ERP Est.</li>
+<li>Detail UI must group carrier breakdowns by <code>tracking</code>, sorted by tracking. Do not flatten multi-tracking lines into one undifferentiated table.</li>
+<li>Full audit runs are heavy:</li>
+<li>One 5000-order run can create many <code>QuoteRun</code>, <code>QuoteCandidate</code>, <code>QuoteChargeLine</code>, <code>FreightAuditRow</code>, and <code>FreightAuditResult</code> rows.</li>
+<li>Use <code>--limit</code>, <code>--order-batch-size</code>, dry runs, and idempotent reruns. Do not start huge foreground jobs without telling the user.</li>
+<li>Network to <code>192.168.72.18</code> can drop; commands should abort/retry rather than marking many business rows as calculation errors.</li>
+<li>Current real calculation channels are PostageCalculator/approved local table channels. EIZ appears in UI columns only once a real EIZ <code>QuoteChannel</code>/calculator/API config exists.</li>
+<li>Demo/mock data must stay out of the live local DB. <code>seed_demo_data.py</code> is for isolated tests only.</li>
+<li>After backend code or API route changes, restart the backend server on <code>127.0.0.1:8010</code>; Vite usually hot reloads frontend changes on <code>127.0.0.1:5173</code>.</li>
+</ul>
+
+<h2 id="current-data-state">Current Data State</h2>
+
+<ul>
+<li>Local demo seed data has been removed from the live app DB:</li>
+<li>Demo carriers <code>HUNTER</code>, <code>ALLIED</code>, <code>SUNYEE</code></li>
+<li>Demo platform <code>SHOPIFY_AU</code></li>
+<li>Demo warehouse <code>MEL_WH</code></li>
+<li>Demo SKU/order rows starting with <code>DEMO-</code></li>
+<li>Old demo quote channels and mock channel</li>
+<li><code>seed_demo_data.py</code> still exists for isolated tests/local fixtures. Do not run it against the live local DB unless the user explicitly asks for demo data.</li>
+<li>There should be no active mock quote channel in the live app. If mock/demo data reappears, use <code>manage.py purge_demo_data --dry-run</code> first, then only purge if appropriate.</li>
+</ul>
+
+<h2 id="real-source-mapping">Real Source Mapping</h2>
+
+<ul>
+<li>SKU master:</li>
+<li>Source: <code>data_raw.wms.bas_sku</code></li>
+<li>Category field: <code>sku_Group2</code></li>
+<li>Sync command: <code>manage.py sync_sku_from_wms</code></li>
+<li>Scheduled sync target: daily 03:00 Australia/Sydney</li>
+<li>Combo SKU:</li>
+<li>Source: <code>data_raw.erp.hpoms_product_combo</code> and <code>hpoms_product_combo_skus</code></li>
+<li>Combo type labels come from ERP dictionary tables; do not guess numeric labels.</li>
+<li>Parent combo SKUs expand into component SKU snapshots before quote calculation.</li>
+<li>Warehouses:</li>
+<li>Source: <code>data_raw.wms.bsm_warehouse</code></li>
+<li>Sync command: <code>manage.py sync_warehouses_from_wms</code></li>
+<li>Platforms:</li>
+<li>Source: <code>data_raw.erp.hpoms_platform_info</code></li>
+<li><code>platform_type</code> and <code>platform_group</code> must be resolved from ERP dictionary/DDL evidence, not guessed.</li>
+<li>Sync command: <code>manage.py sync_platforms_from_erp</code></li>
+<li>Agents:</li>
+<li>Agent is Master Data, not a hardcoded quote-display mapping. Use it to separate API/quote ownership such as Broers, EIZ, SHIPPIT, UBI, OrangeConnex, and other LSP/API agents.</li>
+<li>Source: <code>data_raw.lsp.lsp_carrier_agent</code>, with channel/carrier counts from <code>data_raw.lsp.lsp_carrier_channel</code> and <code>data_raw.lsp.lsp_carrier</code>.</li>
+<li>If LSP source only contains partial agents, <code>sync_agents_from_lsp</code> also seeds/infer missing API agents from the local LSP quote history and the known business agent list. Those seeded records are editable in Master Data and should not be treated as immutable source truth.</li>
+<li>Local model/API: <code>Agent</code>, <code>/api/agents/</code>.</li>
+<li>Sync command: <code>manage.py sync_agents_from_lsp</code>.</li>
+<li><code>QuoteChannel.agent</code> and <code>ApiCredential.agent</code> should be populated when an API or historical quote belongs to a specific agent. The same carrier can produce different prices under different agents.</li>
+<li>LSP historical quote display should prefer <code>Agent</code> master data for names, then fall back to inferred codes only when the agent has not been synced yet.</li>
+<li>Orders:</li>
+<li>Source: <code>data_raw.erp.hpoms_owner_order</code> and manual-order ERP tables.</li>
+<li>Shipment tracking source: <code>data_raw.erp.hpoms_owner_order_shipment_detail</code>.</li>
+<li>Local shipment model: <code>HistoricalOrderShipment</code>.</li>
+<li>Reconciliation snapshot model: <code>ErpShipmentSnapshot</code>; it stores tracking no, ERP order no, owner order no, third-party/rd3 order no, platform order no, platform, carrier/channel/service, warehouse, and shipping estimate.</li>
+<li><code>sync_orders_from_erp</code> now imports all available owner-order shipment tracking rows, not only the latest tracking on <code>HistoricalOrder.consignment_no</code>.</li>
+<li>Use <code>manage.py sync_orders_from_erp --shipments-only</code> to backfill shipment tracking rows for already imported owner orders without reimporting all order/SKU data.</li>
+<li>Invoice reconciliation should match InvoiceReader actual charges to ERP shipment snapshots by tracking number, then use carrier/channel/service text only to disambiguate duplicate tracking candidates. The matched ERP shipment supplies ERP order no, third-party/rd3 order no, platform order no, platform, carrier, warehouse, and saved shipping estimate.</li>
+<li>Carriers:</li>
+<li>Source: <code>data_raw.lsp</code></li>
+<li>Import command: <code>manage.py import_carriers_from_lsp</code></li>
+<li>This is manual/one-time by default, not a scheduled sync.</li>
+<li>InvoiceReader:</li>
+<li>Source DB: SQL Server <code>invoiceReader</code> on <code>.8</code>.</li>
+<li>Source documents analyzed:</li>
+<li><code>C:\Users\KenHu\Downloads\Invoice_Automation_Documentation.md</code></li>
+<li><code>C:\Users\KenHu\Downloads\invoicereader_database_design.xlsx</code></li>
+<li>Project design doc: <code>docs\invoice_reader_integration_design.md</code></li>
+<li>Header source of truth: <code>dbo.invoice_header_local_freight</code>.</li>
+<li>Import only operational <code>dbo.invoice_detail_*</code> production charge tables. Do not import <code>stg_*</code>, <code>fact_*</code>, <code>column_mapping</code>, or dimension/reference tables as reconciliation charge rows.</li>
+<li>Important user correction: do not use <code>fact_invoice_order_normalized</code> for CourieDelivery invoice sync unless the user explicitly asks to change this.</li>
+<li>Sync command: <code>manage.py sync_invoices_from_sqlserver</code>.</li>
+<li>Default command mode is documented mapping, not heuristic scanning. Legacy heuristic import is only available with <code>--auto-discover</code> for diagnostics.</li>
+<li>Imported actual freight is normalized to inc GST because quote candidates use <code>total_inc_gst</code>.</li>
+<li>Reconciliation snapshot model: <code>InvoiceChargeSnapshot</code>; it stores InvoiceReader source, invoice no/date, tracking no, actual charge, carrier/service/account, and raw mapping metadata.</li>
+<li>Invoice rows are grouped before import by invoice source, freight account, invoice number, order reference, and consignment/tracking number, so one carrier invoice with multiple fee/surcharge rows does not compare the same estimate repeatedly.</li>
+<li>Matching order for the preferred path: <code>InvoiceChargeSnapshot.tracking_no</code> to <code>ErpShipmentSnapshot.tracking_no</code>, then carrier/channel/service scoring if multiple ERP rows share the same tracking. Do not rely on <code>fact_invoice_order_normalized</code>.</li>
+<li>Once matched by shipment tracking, <code>InvoiceReconciliationItem.order_no</code> should be filled from <code>ErpShipmentSnapshot.erp_order_no</code> so the UI can show the ERP order number and saved estimate.</li>
+<li><code>InvoiceReconciliationItem.estimated_freight</code> is ERP Est. from ERP owner order fields. <code>system_estimated_freight</code> is CourieDelivery System Est. calculated by the current quote engine/rate cards.</li>
+<li>System estimate backfill command: <code>manage.py backfill_reconciliation_system_estimates --batch-id 221 --source-config HUNTER --limit 100</code>. Use <code>--order-desc</code> to fill the newest Review rows first. This command reads ERP address/SKU lines for matched invoice tracking rows, runs the current quote engine, and stores <code>system_estimated_freight</code>, <code>system_variance_amount</code>, and <code>system_variance_percent</code>.</li>
+<li>Freight Audit Matrix is the preferred module for cross-carrier historical recalculation. Models: <code>FreightAuditRow</code> and <code>FreightAuditResult</code>. API: <code>/api/freight-audit-rows/</code>. Frontend page: <code>frontend\src\pages\FreightAuditMatrix.tsx</code>.</li>
+<li>Freight Audit Matrix command: <code>manage.py build_freight_audit_matrix --batch-id 221 --source-config HUNTER --mode CONSIGNMENT --limit 5000 --order-batch-size 5000</code>. <code>--limit</code> is distinct ERP owner-order count, not invoice row count. Remove <code>--limit</code> to process every matching owner order, but this can be very slow because every order runs all enabled quote channels and stores traceable quote runs/results.</li>
+<li>ERP estimate scope is currently <code>ORDER</code>: <code>ErpShipmentSnapshot.estimated_freight</code> comes from <code>hpoms_owner_order.postage_shipping_estimated_amount</code> / <code>shipping_estimated_amount</code>. Do not compare a single tracking quote directly to ERP Est. In <code>CONSIGNMENT</code> mode the command quotes each tracking/consignment separately, then aggregates totals per carrier/channel back to one owner-order row before calculating variance to ERP Est.</li>
+<li>ERP freight estimate values imported from ERP are ex GST. UI must display ERP Est as inc GST (<code>ERP Est * 1.10</code>). Internal calculator totals are already <code>total_inc_gst</code>; only show that inc-GST total on outer lists/cards. Ex-GST Base/Surcharge/Fuel/GST belongs in breakdown/detail tables.</li>
+<li>Matrix modes: <code>CONSIGNMENT</code> creates one row per owner order and aggregates all tracking-level quote totals; <code>ORDER</code> calculates all order SKU lines together; <code>ITEM</code> creates one audit row per source SKU line for single-item freight checks and does not compare to ERP order-level estimate.</li>
+<li>Freight Audit Matrix detail UI groups aggregated carrier breakdowns by <code>tracking</code> inside each carrier card, sorted by tracking. Do not collapse multi-tracking charge lines back into one flat table.</li>
+<li>Freight Audit Matrix intentionally calls <code>QuoteEngine.quote_selected_channels</code>, bypassing platform/warehouse carrier eligibility so that all enabled real calculators (currently PostageCalculator/approved local Hunter/Allied table channels) can be compared side by side for the same historical order. API channels will appear once their <code>QuoteChannel</code> and calculator/API integration are configured.</li>
+<li>New preferred command: <code>manage.py sync_reconciliation_snapshots</code>. It builds <code>InvoiceChargeSnapshot</code>, syncs matching <code>ErpShipmentSnapshot</code> rows by invoice tracking, then creates <code>InvoiceReconciliationBatch</code> / <code>InvoiceReconciliationItem</code> from tracking-based snapshot matching.</li>
+<li>Default <code>sync_reconciliation_snapshots</code> flow imports InvoiceReader charges first, then creates a temporary tracking table in the ERP/data_raw connection and syncs only ERP shipment rows that appear in the invoice snapshot. This avoids scanning/syncing all ~4.8M ERP shipment rows for every reconciliation run.</li>
+<li>ERP snapshot estimate source is intentionally limited to <code>hpoms_owner_order.postage_shipping_estimated_amount</code> then <code>hpoms_owner_order.shipping_estimated_amount</code>; do not add a lateral fallback to <code>hpoms_order_shipping_estimated_detail</code> without checking indexes because it is too slow on large imports.</li>
+<li>Useful modes: <code>--erp-only</code>, <code>--erp-from-invoices-only</code>, <code>--invoice-only</code>, <code>--reconcile-only</code>, <code>--clear-snapshots</code>, <code>--clear-reconciliation</code>, <code>--source-config HUNTER</code>, <code>--limit 100</code>, <code>--dry-run</code>.</li>
+<li>Source mappings are declared in <code>backend\freight\management\commands\sync_invoices_from_sqlserver.py</code> via <code>INVOICE_SOURCE_CONFIGS</code>.</li>
+<li>Mapped sources include Allied, EIZ, eSolution Direct Freight, Hunter, Shippit, Sunyee, Orange Connex, UBI Toll, UBI Toll P3, UBI eParcel, UBI Fastway, and UBI Misc Adjustments.</li>
+<li>UBI Misc Adjustments is marked <code>REVIEW</code>; the workbook documents some tables in overview but not in the verified reconciliation map.</li>
+</ul>
+
+<h2 id="rates-and-calculators">Rates And Calculators</h2>
+
+<ul>
+<li>Current calculation logic reference: <code>docs\Freight_Carrier_Calculation_Logic_20260618.md</code>. It explains all enabled carrier calculators, origin filtering, single-item vs multi-item calculation, order/tracking audit scope, GST display scope, and review points.</li>
+<li>LSP rate snapshot:</li>
+<li>Current table model: <code>LspRateTableCurrent</code></li>
+<li>Archive table model: <code>LspRateTableArchive</code></li>
+<li>Sync command: <code>manage.py sync_lsp_rate_tables</code></li>
+<li>Template import command: <code>manage.py import_lsp_rates_to_template</code></li>
+<li>PostageCalculator SP rates:</li>
+<li>Import command: <code>manage.py import_postagecalculator_rates</code></li>
+<li>The import command skips approved local override rate cards by default, including Broers-sourced Hunter SYD. Use <code>--overwrite-approved-overrides</code> only when the user explicitly wants to replace an approved local source with PostageCalculator again.</li>
+<li>Pricing repair command: <code>manage.py repair_pricing_configuration --dry-run</code>; without <code>--dry-run</code> it normalizes known carrier display names such as DFE <code>454 -&gt; Direct Freight Express</code>, disables quote channels linked to inactive services, and removes exact duplicate Allied GRO surcharge rows.</li>
+<li>Cleanup command: <code>manage.py purge_demo_data</code></li>
+<li>Current real SP quote channels:</li>
+<li><code>pc_hunter_mel_2023</code></li>
+<li><code>pc_hunter_syd_2025</code> (channel retained for compatibility; underlying <code>SP-HUNTER-SYD-2025</code> rate card was overwritten on 2026-06-12 with Broers Hunter SYD 20240920 because the user confirmed HUNTER SYD is the source of truth)</li>
+<li><code>pc_allied_gro_2023_mel</code></li>
+<li><code>pc_allied_gro_2023_syd</code></li>
+<li><code>pc_allied_b2c_2025_mel</code></li>
+<li>Current default live config created for immediate Manual Quote testing:</li>
+<li>Platform <code>PI2022080502320043121506</code> / Shopify</li>
+<li>Warehouse <code>BG01</code></li>
+<li>Melbourne SP services for Hunter and Allied</li>
+<li>Direct Freight Express Feb 2025 proposal rates:</li>
+<li>Design/calculation doc: <code>docs\freight_calculators\direct_freight_express_2025.md</code></li>
+<li>Import command: <code>manage.py import_dfe_rates</code></li>
+<li>Source rate file: <code>C:\Users\KenHu\Downloads\Direct Feight Express Rates Proposal EX SYD Ex MEL Feb 2025.xlsx</code></li>
+<li>Source zone file: <code>C:\Users\KenHu\Downloads\Zone List - postcodes 1.csv</code>; the extension is <code>.csv</code> but the content is XLSX, so read it as an Excel workbook.</li>
+<li>DFE reuses carrier code <code>454</code> and normalizes the carrier display name to <code>Direct Freight Express</code>; the carrier is <code>HYBRID</code> because it may also have API/invoice mappings.</li>
+<li>Imported rate cards:</li>
+<li><code>DFE-EX-MEL-FEB-2025</code>, channel <code>dfe_ex_mel_2025</code>, service <code>DFE_KILO_EX_MEL_2025</code></li>
+<li><code>DFE-EX-SYD-FEB-2025</code>, channel <code>dfe_ex_syd_2025</code>, service <code>DFE_KILO_EX_SYD_2025</code></li>
+<li>PALLET rows are imported as disabled services/channels (<code>DFE_PALLET_EX_*_2025</code>) for future use. Do not auto-calculate pallet rates until order input captures pallet count/package type.</li>
+<li>The DFE zone list imports postcode/suburb/state to <code>RateZone.dest_zone = CarrierZone</code>; imported unique zone rows are 16,257 per rate card, and all 60 proposal zones are covered.</li>
+<li>DFE calculator file: <code>backend\freight\calculators\direct_freight_express_2025.py</code></li>
+<li>DFE postcode handling pads pure numeric postcodes to 4 digits, e.g. source <code>800</code> becomes <code>0800</code>, to support NT/leading-zero postcodes.</li>
+<li>DFE profile is strict not-available by default per proposal conditions:</li>
+<li>unit item weight &gt; 30 kg</li>
+<li>longest side &gt; 120 cm</li>
+<li>two sides &gt; 70 cm in the same parcel</li>
+<li>DFE chargeable kg is <code>ceil(max(actual_kg, cubic_kg))</code> with cubic factor 250. Base is <code>basic_charge + per_kg * chargeable_kg</code>, floored by <code>minimum_charge</code>.</li>
+<li>DFE fuel is configured in <code>SurchargeRule</code> code <code>FS</code>, currently <code>0.196</code>; do not hard-code fuel in formulas. Destination surcharge uses code <code>DFE_DEST</code>.</li>
+<li>Default live configuration after import links platform <code>PI2022080502320043121506</code> and warehouse <code>BG01</code> to <code>DFE_KILO_EX_MEL_2025</code>; SYD remains available as a quote channel/audit channel but is not forced onto BG01.</li>
+<li>Orange Connex eFN 2026 rates:</li>
+<li>Design/calculation doc: <code>docs\freight_calculators\orange_connex_efn_2026.md</code></li>
+<li>Import command: <code>manage.py import_orange_connex_rates</code></li>
+<li>Source file: <code>C:\Users\KenHu\Downloads\2026 AU eFN rate.xlsx</code></li>
+<li>Source sheets: <code>PFL MEL</code>, <code>PFL SYD</code>, and <code>PFL Zone</code>.</li>
+<li>Carrier display name is normalized to <code>Orange Connex</code>. Reuse an existing Orange carrier if present, including the previously auto-created invoice-derived <code>orange adjust bill</code> carrier.</li>
+<li>Imported rate cards/channels:</li>
+<li><code>ORANGE-EFN-MEL-2026</code>, channel <code>orange_efn_mel_2026</code>, service <code>ORANGE_EFN_MEL_2026</code></li>
+<li><code>ORANGE-EFN-SYD-2026</code>, channel <code>orange_efn_syd_2026</code>, service <code>ORANGE_EFN_SYD_2026</code></li>
+<li>Orange Connex eFN uses fixed article weight bands, not per-kg linehaul:</li>
+<li>calculate each article/SKU unit by <code>ceil(unit_weight_kg * 1000)</code> grams</li>
+<li>choose the matching fixed price band for the destination zone</li>
+<li>multiply by line qty and sum lines</li>
+<li>GST is then added because workbook fees are ex GST</li>
+<li>Workbook limits are strict not-available checks:</li>
+<li>article weight &gt; 25 kg</li>
+<li>longest side &gt; 105 cm</li>
+<li>volume &gt; 0.088 m3</li>
+<li>Zone lookup uses exact postcode/suburb/state, then postcode/state when all candidates share one zone. If no zone mapping exists, use the workbook <code>Rest of AU</code> rate row.</li>
+<li>Other charges such as Missing Manifest and Return to Sender are imported only as inactive/reference surcharge rows because they need operational event data.</li>
+<li>Freight Audit Matrix carrier key should be <code>orange_connex</code>; frontend preferred order includes it.</li>
+<li>UBI invoice-attached rate packages:</li>
+<li>Analysis/design doc: <code>docs\UBI_Agent_Rate_Table_Analysis_Development_Plan_20260617.md</code></li>
+<li>Manual import implementation plan: <code>docs\UBI_Rate_Import_System_Development_Plan_20260617.md</code></li>
+<li>System readiness check: <code>docs\UBI_Rate_Table_System_Readiness_Check_20260618.md</code></li>
+<li>Source package analyzed: <code>C:\Users\KenHu\Downloads\ubi_invoices_all 1.zip</code></li>
+<li>UBI is an <code>Agent</code>, not a carrier. Use <code>QuoteChannel.agent</code> and, when added, <code>RateCard.agent</code> to separate UBI-maintained prices from the same carrier under other agents.</li>
+<li>Do not build automatic email/folder monitoring for UBI rate packages. This project should follow the existing manual rate maintenance pattern: an admin uploads/runs an import command when a new UBI package needs to be assessed.</li>
+<li>Do not create a new <code>QuoteChannel</code> every time UBI sends an invoice workbook. Stable concepts are agent + carrier + service + origin/strategy; during manual import, changed workbook contents can create new <code>RateCard</code> versions by effective date.</li>
+<li>Content hashing rule: normalize candidate rate/mapping sheets and compare <code>normalized_hash</code>. Same hash means no pricing update; record a source snapshot only. Different hash plus trusted effective date creates a new rate card version. Different hash without date goes to manual review.</li>
+<li>Base-rate candidates found:</li>
+<li>eParcel standard: <code>MEL eparcel 2024.3.18</code> and <code>MEL eparcel 2025.11.01</code>.</li>
+<li>eParcel express: <code>MEL express 2024.3.18</code> and <code>MEL express 2025.11.01</code>.</li>
+<li>Fastway: old <code>Rate</code> plus <code>New Rate</code>; <code>New Rate</code> first appears with 2025-08-01 billing rows and supports SYD/PER/MEL origins.</li>
+<li>Toll IPEC Road: <code>IPEC Rate 07.07.25</code> and <code>IPEC Rate 20.04.26</code>.</li>
+<li>Toll Priority3/B2C: Effective 2025-07-07 and 2026-04-20 plus one no-date hash that must remain review-only.</li>
+<li>UBI <code>oversize</code> is not a base linehaul rate card, but oversize length should be calculated from parcel/SKU dimensions as a surcharge. UBI <code>additional_fee</code> penalty-below-3kg / More-to-Pay is deferred and must not be added to quote calculation for now; keep it as invoice reconciliation evidence only. <code>redelivery</code>, <code>rts</code>, and most <code>underticketing</code> remain invoice reconciliation inputs unless a stable pre-shipment trigger is proven.</li>
+<li>Current readiness: Fastway/Aramex is the best P1 import target because it has coverage mapping plus rate matrix. eParcel is usable for MEL-origin/lodgement only unless a SYD-origin sheet is provided. Toll Priority3 has postcode zone finder and MEL/SYD rates. Toll IPEC has complete price rows and, after a 2026-06-18 web check, a public Maropost/Neto <code>TollIPEC-ShippingZones.csv</code> candidate mapping was found and saved under <code>outputs\ipec_zone_lookup\</code>. Its normalized zone prefixes cover all 42 UBI IPEC dest zones and match about 99.45% of checked UBI Toll billing rows. Treat this as a DRAFT/public-reference mapping, not account-official TeamGE master data, and keep UBI billing mismatch overrides. Do not borrow Toll Priority3 <code>Priority Zone Finder</code> for IPEC: IPEC and Priority zone code sets only partially overlap and use different regional split names.</li>
+<li>UBI TGE IPEC implementation now exists:</li>
+<li>Import command: <code>manage.py import_ubi_ipec_rates --open-all-access</code></li>
+<li>Calculator: <code>backend\freight\calculators\ubi_tge_ipec.py</code></li>
+<li>Tests: <code>backend\freight\tests\test_ubi_tge_ipec.py</code></li>
+<li>Import result on 2026-06-18: 4 rate cards (<code>UBI-IPEC-20250707/20260420</code> x <code>MEL1/SYD1</code>), 168 rate rules, 16,460 zone rows per card, 99 UBI billing override rows, zero missing IPEC dest-zone mappings, linked to all active platforms and warehouses.</li>
+<li>Fuel is a configurable <code>SurchargeRule</code> code <code>FS</code>; imported default is <code>0.099</code>. Do not hard-code fuel in the calculator.</li>
+<li>Analysis artifacts: <code>outputs\ubi_rate_analysis\ubi_rate_analysis_summary.json</code>, <code>outputs\ubi_rate_analysis\ubi_rate_sheet_inventory.json</code>, and <code>outputs\ubi_rate_analysis\ubi_rate_sheet_versions.csv</code>.</li>
+<li>Key calculator files:</li>
+<li><code>backend\freight\calculators\hunter_base.py</code></li>
+<li><code>backend\freight\calculators\allied_gro_2023_melbourne.py</code></li>
+<li><code>backend\freight\calculators\allied_b2c_2025_melbourne.py</code></li>
+<li><code>backend\freight\calculators\direct_freight_express_2025.py</code></li>
+<li><code>backend\freight\calculators\orange_connex_efn_2026.py</code></li>
+<li><code>backend\freight\calculators\table_rate.py</code></li>
+<li>Quote channel loading is lazy via <code>calculator_key</code> in <code>backend\freight\calculators\registry.py</code>.</li>
+<li><code>MockApiCalculator</code> is test-only now. Do not add active mock channels unless the user explicitly asks.</li>
+</ul>
+
+<h2 id="manual-quote-behavior">Manual Quote Behavior</h2>
+
+<ul>
+<li>Frontend page: <code>frontend\src\pages\ManualQuote.tsx</code></li>
+<li>Manual Quote has two modes:</li>
+<li>Manual dimensions: user types qty, kg, L/W/H; SKU is optional.</li>
+<li>SKU / Combo SKU: user opens SKU picker modal, searches and bulk selects SKU/combo SKU; user only edits qty.</li>
+<li>Manual Quote snapshots SKU dimensions into <code>QuoteRun.input_snapshot_json</code>.</li>
+<li>Combo parent lines are preserved under submitted items, and calculation items are expanded component lines.</li>
+<li>Quote results must show total plus breakdown and trace. Do not remove View Breakdown or trace behavior.</li>
+</ul>
+
+<h2 id="important-backend-files">Important Backend Files</h2>
+
+<ul>
+<li>Quote engine: <code>backend\freight\quote_engine.py</code></li>
+<li>Models: <code>backend\freight\models.py</code></li>
+<li>API views/routes: <code>backend\freight\views.py</code>, <code>backend\freight\urls.py</code></li>
+<li>Serializers: <code>backend\freight\serializers.py</code></li>
+<li>Management commands: <code>backend\freight\management\commands</code></li>
+</ul>
+
+<h2 id="frontend-notes">Frontend Notes</h2>
+
+<ul>
+<li>Ant Design style is required: keep UI concise, clean, and operational.</li>
+<li>Avoid landing-page patterns; this is an internal freight operations tool.</li>
+<li>Keep Manual Quote layout as stacked/top-to-bottom form and results, not side-by-side.</li>
+<li>Use real synced platform/warehouse defaults; never restore <code>SHOPIFY_AU</code>, <code>MEL_WH</code>, or <code>DEMO-CHAIR</code> as defaults.</li>
+</ul>
+
+<h2 id="safe-operating-rules">Safe Operating Rules</h2>
+
+<ul>
+<li>Use <code>rg</code> / <code>rg --files</code> for search.</li>
+<li>Use <code>apply_patch</code> for manual file edits.</li>
+<li>Prefer dry runs before destructive data commands.</li>
+<li>Do not delete real synced WMS/ERP/LSP/PostageCalculator data unless the user explicitly asks.</li>
+<li>Do not overwrite user-created platform/carrier/warehouse configuration without checking the existing rows first.</li>
+<li>Chinese source data must remain displayable; preserve UTF-8 and do not strip non-ASCII source values.</li>
+<li>If changing quote logic, verify breakdown and trace fields still explain:</li>
+<li>warehouse, platform, carrier, service/channel</li>
+<li>rate card and calculator file</li>
+<li>zone/rule match</li>
+<li>actual, cubic, and chargeable weight</li>
+<li>surcharge triggers</li>
+<li>not-available reasons</li>
+</ul>
+
+<h2 id="commands">Commands</h2>
+
+<p>Backend run:</p>
+
+<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\backend
+&amp; ..\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8010</code></pre>
+
+<p>Frontend run:</p>
+
+<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\frontend
+npm run dev -- --host 127.0.0.1 --port 5173</code></pre>
+
+<p>Backend checks:</p>
+
+<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery
+.\.venv\Scripts\python.exe backend\manage.py check
+.\.venv\Scripts\python.exe -m pytest backend\freight\tests -q</code></pre>
+
+<p>Frontend checks:</p>
+
+<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\frontend
+npm test -- --run
+npm run build</code></pre>
+
+<p>Useful import/sync commands:</p>
+
+<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\backend
+&amp; ..\.venv\Scripts\python.exe manage.py sync_sku_from_wms --dry-run --limit 10
+&amp; ..\.venv\Scripts\python.exe manage.py sync_warehouses_from_wms --dry-run
+&amp; ..\.venv\Scripts\python.exe manage.py sync_platforms_from_erp --dry-run
+&amp; ..\.venv\Scripts\python.exe manage.py sync_agents_from_lsp --dry-run
+&amp; ..\.venv\Scripts\python.exe manage.py sync_orders_from_erp --shipments-only --dry-run --limit 100
+&amp; ..\.venv\Scripts\python.exe manage.py sync_reconciliation_snapshots --dry-run --limit 100
+&amp; ..\.venv\Scripts\python.exe manage.py sync_reconciliation_snapshots --invoice-only --dry-run --source-config HUNTER --limit 10
+&amp; ..\.venv\Scripts\python.exe manage.py sync_reconciliation_snapshots --erp-from-invoices-only --source-config HUNTER
+&amp; ..\.venv\Scripts\python.exe manage.py build_freight_audit_matrix --batch-id 221 --source-config HUNTER --mode CONSIGNMENT --limit 5000 --order-batch-size 5000
+&amp; ..\.venv\Scripts\python.exe manage.py import_carriers_from_lsp --dry-run
+&amp; ..\.venv\Scripts\python.exe manage.py sync_lsp_rate_tables --dry-run
+&amp; ..\.venv\Scripts\python.exe manage.py import_lsp_rates_to_template --dry-run
+&amp; ..\.venv\Scripts\python.exe manage.py import_postagecalculator_rates --dry-run
+&amp; ..\.venv\Scripts\python.exe manage.py purge_demo_data --dry-run</code></pre>
+
+<h2 id="last-known-real-manual-quote-smoke-test">Last Known Real Manual Quote Smoke Test</h2>
+
+<p>Using platform <code>PI2022080502320043121506</code>, warehouse <code>BG01</code>, destination <code>VIC / SOUTH MELBOURNE / 3205</code>, one line with qty <code>1</code>, <code>12 kg</code>, <code>80 x 60 x 45 cm</code>:</p>
+
+<ul>
+<li>Allied B2C 2025 Melbourne: total about <code>$28.96</code></li>
+<li>Allied GRO 2023 Melbourne: total about <code>$36.30</code></li>
+<li>Hunter Melbourne 2023: total about <code>$46.59</code></li>
+</ul>
+
+<p>These values are a smoke test for the current imported PostageCalculator SP rates, not contractual production rates.</p>
+
+<!-- CONTENT_END -->
+
+      <footer class="doc-footer">
+        <span>Generated by <a href="#">md2html</a></span>
+        <span>Source: AGENTS.md</span>
+      </footer>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    // ---------- Theme ----------
+    const STORAGE_KEY = "md2html-theme";
+    function currentTheme() { return document.documentElement.dataset.theme || "light"; }
+    function applyThemeIcon() {
+      const use = document.getElementById("theme-icon-use");
+      if (use) use.setAttribute("href", currentTheme() === "dark" ? "#i-sun" : "#i-moon");
+    }
+    (function restoreTheme() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) document.documentElement.dataset.theme = saved;
+    })();
+
+    // ---------- Mermaid ----------
+    const diagramSources = new Map();
+    function initMermaid() {
+      const isDark = currentTheme() === "dark";
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: isDark ? "dark" : "default",
+        themeVariables: {
+          primaryColor: isDark ? "#3A2A22" : "#FBEEE6",
+          primaryTextColor: isDark ? "#F5F0E8" : "#1A1A1A",
+          primaryBorderColor: isDark ? "#E89572" : "#D97757",
+          lineColor: isDark ? "#9A938A" : "#6B6B66",
+          secondaryColor: isDark ? "#2A2520" : "#F5F5F0",
+          tertiaryColor: isDark ? "#221E1A" : "#FFFFFF",
+          fontFamily: "Inter, system-ui, sans-serif",
+        },
+      });
+    }
+    async function renderMermaid() {
+      initMermaid();
+      const els = document.querySelectorAll(".mermaid");
+      els.forEach(el => {
+        if (!diagramSources.has(el)) diagramSources.set(el, el.textContent.trim());
+        el.textContent = diagramSources.get(el);
+        el.removeAttribute("data-processed");
+      });
+      try { await mermaid.run({ nodes: els }); } catch (e) { console.error(e); }
+    }
+    function toggleTheme() {
+      const next = currentTheme() === "light" ? "dark" : "light";
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem(STORAGE_KEY, next);
+      applyThemeIcon();
+      renderMermaid();
+    }
+
+    // ---------- TOC drawer (mobile) ----------
+    function openToc()  { document.body.classList.add("toc-open"); }
+    function closeToc() { document.body.classList.remove("toc-open"); }
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape" && document.body.classList.contains("toc-open")) closeToc();
+    });
+
+    // ---------- TOC scrollspy ----------
+    function setupTocSpy() {
+      const links = document.querySelectorAll("#toc-nav a[href^='#']");
+      if (!links.length) {
+        const toc = document.getElementById("toc");
+        if (toc) toc.style.display = "none";
+        return;
+      }
+      const map = new Map();
+      links.forEach(a => {
+        const id = a.getAttribute("href").slice(1);
+        const el = document.getElementById(id);
+        if (el) map.set(el, a);
+        a.addEventListener("click", () => {
+          if (window.matchMedia("(max-width: 900px)").matches) closeToc();
+        });
+      });
+      const obs = new IntersectionObserver((entries) => {
+        entries.forEach(en => {
+          const link = map.get(en.target);
+          if (!link) return;
+          if (en.isIntersecting) {
+            links.forEach(l => l.classList.remove("active"));
+            link.classList.add("active");
+          }
+        });
+      }, { rootMargin: "-80px 0px -70% 0px", threshold: 0 });
+      map.forEach((_, el) => obs.observe(el));
+    }
+
+    // ---------- Anchor links on h2/h3 ----------
+    function injectAnchors() {
+      document.querySelectorAll(".content h2[id], .content h3[id]").forEach(h => {
+        if (h.querySelector(".anchor")) return;
+        const a = document.createElement("a");
+        a.className = "anchor";
+        a.href = "#" + h.id;
+        a.setAttribute("aria-label", "Permalink");
+        a.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-link"/></svg>';
+        h.appendChild(a);
+      });
+    }
+
+    // ---------- Copy-to-clipboard on <pre> ----------
+    function injectCopyButtons() {
+      document.querySelectorAll(".content pre").forEach(pre => {
+        if (pre.classList.contains("mermaid")) return;
+        if (pre.querySelector(".copy-btn")) return;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "copy-btn";
+        btn.setAttribute("aria-label", "Copy code");
+        btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+        btn.addEventListener("click", async () => {
+          const code = pre.querySelector("code")?.textContent ?? pre.textContent;
+          try {
+            await navigator.clipboard.writeText(code);
+            btn.classList.add("copied");
+            btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>';
+            setTimeout(() => {
+              btn.classList.remove("copied");
+              btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+            }, 1500);
+          } catch (e) { console.error(e); }
+        });
+        pre.appendChild(btn);
+      });
+    }
+
+    // ---------- Scroll progress ----------
+    function setupScrollProgress() {
+      const bar = document.getElementById("scroll-progress");
+      if (!bar) return;
+      const onScroll = () => {
+        const h = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+        const p = h > 0 ? (document.documentElement.scrollTop / h * 100) : 0;
+        bar.style.width = p + "%";
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+    }
+
+    // ---------- Boot ----------
+    document.addEventListener("DOMContentLoaded", () => {
+      applyThemeIcon();
+      injectAnchors();
+      injectCopyButtons();
+      renderMermaid();
+      setupTocSpy();
+      setupScrollProgress();
+    });
+  </script>
+</body>
+</html>

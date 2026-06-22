@@ -1,0 +1,3 @@
+order_no,platform_code,warehouse_code,state,suburb,postcode,sku,qty,unit_weight_kg,length_cm,width_cm,height_cm,actual_carrier,actual_freight
+SAMPLE-1001,SHOPIFY_AU,MEL_WH,VIC,SOUTH MELBOURNE,3205,DEMO-CHAIR,1,12,80,60,45,Hunter,18.70
+SAMPLE-1002,SHOPIFY_AU,MEL_WH,WA,PERTH,6000,DEMO-CHAIR,2,12,80,60,45,Allied,42.30

@@ -1,0 +1,2248 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="light" style="--rec-label: '推荐'">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Freight Carrier Calculation Logic 2026 06 18</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       TOKENS
+       ============================================================ */
+    :root {
+      --bg: #FAFAF7;
+      --surface: #FFFFFF;
+      --surface-2: #F5F5F0;
+      --surface-3: #EFEEE8;
+      --text: #1A1A1A;
+      --text-muted: #4A4A45;
+      --text-subtle: #6B6B66;
+      --accent: #D97757;
+      --accent-hover: #C56843;
+      --accent-soft: #FBEEE6;
+      --accent-border: #F0D5C4;
+      --accent-strong: #A85533;
+      --border: #E5E4DC;
+      --border-strong: #CDCDC4;
+      --code-bg: #F5F2EC;
+      --code-text: #2A2A2A;
+      --info: #2563EB;
+      --info-soft: #EFF6FF;
+      --info-border: #BFDBFE;
+      --warn: #B45309;
+      --warn-soft: #FFFBEB;
+      --warn-border: #FDE68A;
+      --danger: #B91C1C;
+      --danger-soft: #FEF2F2;
+      --danger-border: #FECACA;
+      --success: #047857;
+      --success-soft: #ECFDF5;
+      --success-border: #A7F3D0;
+      --decision: #6D28D9;
+      --decision-soft: #F5F3FF;
+      --decision-border: #DDD6FE;
+      --shadow-sm: 0 1px 2px rgba(20, 14, 8, 0.04);
+      --shadow: 0 1px 2px rgba(20, 14, 8, 0.04), 0 4px 12px rgba(20, 14, 8, 0.06);
+      --shadow-lg: 0 8px 24px rgba(20, 14, 8, 0.10);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans CJK JP', 'Noto Sans CJK KR', sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --z-progress: 200;
+      --z-topbar: 100;
+      --z-drawer: 300;
+      --z-backdrop: 250;
+    }
+
+    [data-theme="dark"] {
+      --bg: #1A1714;
+      --surface: #221E1A;
+      --surface-2: #2A2520;
+      --surface-3: #322C26;
+      --text: #F5F0E8;
+      --text-muted: #C8C0B6;
+      --text-subtle: #9A938A;
+      --accent: #E89572;
+      --accent-hover: #F2A87F;
+      --accent-soft: #3A2A22;
+      --accent-border: #5A3D2E;
+      --accent-strong: #F5B493;
+      --border: #2E2924;
+      --border-strong: #463F38;
+      --code-bg: #1E1B17;
+      --code-text: #E8E2D8;
+      --info: #93C5FD;
+      --info-soft: #1E2A3D;
+      --info-border: #2A4365;
+      --warn: #FBBF24;
+      --warn-soft: #332817;
+      --warn-border: #5C4520;
+      --danger: #FCA5A5;
+      --danger-soft: #3A1F1F;
+      --danger-border: #5C2A2A;
+      --success: #6EE7B7;
+      --success-soft: #1A3329;
+      --success-border: #1F5C45;
+      --decision: #C4B5FD;
+      --decision-soft: #2A1F40;
+      --decision-border: #4A3870;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.35);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    /* ============================================================
+       BASE
+       ============================================================ */
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    ::selection { background: var(--accent-soft); color: var(--accent-strong); }
+
+    /* Skip link */
+    .skip-link {
+      position: absolute;
+      top: -100px; left: 8px;
+      padding: 10px 16px;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+      z-index: 1000;
+      transition: top 0.15s;
+    }
+    .skip-link:focus { top: 8px; }
+
+    /* SVG sprite container (hidden) */
+    .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+    .icon { display: inline-block; flex-shrink: 0; vertical-align: middle; stroke: currentColor; fill: none; }
+
+    /* Scroll progress bar */
+    .scroll-progress {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      width: 0;
+      background: var(--accent);
+      z-index: var(--z-progress);
+      transition: width 0.05s linear;
+    }
+
+    /* ============================================================
+       TOPBAR
+       ============================================================ */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: var(--z-topbar);
+      background: rgba(250, 250, 247, 0.85);
+      backdrop-filter: saturate(180%) blur(12px);
+      -webkit-backdrop-filter: saturate(180%) blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    [data-theme="dark"] .topbar { background: rgba(26, 23, 20, 0.85); }
+    .topbar-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      color: var(--text);
+      font-size: 14px;
+    }
+    .brand-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+      animation: brand-pulse 2.8s ease-in-out infinite;
+    }
+    @keyframes brand-pulse {
+      0%, 100% { box-shadow: 0 0 0 4px var(--accent-soft); }
+      50%      { box-shadow: 0 0 0 7px transparent; }
+    }
+    .topbar-actions { display: flex; gap: 6px; align-items: center; }
+    .icon-btn {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+      padding: 0;
+    }
+    .icon-btn .icon { width: 18px; height: 18px; stroke-width: 2; }
+    .icon-btn[hidden] { display: none; }
+
+    /* ============================================================
+       LAYOUT
+       ============================================================ */
+    .layout {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 48px;
+      padding: 32px 24px 96px;
+    }
+    .content { min-width: 0; }
+
+    /* ============================================================
+       TOC (desktop + mobile drawer)
+       ============================================================ */
+    .toc {
+      position: sticky;
+      top: 80px;
+      align-self: start;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+    .toc::-webkit-scrollbar { width: 6px; }
+    .toc::-webkit-scrollbar-track { background: transparent; }
+    .toc::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+    .toc-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 12px 12px;
+    }
+    .toc-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-subtle);
+      margin: 0;
+    }
+    .toc-close { display: none; }
+    .toc-nav { display: flex; flex-direction: column; gap: 2px; }
+    .toc-nav a {
+      display: flex; align-items: center;
+      min-height: 36px;
+      padding: 8px 14px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13.5px;
+      border-left: 2px solid transparent;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+      line-height: 1.4;
+    }
+    .toc-nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      font-weight: 500;
+    }
+    .toc-nav a.lvl-3 { padding-left: 26px; font-size: 12.5px; }
+    .toc-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: var(--z-backdrop);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    /* ============================================================
+       DOC HEADER
+       ============================================================ */
+    .doc-header {
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .doc-eyebrow {
+      display: inline-flex; align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      border: 1px solid var(--accent-border);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      margin-bottom: 16px;
+    }
+    .doc-title {
+      font-size: clamp(28px, 3vw + 16px, 40px);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin: 0 0 12px;
+      color: var(--text);
+      text-wrap: balance;
+    }
+    .doc-subtitle {
+      font-size: clamp(15px, 0.6vw + 13px, 18px);
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin: 0 0 20px;
+      max-width: 75ch;
+      text-wrap: pretty;
+    }
+    .doc-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--text-subtle);
+    }
+    .doc-meta-item { display: inline-flex; align-items: center; gap: 6px; }
+    .doc-meta .icon { width: 14px; height: 14px; stroke-width: 2; }
+
+    /* ============================================================
+       CONTENT (typography)
+       ============================================================ */
+    .content h1, .content h2, .content h3, .content h4 {
+      color: var(--text);
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+      scroll-margin-top: 80px;
+      text-wrap: balance;
+    }
+    .content h2 {
+      font-size: 26px;
+      font-weight: 600;
+      margin: 56px 0 16px;
+      padding-top: 8px;
+      position: relative;
+    }
+    .content h3 {
+      font-size: 19px;
+      font-weight: 600;
+      margin: 36px 0 12px;
+      position: relative;
+    }
+    .content h4 {
+      font-size: 13px;
+      font-weight: 600;
+      margin: 24px 0 8px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .content > p,
+    .content > ul,
+    .content > ol,
+    .content > blockquote { max-width: 75ch; }
+    .content p { margin: 0 0 16px; text-wrap: pretty; overflow-wrap: anywhere; }
+    .content a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-border); }
+    .content ul, .content ol { padding-left: 24px; margin: 0 0 16px; }
+    .content li { margin: 4px 0; }
+    .content strong { color: var(--text); font-weight: 600; }
+    .content em { color: var(--text-muted); }
+    .content hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    /* Anchor links injected by JS on h2/h3 with id */
+    .anchor {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px;
+      margin-left: 6px;
+      color: var(--text-subtle);
+      opacity: 0;
+      transform: translateY(-1px);
+      transition: opacity 0.15s, color 0.15s;
+      border-bottom: none !important;
+      border-radius: var(--radius-sm);
+    }
+    .anchor .icon { width: 14px; height: 14px; stroke-width: 2; }
+
+    /* Images */
+    .content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin: 20px 0;
+      display: block;
+    }
+    .content figure { margin: 20px 0; }
+    .content figure img { margin: 0; }
+    .content figcaption {
+      font-size: 13px;
+      color: var(--text-subtle);
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    /* Task lists (- [ ] / - [x]) */
+    .content .task-list-item { list-style: none; margin-left: -22px; }
+    .content .task-list-item-checkbox {
+      margin-right: 8px;
+      vertical-align: -2px;
+      accent-color: var(--accent);
+    }
+
+    /* Footnotes */
+    .content .footnote-ref a,
+    .content sup a {
+      font-size: 0.75em;
+      vertical-align: super;
+      border-bottom: none;
+      padding: 0 2px;
+    }
+    .content .footnotes {
+      margin-top: 56px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* ============================================================
+       CODE
+       ============================================================ */
+    .content code {
+      font-family: var(--font-mono);
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.88em;
+      color: var(--code-text);
+      border: 1px solid var(--border);
+      overflow-wrap: anywhere;
+    }
+    .content pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-size: 13.5px;
+      line-height: 1.6;
+      margin: 16px 0;
+      position: relative;
+    }
+    .content pre code {
+      background: none; padding: 0; border: none;
+      color: var(--code-text);
+      font-size: inherit;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 32px; height: 32px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--text-subtle);
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+      padding: 0;
+    }
+    .copy-btn .icon { width: 14px; height: 14px; stroke-width: 2; }
+    .copy-btn.copied { color: var(--success); border-color: var(--success-border); opacity: 1; }
+
+    /* ============================================================
+       TIMELINE / STEPS
+       ============================================================ */
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 24px 0;
+      position: relative;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 19px;
+      top: 20px;
+      bottom: 20px;
+      width: 2px;
+      background: linear-gradient(180deg, var(--accent-border), var(--border));
+    }
+    .step {
+      display: grid;
+      grid-template-columns: 40px 1fr;
+      gap: 16px;
+      align-items: start;
+      padding: 16px 4px;
+      position: relative;
+      border-radius: var(--radius);
+      transition: background-color 0.15s;
+    }
+    .step-num {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      border: 2px solid var(--accent);
+      color: var(--accent);
+      border-radius: 50%;
+      font-weight: 600;
+      font-size: 14px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      z-index: 1;
+      transition: background-color 0.15s, color 0.15s, transform 0.15s;
+    }
+    .step.done .step-num { background: var(--accent); color: #fff; }
+    .step-body { padding-top: 6px; min-width: 0; }
+    .step-body h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .step-body p { margin: 0 0 8px; color: var(--text-muted); font-size: 14.5px; max-width: 75ch; }
+    .step-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* ============================================================
+       CALLOUTS
+       ============================================================ */
+    .callout {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 14px;
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      border: 1px solid;
+      margin: 20px 0;
+      font-size: 14.5px;
+      line-height: 1.6;
+      max-width: 75ch;
+    }
+    .callout-icon { width: 20px; height: 20px; margin-top: 2px; stroke-width: 2; }
+    .callout-body { min-width: 0; }
+    .callout-title { font-weight: 600; margin: 0 0 4px; font-size: 14px; }
+    .callout-body p:last-child { margin-bottom: 0; }
+    .callout-body code { background: rgba(0,0,0,0.04); }
+    [data-theme="dark"] .callout-body code { background: rgba(255,255,255,0.06); }
+
+    .callout-info     { background: var(--info-soft);     border-color: var(--info-border);     color: var(--text); }
+    .callout-info     .callout-title, .callout-info     .callout-icon { color: var(--info); }
+    .callout-warn     { background: var(--warn-soft);     border-color: var(--warn-border);     color: var(--text); }
+    .callout-warn     .callout-title, .callout-warn     .callout-icon { color: var(--warn); }
+    .callout-danger   { background: var(--danger-soft);   border-color: var(--danger-border);   color: var(--text); }
+    .callout-danger   .callout-title, .callout-danger   .callout-icon { color: var(--danger); }
+    .callout-success  { background: var(--success-soft);  border-color: var(--success-border);  color: var(--text); }
+    .callout-success  .callout-title, .callout-success  .callout-icon { color: var(--success); }
+    .callout-decision { background: var(--decision-soft); border-color: var(--decision-border); color: var(--text); }
+    .callout-decision .callout-title, .callout-decision .callout-icon { color: var(--decision); }
+    .callout-tip      { background: var(--accent-soft);   border-color: var(--accent-border);   color: var(--text); }
+    .callout-tip      .callout-title, .callout-tip      .callout-icon { color: var(--accent-strong); }
+
+    /* ============================================================
+       KEY-POINT HIGHLIGHT
+       ============================================================ */
+    .highlight {
+      background: linear-gradient(135deg, var(--accent-soft), var(--surface-2));
+      border-left: 4px solid var(--accent);
+      padding: 18px 22px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 24px 0;
+      font-size: 16px;
+      line-height: 1.65;
+      max-width: 75ch;
+    }
+    .highlight-label {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-strong);
+      margin-bottom: 6px;
+    }
+
+    /* ============================================================
+       MERMAID
+       ============================================================ */
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin: 24px 0;
+      box-shadow: var(--shadow-sm);
+      overflow-x: auto;
+    }
+    .diagram-caption {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+      font-size: 13px;
+      color: var(--text-subtle);
+      text-align: center;
+    }
+    .mermaid { text-align: center; min-height: 80px; }
+    .mermaid svg { max-width: 100%; height: auto; }
+    .mermaid:not([data-processed]) {
+      opacity: 0.4;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-subtle);
+      white-space: pre-wrap;
+      text-align: left;
+    }
+
+    /* ============================================================
+       PROS / CONS
+       ============================================================ */
+    .proscons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .proscons-col {
+      padding: 16px 20px;
+      border-radius: var(--radius);
+      border: 1px solid;
+    }
+    .proscons-col h4 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .proscons-col ul { margin: 0; padding-left: 18px; }
+    .proscons-col li { margin: 6px 0; }
+    .pros { background: var(--success-soft); border-color: var(--success-border); }
+    .pros h4 { color: var(--success); }
+    .cons { background: var(--danger-soft); border-color: var(--danger-border); }
+    .cons h4 { color: var(--danger); }
+
+    /* ============================================================
+       COMPARISON CARDS
+       ============================================================ */
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin: 24px 0;
+    }
+    .compare-card {
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.18s, box-shadow 0.18s;
+      position: relative;
+    }
+    .compare-card.recommended { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .compare-card.recommended::before {
+      content: var(--rec-label, "★ Recommended");
+      position: absolute; top: -10px; right: 14px;
+      background: var(--accent); color: #fff;
+      padding: 2px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+    }
+    .compare-card h4 { margin: 0 0 8px; font-size: 15px; color: var(--text); text-transform: none; letter-spacing: normal; }
+    .compare-card p { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+    /* ============================================================
+       COLLAPSIBLE
+       ============================================================ */
+    details.collapsible {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 16px 0;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    details.collapsible[open] { box-shadow: var(--shadow-sm); }
+    details.collapsible > summary {
+      cursor: pointer;
+      padding: 14px 18px;
+      font-weight: 500;
+      color: var(--text);
+      list-style: none;
+      display: flex; align-items: center; gap: 10px;
+      user-select: none;
+      transition: background 0.15s;
+      min-height: 44px;
+    }
+    details.collapsible > summary::-webkit-details-marker { display: none; }
+    details.collapsible > summary::before {
+      content: "›";
+      display: inline-block;
+      transition: transform 0.18s;
+      color: var(--accent);
+      font-size: 18px;
+      font-weight: 700;
+    }
+    details.collapsible[open] > summary::before { transform: rotate(90deg); }
+    .collapsible-body { padding: 4px 18px 18px; border-top: 1px solid var(--border); }
+    .collapsible-body > *:first-child { margin-top: 12px; }
+
+    /* ============================================================
+       TABLES (wrapped via .table-wrap or naturally responsive)
+       ============================================================ */
+    .table-wrap {
+      overflow-x: auto;
+      margin: 20px 0;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      max-width: 100%;
+    }
+    .content table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--surface);
+      margin: 0;
+    }
+    /* Standalone tables (not inside .table-wrap) keep visual border */
+    .content > table {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 20px 0;
+      display: block;
+      overflow-x: auto;
+    }
+    .content th {
+      background: var(--surface-2);
+      color: var(--text);
+      font-weight: 600;
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .content td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+    .content tr:last-child td { border-bottom: none; }
+
+    /* ============================================================
+       BLOCKQUOTE
+       ============================================================ */
+    .content blockquote {
+      margin: 20px 0;
+      padding: 4px 20px;
+      border-left: 3px solid var(--accent-border);
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* ============================================================
+       FOOTER
+       ============================================================ */
+    .doc-footer {
+      margin-top: 80px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-subtle);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .doc-footer a { color: var(--accent); text-decoration: none; }
+
+    /* ============================================================
+       FOCUS-VISIBLE (a11y)
+       ============================================================ */
+    *:focus { outline: none; }
+    *:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+      border-radius: var(--radius-sm);
+    }
+    .toc-nav a:focus-visible { outline-offset: -2px; }
+    .icon-btn:focus-visible { outline-offset: 2px; }
+    .anchor:focus-visible { opacity: 1; outline-offset: 2px; }
+    details.collapsible > summary:focus-visible { outline-offset: -2px; }
+
+    /* ============================================================
+       HOVER (only on hover-capable devices to avoid sticky-tap on mobile)
+       ============================================================ */
+    @media (hover: hover) {
+      .icon-btn:hover { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
+      .toc-nav a:hover { color: var(--accent); background: var(--accent-soft); }
+      .content a:hover { color: var(--accent-hover); border-bottom-color: var(--accent); }
+      .compare-card:hover { border-color: var(--accent-border); box-shadow: var(--shadow); }
+      .compare-card.recommended:hover { border-color: var(--accent); }
+      .content tr:hover td { background: var(--surface-2); }
+      details.collapsible > summary:hover { background: var(--surface-2); }
+      .step:hover { background: var(--surface-2); }
+      .step:hover .step-num { transform: scale(1.05); }
+      .anchor:hover { color: var(--accent); }
+      .content h2:hover .anchor,
+      .content h3:hover .anchor { opacity: 1; }
+      .copy-btn:hover { color: var(--accent); border-color: var(--accent-border); }
+      .content pre:hover .copy-btn { opacity: 1; }
+    }
+    /* On touch devices, copy-btn is always visible at low opacity */
+    @media (hover: none) {
+      .copy-btn { opacity: 0.6; }
+      .anchor { opacity: 0.4; }
+    }
+
+    /* ============================================================
+       MOBILE (≤900px) — TOC becomes off-canvas drawer
+       ============================================================ */
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 20px 16px 80px;
+      }
+      .topbar-inner { padding: 8px 12px; }
+      .doc-header { margin-bottom: 28px; padding-bottom: 20px; }
+
+      .toc-mobile-trigger { display: inline-flex !important; }
+
+      .toc {
+        position: fixed;
+        top: 0; left: 0;
+        width: min(300px, 82vw);
+        height: 100dvh;
+        max-height: 100dvh;
+        background: var(--surface);
+        z-index: var(--z-drawer);
+        padding: 16px 8px 24px 16px;
+        box-shadow: var(--shadow-lg);
+        transform: translateX(-105%);
+        transition: transform 0.25s ease;
+      }
+      .toc-head { padding: 4px 4px 12px 8px; }
+      .toc-close {
+        display: inline-flex !important;
+        width: 36px; height: 36px;
+        align-items: center; justify-content: center;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0;
+      }
+      .toc-close .icon { width: 18px; height: 18px; stroke-width: 2; }
+      body.toc-open .toc { transform: translateX(0); }
+      body.toc-open .toc-backdrop {
+        display: block;
+        opacity: 1;
+      }
+      .toc-backdrop {
+        display: block;
+        opacity: 0;
+        pointer-events: none;
+      }
+      body.toc-open .toc-backdrop { pointer-events: auto; }
+      body.toc-open { overflow: hidden; }
+    }
+    @media (min-width: 901px) {
+      .toc-mobile-trigger { display: none !important; }
+    }
+
+    /* ============================================================
+       REDUCED MOTION (a11y)
+       ============================================================ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      html { scroll-behavior: auto; }
+      .brand-dot { animation: none; box-shadow: 0 0 0 4px var(--accent-soft); }
+    }
+
+    /* ============================================================
+       PRINT
+       ============================================================ */
+    @media print {
+      .topbar, .toc, .toc-backdrop, .icon-btn, .copy-btn, .anchor, .scroll-progress { display: none !important; }
+      .layout { grid-template-columns: 1fr; padding: 0; max-width: 100%; }
+      body { background: #fff; color: #000; }
+      a { color: #000; }
+      .content pre, .callout, .compare-card, .step, .diagram { break-inside: avoid; }
+      .doc-footer { break-before: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Skip link for keyboard users -->
+  <a href="#main" class="skip-link">跳到正文</a>
+
+  <!-- Scroll progress -->
+  <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
+
+  <!-- SVG icon sprite (Lucide-style) -->
+  <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+    <symbol id="i-danger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></symbol>
+    <symbol id="i-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+    <symbol id="i-decision" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-tip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14a5 5 0 1 0-6.18 0 4 4 0 0 1 1.59 2h2.99a4 4 0 0 1 1.6-2Z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+  </svg>
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <button class="icon-btn toc-mobile-trigger" id="toc-toggle" onclick="openToc()" aria-label="目录" title="目录">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg>
+        </button>
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span>笔记</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" onclick="window.print()" title="打印 / 保存 PDF" aria-label="打印 / 保存 PDF">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-printer"/></svg>
+        </button>
+        <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" title="切换主题" aria-label="切换主题">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use id="theme-icon-use" href="#i-moon"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- TOC drawer backdrop (mobile) -->
+  <div class="toc-backdrop" onclick="closeToc()" aria-hidden="true"></div>
+
+  <div class="layout">
+    <aside class="toc" id="toc" aria-label="目录">
+      <div class="toc-head">
+        <p class="toc-title">目录</p>
+        <button class="toc-close" onclick="closeToc()" aria-label="关闭">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+        </button>
+      </div>
+      <nav class="toc-nav" id="toc-nav">
+        <a href="#1-当前启用的计算器" class="lvl-2">1. 当前启用的计算器</a>
+<a href="#2-通用计算概念" class="lvl-2">2. 通用计算概念</a>
+<a href="#2-1-quoteitem" class="lvl-3">2.1 QuoteItem</a>
+<a href="#2-2-ratecard-ratezone-raterule-surchargerule" class="lvl-3">2.2 RateCard / RateZone / RateRule / SurchargeRule</a>
+<a href="#2-3-origin-过滤" class="lvl-3">2.3 Origin 过滤</a>
+<a href="#2-4-单货和多货的核心区别" class="lvl-3">2.4 单货和多货的核心区别</a>
+<a href="#2-5-订单tracking-和审计口径" class="lvl-3">2.5 订单、Tracking 和审计口径</a>
+<a href="#3-hunter-road-freight" class="lvl-2">3. Hunter Road Freight</a>
+<a href="#3-1-zone-匹配" class="lvl-3">3.1 Zone 匹配</a>
+<a href="#3-2-单货计算" class="lvl-3">3.2 单货计算</a>
+<a href="#3-3-多货计算" class="lvl-3">3.3 多货计算</a>
+<a href="#3-4-surcharge" class="lvl-3">3.4 Surcharge</a>
+<a href="#3-5-fuel-和-gst" class="lvl-3">3.5 Fuel 和 GST</a>
+<a href="#3-6-breakdown" class="lvl-3">3.6 Breakdown</a>
+<a href="#4-allied-express-gro-2023" class="lvl-2">4. Allied Express GRO 2023</a>
+<a href="#4-1-zone-匹配" class="lvl-3">4.1 Zone 匹配</a>
+<a href="#4-2-单货计算" class="lvl-3">4.2 单货计算</a>
+<a href="#4-3-多货计算" class="lvl-3">4.3 多货计算</a>
+<a href="#4-4-legacy-surcharge-选择" class="lvl-3">4.4 Legacy surcharge 选择</a>
+<a href="#4-5-fuel-和-gst" class="lvl-3">4.5 Fuel 和 GST</a>
+<a href="#4-6-breakdown" class="lvl-3">4.6 Breakdown</a>
+<a href="#5-allied-express-b2c-2025" class="lvl-2">5. Allied Express B2C 2025</a>
+<a href="#5-1-zone-匹配" class="lvl-3">5.1 Zone 匹配</a>
+<a href="#5-2-单货计算" class="lvl-3">5.2 单货计算</a>
+<a href="#5-3-多货计算" class="lvl-3">5.3 多货计算</a>
+<a href="#5-4-breakdown" class="lvl-3">5.4 Breakdown</a>
+<a href="#6-direct-freight-express" class="lvl-2">6. Direct Freight Express</a>
+<a href="#6-1-profile-限制" class="lvl-3">6.1 Profile 限制</a>
+<a href="#6-2-zone-匹配" class="lvl-3">6.2 Zone 匹配</a>
+<a href="#6-3-单货计算" class="lvl-3">6.3 单货计算</a>
+<a href="#6-4-多货计算" class="lvl-3">6.4 多货计算</a>
+<a href="#6-5-breakdown" class="lvl-3">6.5 Breakdown</a>
+<a href="#7-orange-connex-efn-2026" class="lvl-2">7. Orange Connex eFN 2026</a>
+<a href="#7-1-profile-限制" class="lvl-3">7.1 Profile 限制</a>
+<a href="#7-2-zone-匹配" class="lvl-3">7.2 Zone 匹配</a>
+<a href="#7-3-单货计算" class="lvl-3">7.3 单货计算</a>
+<a href="#7-4-多货计算" class="lvl-3">7.4 多货计算</a>
+<a href="#7-5-breakdown" class="lvl-3">7.5 Breakdown</a>
+<a href="#8-ubi-team-global-express-ipec" class="lvl-2">8. UBI Team Global Express IPEC</a>
+<a href="#8-1-zone-来源" class="lvl-3">8.1 Zone 来源</a>
+<a href="#8-2-zone-匹配" class="lvl-3">8.2 Zone 匹配</a>
+<a href="#8-3-单货计算" class="lvl-3">8.3 单货计算</a>
+<a href="#8-4-多货计算" class="lvl-3">8.4 多货计算</a>
+<a href="#8-5-当前未计算项" class="lvl-3">8.5 当前未计算项</a>
+<a href="#8-6-breakdown" class="lvl-3">8.6 Breakdown</a>
+<a href="#9-通用-table-rate-calculator" class="lvl-2">9. 通用 Table Rate Calculator</a>
+<a href="#10-单货-vs-多货对比示例" class="lvl-2">10. 单货 vs 多货对比示例</a>
+<a href="#11-review-points" class="lvl-2">11. Review Points</a>
+      </nav>
+    </aside>
+
+    <main class="content" id="main">
+      <header class="doc-header">
+        <span class="doc-eyebrow">NOTES</span>
+        <h1 class="doc-title">Freight Carrier Calculation Logic 2026 06 18</h1>
+        <p class="doc-subtitle">本文档说明 Freight Intelligence / CourieDelivery 当前已启用的表格费率计算逻辑。内容按当前代码实现整理，主要解释单货和多货时系统如何计算。</p>
+        <div class="doc-meta">
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-file"/></svg>
+            docs/Freight_Carrier_Calculation_Logic_20260618.md
+          </span>
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-calendar"/></svg>
+            2026-06-22
+          </span>
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clock"/></svg>
+            ~5 分钟阅读
+          </span>
+        </div>
+      </header>
+
+      <!-- CONTENT_START -->
+
+<p>本文档说明 Freight Intelligence / CourieDelivery 当前已启用的表格费率计算逻辑。内容按当前代码实现整理，主要解释单货和多货时系统如何计算。</p>
+
+<p>相关代码位置：</p>
+
+<ul>
+<li>通用数据结构：<code>backend/freight/calculators/base.py</code></li>
+<li>报价引擎：<code>backend/freight/quote_engine.py</code></li>
+<li>Hunter：<code>backend/freight/calculators/hunter_base.py</code></li>
+<li>Allied GRO：<code>backend/freight/calculators/allied_gro_2023_melbourne.py</code></li>
+<li>Allied B2C：<code>backend/freight/calculators/allied_b2c_2025_melbourne.py</code></li>
+<li>Direct Freight Express：<code>backend/freight/calculators/direct_freight_express_2025.py</code></li>
+<li>Orange Connex eFN：<code>backend/freight/calculators/orange_connex_efn_2026.py</code></li>
+<li>UBI Team Global Express IPEC：<code>backend/freight/calculators/ubi_tge_ipec.py</code></li>
+</ul>
+
+<h2 id="1-当前启用的计算器">1. 当前启用的计算器</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Carrier</th>
+<th>当前服务/Rate Card</th>
+<th>Calculator</th>
+<th>Origin</th>
+</tr></thead><tbody>
+<tr>
+<td>Allied Express</td>
+<td>Allied GRO 2023 Melbourne</td>
+<td>Allied GRO 2023</td>
+<td>MEL/VIC</td>
+</tr>
+<tr>
+<td>Allied Express</td>
+<td>Allied GRO 2023 Sydney</td>
+<td>Allied GRO 2023</td>
+<td>SYD/NSW</td>
+</tr>
+<tr>
+<td>Allied Express</td>
+<td>Allied B2C 2025 Melbourne</td>
+<td>Allied B2C 2025</td>
+<td>MEL/VIC</td>
+</tr>
+<tr>
+<td>Hunter Road Freight</td>
+<td>Hunter MEL 2023</td>
+<td>Hunter Base</td>
+<td>MEL/VIC</td>
+</tr>
+<tr>
+<td>Hunter Road Freight</td>
+<td>Hunter SYD Broers 20240920</td>
+<td>Hunter Base</td>
+<td>SYD/NSW</td>
+</tr>
+<tr>
+<td>Direct Freight Express</td>
+<td>DFE KILO EX MEL 2025</td>
+<td>DFE 2025</td>
+<td>MEL</td>
+</tr>
+<tr>
+<td>Direct Freight Express</td>
+<td>DFE KILO EX SYD 2025</td>
+<td>DFE 2025</td>
+<td>SYD</td>
+</tr>
+<tr>
+<td>Orange Connex</td>
+<td>Orange Connex eFN MEL 2026</td>
+<td>Orange eFN 2026</td>
+<td>MEL</td>
+</tr>
+<tr>
+<td>Orange Connex</td>
+<td>Orange Connex eFN SYD 2026</td>
+<td>Orange eFN 2026</td>
+<td>SYD</td>
+</tr>
+<tr>
+<td>Team Global Express</td>
+<td>UBI TGE IPEC Road</td>
+<td>UBI TGE IPEC</td>
+<td>MEL1/SYD1</td>
+</tr>
+</tbody></table></div>
+
+<p>备注：</p>
+
+<ul>
+<li>API quote / LSP historical quote 不属于本文的“内部费率表计算”。API 结果以外部返回价格为准，系统只保存 request / response / selected option / historical option。</li>
+<li>UBI 是 Agent，不是 Carrier。UBI IPEC 的 Carrier 是 Team Global Express，Service 是 UBI TGE IPEC Road。</li>
+</ul>
+
+<h2 id="2-通用计算概念">2. 通用计算概念</h2>
+
+<h3 id="2-1-quoteitem">2.1 QuoteItem</h3>
+
+<p>每条商品线进入 calculator 时，已经被整理为 <code>QuoteItem</code>：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>字段</th>
+<th>含义</th>
+</tr></thead><tbody>
+<tr>
+<td><code>sku</code></td>
+<td>SKU 或手工输入 SKU 标识</td>
+</tr>
+<tr>
+<td><code>qty</code></td>
+<td>数量</td>
+</tr>
+<tr>
+<td><code>unit_weight_kg</code></td>
+<td>单件实重 kg</td>
+</tr>
+<tr>
+<td><code>length_cm</code></td>
+<td>单件长 cm</td>
+</tr>
+<tr>
+<td><code>width_cm</code></td>
+<td>单件宽 cm</td>
+</tr>
+<tr>
+<td><code>height_cm</code></td>
+<td>单件高 cm</td>
+</tr>
+</tbody></table></div>
+
+<p>单件体积：</p>
+
+<pre><code class="language-text">volume_m3 = length_cm * width_cm * height_cm / 1,000,000</code></pre>
+
+<p>Combo SKU 在进入 calculator 前会被系统展开或快照为可计算 SKU lines。Calculator 不关心它原来是 single SKU、combo SKU 还是手工尺寸，只关心最终的 item lines、数量、重量和尺寸。</p>
+
+<h3 id="2-2-ratecard-ratezone-raterule-surchargerule">2.2 RateCard / RateZone / RateRule / SurchargeRule</h3>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>模型</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td><code>RateCard</code></td>
+<td>费率版本、生效日期、origin、cubic factor、GST、calculator key</td>
+</tr>
+<tr>
+<td><code>RateZone</code></td>
+<td>地址到 zone 的映射，如 postcode/suburb/state -&gt; destination zone</td>
+</tr>
+<tr>
+<td><code>RateRule</code></td>
+<td>base freight 规则，如 origin zone + destination zone + weight -&gt; basic/per kg/minimum</td>
+</tr>
+<tr>
+<td><code>SurchargeRule</code></td>
+<td>fuel、oversize、destination surcharge、home delivery 等附加费配置</td>
+</tr>
+</tbody></table></div>
+
+<h3 id="2-3-origin-过滤">2.3 Origin 过滤</h3>
+
+<p>报价前，系统会按 warehouse 推断 origin：</p>
+
+<ul>
+<li>仓库 state/code/name/region 包含 <code>NSW</code>、<code>SYD</code>、<code>SYDNEY</code> -&gt; SYD</li>
+<li>仓库 state/code/name/region 包含 <code>VIC</code>、<code>MEL</code>、<code>MELBOURNE</code> -&gt; MEL</li>
+</ul>
+
+<p>因此从 MEL 发货时只会参与 MEL origin 的 channel/rate card；从 SYD 发货时只会参与 SYD origin 的 channel/rate card。<code>ALL warehouse</code> 会允许多个 origin 都参与报价。</p>
+
+<h3 id="2-4-单货和多货的核心区别">2.4 单货和多货的核心区别</h3>
+
+<p>不同 carrier 的多货算法不一样，不能统一成一种：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Carrier</th>
+<th>多货模式</th>
+</tr></thead><tbody>
+<tr>
+<td>Hunter</td>
+<td>每个 SKU line 先算 <code>max(dead, cubic)</code>，再累加成整票计费重量</td>
+</tr>
+<tr>
+<td>Allied GRO</td>
+<td>全部货合并后算整票 dead/cubic，再选择一个 legacy surcharge</td>
+</tr>
+<tr>
+<td>Allied B2C</td>
+<td>base 按每件逐件计费，OWS 按整票计费重量触发</td>
+</tr>
+<tr>
+<td>DFE</td>
+<td>全部货合并后算总 dead 和总 cubic，取最大值作为整票计费重量</td>
+</tr>
+<tr>
+<td>Orange Connex eFN</td>
+<td>每件按单件实重进入固定重量档，逐件累加</td>
+</tr>
+<tr>
+<td>UBI TGE IPEC</td>
+<td>全部货合并后算总 dead 和总 cubic，取最大值作为整票计费重量</td>
+</tr>
+</tbody></table></div>
+
+<h3 id="2-5-订单tracking-和审计口径">2.5 订单、Tracking 和审计口径</h3>
+
+<p>Manual Quote 里用户可以手工录入 SKU/尺寸，也可以按 ERP Order No / Platform Order No 带出订单信息。订单进入报价时，系统最终仍会转换成同一种 <code>QuoteItem</code> 列表：</p>
+
+<pre><code class="language-text">order/shipment lines -&gt; SKU dimensions/weights -&gt; QuoteItem lines -&gt; calculator</code></pre>
+
+<p>因此 calculator 不直接读取 ERP 原表，而是根据同步后的订单、shipment、SKU 快照进行计算。这样可以保证历史订单复算时使用当时同步进系统的尺寸和数量，不会因为 WMS 或 ERP 后续改了 SKU 主数据而影响历史对账。</p>
+
+<p>订单审计时有三个常见价格口径：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>字段</th>
+<th>含义</th>
+<th>GST 口径</th>
+</tr></thead><tbody>
+<tr>
+<td><code>ERP Est</code></td>
+<td>ERP 订单中的 <code>postage_shipping_estimated_amount</code> / <code>shipping_estimated_amount</code></td>
+<td>前端外层显示含 GST 口径</td>
+</tr>
+<tr>
+<td><code>System Est</code></td>
+<td>Freight Intelligence 用当前启用的 rate card / calculator 重新算出的价格</td>
+<td>外层显示含 GST 总价，breakdown 内显示 ex GST / GST / inc GST</td>
+</tr>
+<tr>
+<td><code>Invoice Actual</code></td>
+<td>InvoiceReader 中按 tracking 匹配到的实际账单金额</td>
+<td>对账统一用含 GST 总价</td>
+</tr>
+</tbody></table></div>
+
+<p>多 tracking 时要特别注意 ERP Est 的范围：</p>
+
+<ul>
+<li>如果 ERP Est 是整单金额，系统会按 ERP Order 聚合后与多 tracking 的 invoice actual 总额比较。</li>
+<li>如果 invoice 是按 tracking 拆分，明细页会按 tracking 排列每个包裹/consignment 的实际收费。</li>
+<li>内部 rate table calculator 通常按输入的整票 item lines 计算一次；如果业务要求每个 tracking 单独计算，需要先把订单 lines 拆成 tracking groups，再分别调用 calculator。</li>
+<li>当前 Freight Audit Matrix 的目标是同时展示：ERP Est、各个内部 carrier 计算结果、LSP/API historical quote、Invoice Actual，用来判断是 ERP 估算偏差、费率表偏差、API 返回偏差，还是账单异常。</li>
+</ul>
+
+<h2 id="3-hunter-road-freight">3. Hunter Road Freight</h2>
+
+<p>适用服务：</p>
+
+<ul>
+<li>Hunter MEL 2023</li>
+<li>Hunter Sydney 2025</li>
+</ul>
+
+<h3 id="3-1-zone-匹配">3.1 Zone 匹配</h3>
+
+<p>Hunter 使用 <code>RateZone</code> 匹配目的地：</p>
+
+<ol>
+<li>优先 exact：<code>postcode + suburb + state</code></li>
+<li>然后 postcode/state 或 postcode range fallback</li>
+<li>匹配失败返回 <code>rate_card_not_found</code></li>
+</ol>
+
+<p>匹配成功后得到 <code>dest_zone</code>，再用 <code>dest_zone + chargeable weight</code> 找 <code>RateRule</code>。</p>
+
+<h3 id="3-2-单货计算">3.2 单货计算</h3>
+
+<p>对一个 item line：</p>
+
+<pre><code class="language-text">length_m = length_cm / 100
+width_m  = width_cm / 100
+height_m = height_cm / 100</code></pre>
+
+<p>先判断是否 oversize：</p>
+
+<pre><code class="language-text">oversize =
+  (length_cm &gt; 120 and width_cm &gt; 120)
+  or height_cm &gt; 180
+  or ((length_cm &gt; 120 or width_cm &gt; 120) and unit_weight_kg &gt; 59)</code></pre>
+
+<p>如果 oversize：</p>
+
+<pre><code class="language-text">cubic_factor = 333</code></pre>
+
+<p>否则：</p>
+
+<pre><code class="language-text">cubic_factor = 250</code></pre>
+
+<p>单件 cubic weight：</p>
+
+<pre><code class="language-text">unit_cubic_kg = length_m * width_m * height_m * cubic_factor</code></pre>
+
+<p>如果数量为 <code>qty</code>：</p>
+
+<pre><code class="language-text">line_dead_kg = unit_weight_kg * qty
+line_cubic_kg = unit_cubic_kg * qty
+line_chargeable_kg = max(line_dead_kg, line_cubic_kg)</code></pre>
+
+<p>单货只有一条 line 时：</p>
+
+<pre><code class="language-text">total_chargeable_kg = line_chargeable_kg
+chargeable_kg_for_rate = ceil(total_chargeable_kg)</code></pre>
+
+<p>Base freight：</p>
+
+<pre><code class="language-text">base = max(minimum_charge, basic_charge + per_kg * chargeable_kg_for_rate)</code></pre>
+
+<h3 id="3-3-多货计算">3.3 多货计算</h3>
+
+<p>多货时 Hunter 不是先合并 dead/cubic 后取最大，而是每条 SKU line 先取最大：</p>
+
+<pre><code class="language-text">for each line:
+  line_chargeable_kg = max(line_dead_kg, line_cubic_kg)
+
+total_chargeable_kg = sum(line_chargeable_kg)
+chargeable_kg_for_rate = ceil(total_chargeable_kg)</code></pre>
+
+<p>这样会比“总实重和总体积重取最大”更保守，因为每个 SKU line 的体积优势和重量优势不会互相抵消。</p>
+
+<h3 id="3-4-surcharge">3.4 Surcharge</h3>
+
+<p>Hunter 当前计算三类 surcharge：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Code</th>
+<th>触发依据</th>
+<th>说明</th>
+</tr></thead><tbody>
+<tr>
+<td><code>RESI</code></td>
+<td><code>max_item_charge_kg</code></td>
+<td>住宅/大件相关配置，取所有单件中最大的 charge kg</td>
+</tr>
+<tr>
+<td><code>LEN</code></td>
+<td><code>longest_len_m</code></td>
+<td>长度 surcharge，超过某些区间可能标记 POA</td>
+</tr>
+<tr>
+<td><code>UPLF</code></td>
+<td><code>total_chargeable_kg</code></td>
+<td>按整票 chargeable weight 触发</td>
+</tr>
+</tbody></table></div>
+
+<p>其中：</p>
+
+<pre><code class="language-text">max_item_charge_kg = max(max(unit_weight_kg, unit_cubic_kg) for all item units)
+longest_len_m = max(length_cm / 100 for all items)
+surcharge_total = RESI + LEN + UPLF</code></pre>
+
+<h3 id="3-5-fuel-和-gst">3.5 Fuel 和 GST</h3>
+
+<p>Fuel basis：</p>
+
+<pre><code class="language-text">fuel_basis = base + surcharge_total</code></pre>
+
+<p>Fuel rate：</p>
+
+<ul>
+<li>默认使用 <code>SurchargeRule</code> code <code>FS</code></li>
+<li>如果目的地 state 是 WA，则使用 <code>FS_WA</code></li>
+</ul>
+
+<pre><code class="language-text">fuel = fuel_basis * fuel_rate
+total_ex_gst = base + surcharge_total + fuel
+gst = total_ex_gst * 0.10
+total_inc_gst = total_ex_gst + gst</code></pre>
+
+<h3 id="3-6-breakdown">3.6 Breakdown</h3>
+
+<p>Hunter breakdown 会显示：</p>
+
+<ul>
+<li>Base</li>
+<li>Residential surcharge</li>
+<li>Length surcharge</li>
+<li>Uplift surcharge</li>
+<li>Fuel levy</li>
+<li>GST</li>
+</ul>
+
+<h2 id="4-allied-express-gro-2023">4. Allied Express GRO 2023</h2>
+
+<p>适用服务：</p>
+
+<ul>
+<li>Allied GRO 2023 Melbourne</li>
+<li>Allied GRO 2023 Sydney</li>
+</ul>
+
+<p>Sydney calculator 继承 Melbourne calculator，公式相同，差异来自 rate card、origin、zone/rule 数据。</p>
+
+<h3 id="4-1-zone-匹配">4.1 Zone 匹配</h3>
+
+<p>使用通用 <code>find_zone</code>：</p>
+
+<ol>
+<li>exact：<code>postcode + suburb + state</code></li>
+<li>postcode/state fallback</li>
+<li>postcode range fallback</li>
+</ol>
+
+<p><code>RateZone.raw_payload.on_forward</code> 可能包含 on-forward delivery 信息。</p>
+
+<h3 id="4-2-单货计算">4.2 单货计算</h3>
+
+<p>Allied GRO 用整票 dead/cubic 方式，即使单货也是走同一个公式：</p>
+
+<pre><code class="language-text">dead_kg = round0(sum(unit_weight_kg * qty))
+cubic_kg = round0(sum(volume_m3 * 250 * qty))
+chargeable_kg = max(dead_kg, cubic_kg)</code></pre>
+
+<p><code>round0</code> 是四舍五入到整数 kg。</p>
+
+<p>Base linehaul：</p>
+
+<pre><code class="language-text">linehaul = max(minimum_charge, basic_charge + per_kg * chargeable_kg)</code></pre>
+
+<p>如果 zone 有 on-forward：</p>
+
+<pre><code class="language-text">on_forward_base = on_forward.basic + on_forward.per_kg * chargeable_kg</code></pre>
+
+<p>否则 <code>on_forward_base = 0</code>。</p>
+
+<h3 id="4-3-多货计算">4.3 多货计算</h3>
+
+<p>多货时先把所有 SKU lines 合并：</p>
+
+<pre><code class="language-text">dead_kg = round0(sum(each line dead))
+cubic_kg = round0(sum(each line cubic))
+chargeable_kg = max(dead_kg, cubic_kg)</code></pre>
+
+<p>Base linehaul 和 on-forward 都按这个整票 <code>chargeable_kg</code> 算。</p>
+
+<h3 id="4-4-legacy-surcharge-选择">4.4 Legacy surcharge 选择</h3>
+
+<p>Allied GRO 不把所有 surcharge 相加，而是计算多个候选后取最大值：</p>
+
+<pre><code class="language-text">chosen_surcharge = max(home_delivery, item_surcharge, two_person_crew)</code></pre>
+
+<h4>Home delivery</h4>
+
+<pre><code class="language-text">HDD = surcharge by dead_kg
+HDC = surcharge by cubic_kg
+home_delivery = HDD if dead_kg &gt;= cubic_kg else HDC</code></pre>
+
+<p>如果有 on-forward：</p>
+
+<pre><code class="language-text">home_delivery = home_delivery * 2</code></pre>
+
+<h4>Item surcharge</h4>
+
+<p>对每个 SKU line：</p>
+
+<pre><code class="language-text">longest = round0(item.longest_cm)
+lsc = LSC surcharge by longest
+ws = WS surcharge by longest
+dhsl = DHSL surcharge by longest
+dhsw = DHSW surcharge by unit_weight_kg
+line_item_surcharge = max(lsc, ws, dhsl, dhsw) * qty</code></pre>
+
+<p>多货时：</p>
+
+<pre><code class="language-text">item_surcharge = sum(line_item_surcharge)</code></pre>
+
+<h4>Two person crew</h4>
+
+<p>系统按每条 item line 的尺寸和重量判断 TPC，并取最大 TPC：</p>
+
+<pre><code class="language-text">if longest &gt;= 240 and middle &gt;= 130 and (dead_kg &gt;= 76 or cubic_kg &gt;= 151):
+  TPC = 124.80
+elif 190 &lt;= longest &lt;= 239 and middle &gt;= 130 and (dead_kg &gt;= 56 or cubic_kg &gt;= 111):
+  TPC = 78.00
+elif 130 &lt;= longest &lt;= 189 and middle &gt;= 90 and (dead_kg &gt;= 47 or cubic_kg &gt;= 92):
+  TPC = 49.92
+else:
+  TPC = 0</code></pre>
+
+<p>多货时：</p>
+
+<pre><code class="language-text">two_person_crew = max(TPC of all lines)</code></pre>
+
+<h3 id="4-5-fuel-和-gst">4.5 Fuel 和 GST</h3>
+
+<p>Allied GRO 使用 legacy fuel ratio：</p>
+
+<pre><code class="language-text">subtotal = linehaul + on_forward_base + chosen_surcharge
+total_inc_gst = subtotal * (1 + 0.10) * fuel_ratio
+gst = subtotal * 0.10
+fuel_amount = subtotal * (1 + 0.10) * (fuel_ratio - 1)</code></pre>
+
+<p>注意：</p>
+
+<ul>
+<li><code>fuel_ratio</code> 是倍率，例如 <code>1.2679</code>，不是 <code>0.2679</code>。</li>
+<li>当前 breakdown 中 fuel amount 是按含 GST subtotal 的倍率差计算，这是为贴合旧 PostageCalculator 逻辑。</li>
+</ul>
+
+<h3 id="4-6-breakdown">4.6 Breakdown</h3>
+
+<p>Allied GRO breakdown 会显示：</p>
+
+<ul>
+<li>Allied linehaul</li>
+<li>Allied on-forward delivery</li>
+<li>Chosen legacy surcharge</li>
+<li>Fuel ratio</li>
+<li>GST</li>
+</ul>
+
+<h2 id="5-allied-express-b2c-2025">5. Allied Express B2C 2025</h2>
+
+<p>适用服务：</p>
+
+<ul>
+<li>Allied B2C 2025 Melbourne</li>
+</ul>
+
+<p>代码也有 Sydney class，但当前启用 channel 里没有 Allied B2C Sydney。</p>
+
+<h3 id="5-1-zone-匹配">5.1 Zone 匹配</h3>
+
+<p>使用通用 <code>find_zone</code> 匹配目的地 zone。</p>
+
+<h3 id="5-2-单货计算">5.2 单货计算</h3>
+
+<p>Allied B2C 的 base 是 per-piece 模式。对单个 item：</p>
+
+<pre><code class="language-text">cubic_single_kg = volume_m3 * 250
+chargeable_single_kg = max(unit_weight_kg, cubic_single_kg)
+consignment_weight = chargeable_single_kg * qty</code></pre>
+
+<p>用整票 <code>consignment_weight</code> 找 <code>RateRule</code>，但 base 逐件计算：</p>
+
+<pre><code class="language-text">per_piece_base = max(basic_charge + per_kg * chargeable_single_kg, minimum_charge)
+basic_total = per_piece_base * qty</code></pre>
+
+<p>OIS：</p>
+
+<pre><code class="language-text">rounded_border = round(item.longest_cm)
+OIS = surcharge by rounded_border * qty</code></pre>
+
+<p>OWS：</p>
+
+<pre><code class="language-text">rounded_consignment_weight = round(consignment_weight)
+OWS = surcharge by rounded_consignment_weight</code></pre>
+
+<p>总价：</p>
+
+<pre><code class="language-text">subtotal = basic_total + OIS + OWS
+total = subtotal * (1 + fuel_ratio)</code></pre>
+
+<p>当前 Allied B2C calculator 不拆 GST：</p>
+
+<pre><code class="language-text">gst_amount = 0
+total_ex_gst = total
+total_inc_gst = total</code></pre>
+
+<h3 id="5-3-多货计算">5.3 多货计算</h3>
+
+<p>多货时：</p>
+
+<pre><code class="language-text">for each line:
+  chargeable_single_kg = max(unit_weight_kg, volume_m3 * 250)
+  consignment_weight += chargeable_single_kg * qty</code></pre>
+
+<p>然后：</p>
+
+<ul>
+<li><code>RateRule</code> 用整票 <code>consignment_weight</code> 找</li>
+<li><code>basic_total</code> 仍然按每件逐件算再累加</li>
+<li>OIS 按每条 SKU line 的最长边逐件乘 qty</li>
+<li>OWS 只按整票 <code>consignment_weight</code> 触发一次</li>
+</ul>
+
+<h3 id="5-4-breakdown">5.4 Breakdown</h3>
+
+<p>Allied B2C breakdown 会显示：</p>
+
+<ul>
+<li>Allied B2C per-piece effective base</li>
+<li>OIS surcharge</li>
+<li>OWS surcharge</li>
+<li>Fuel ratio</li>
+</ul>
+
+<h2 id="6-direct-freight-express">6. Direct Freight Express</h2>
+
+<p>适用服务：</p>
+
+<ul>
+<li>DFE KILO EX MEL 2025</li>
+<li>DFE KILO EX SYD 2025</li>
+</ul>
+
+<p>Pallet rows 已导入为未来参考/禁用服务，当前不自动计算 pallet。</p>
+
+<h3 id="6-1-profile-限制">6.1 Profile 限制</h3>
+
+<p>DFE 在正式计算前会做 strict not-available 检查：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>条件</th>
+<th>结果</th>
+</tr></thead><tbody>
+<tr>
+<td>缺重量、缺尺寸、qty &lt;= 0</td>
+<td><code>missing_dimension_or_weight</code></td>
+</tr>
+<tr>
+<td>单件实重 &gt; 30kg</td>
+<td><code>dfe_profile_item_over_30kg</code></td>
+</tr>
+<tr>
+<td>最长边 &gt; 120cm</td>
+<td><code>dfe_profile_length_over_120cm</code></td>
+</tr>
+<tr>
+<td>最大两边都 &gt; 70cm</td>
+<td><code>dfe_profile_two_sides_over_70cm</code></td>
+</tr>
+</tbody></table></div>
+
+<p>任何一条 item 触发都会整票 not available。</p>
+
+<h3 id="6-2-zone-匹配">6.2 Zone 匹配</h3>
+
+<p>DFE 使用自己的 postcode 规范化，纯数字 postcode 会补齐 4 位，例如 <code>800</code> -&gt; <code>0800</code>。</p>
+
+<p>Zone lookup：</p>
+
+<ol>
+<li>exact：<code>postcode + suburb + state</code></li>
+<li>如果 exact 不存在，查 <code>postcode + state</code></li>
+<li>如果同 postcode/state 只有一个 zone，则可用</li>
+<li>如果多个 zone，则返回 <code>ambiguous_destination_zone</code></li>
+<li>找不到则返回 <code>rate_card_not_found</code></li>
+</ol>
+
+<h3 id="6-3-单货计算">6.3 单货计算</h3>
+
+<pre><code class="language-text">actual_kg = unit_weight_kg * qty
+cubic_kg = volume_m3 * 250 * qty
+chargeable_kg = ceil(max(actual_kg, cubic_kg))</code></pre>
+
+<p>Base：</p>
+
+<pre><code class="language-text">base = max(minimum_charge, basic_charge + per_kg * chargeable_kg)</code></pre>
+
+<p>Destination surcharge：</p>
+
+<ol>
+<li>先找 exact <code>postcode + suburb</code></li>
+<li>如果没有 exact，找 postcode 下所有 surcharge</li>
+<li>如果该 postcode 下所有 amount 相同，则使用该 amount</li>
+<li>否则不加 destination surcharge</li>
+</ol>
+
+<p>Fuel：</p>
+
+<pre><code class="language-text">fuel_basis = base + destination_surcharge
+fuel = fuel_basis * FS</code></pre>
+
+<p>GST：</p>
+
+<pre><code class="language-text">total_ex_gst = base + destination_surcharge + fuel
+gst = total_ex_gst * 0.10
+total_inc_gst = total_ex_gst + gst</code></pre>
+
+<h3 id="6-4-多货计算">6.4 多货计算</h3>
+
+<p>DFE 是整票合并模式：</p>
+
+<pre><code class="language-text">actual_kg = sum(unit_weight_kg * qty for all lines)
+cubic_kg = sum(volume_m3 * 250 * qty for all lines)
+chargeable_kg = ceil(max(actual_kg, cubic_kg))</code></pre>
+
+<p>多货不会逐件分别找 rate rule，而是使用整票 <code>chargeable_kg</code> 找一次 DFE rate rule。</p>
+
+<h3 id="6-5-breakdown">6.5 Breakdown</h3>
+
+<p>DFE breakdown 会显示：</p>
+
+<ul>
+<li>DFE base</li>
+<li>DFE destination surcharge</li>
+<li>Fuel levy</li>
+<li>GST</li>
+</ul>
+
+<h2 id="7-orange-connex-efn-2026">7. Orange Connex eFN 2026</h2>
+
+<p>适用服务：</p>
+
+<ul>
+<li>Orange Connex eFN MEL 2026</li>
+<li>Orange Connex eFN SYD 2026</li>
+</ul>
+
+<p>Orange Connex eFN 是固定重量档/逐件计费，不是 per kg linehaul。</p>
+
+<h3 id="7-1-profile-限制">7.1 Profile 限制</h3>
+
+<p>每个 item 必须满足：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>条件</th>
+<th>结果</th>
+</tr></thead><tbody>
+<tr>
+<td>qty &lt;= 0 或重量/尺寸缺失</td>
+<td><code>missing_dimension_or_weight</code></td>
+</tr>
+<tr>
+<td>单件实重 &gt; 25kg</td>
+<td><code>orange_profile_item_over_25kg</code></td>
+</tr>
+<tr>
+<td>最长边 &gt; 105cm</td>
+<td><code>orange_profile_length_over_105cm</code></td>
+</tr>
+<tr>
+<td>单件体积 &gt; 0.088m3</td>
+<td><code>orange_profile_volume_over_0_088m3</code></td>
+</tr>
+</tbody></table></div>
+
+<p>任何一条 item 触发都会整票 not available。</p>
+
+<h3 id="7-2-zone-匹配">7.2 Zone 匹配</h3>
+
+<p>Orange zone lookup：</p>
+
+<ol>
+<li>exact：<code>postcode + suburb + state</code></li>
+<li>如果 exact 不存在，查 <code>postcode + state</code></li>
+<li>如果 postcode/state 只有一个 zone，则使用该 zone</li>
+<li>如果 postcode/state 有多个 zone，则 <code>ambiguous_destination_zone</code></li>
+<li>如果完全找不到 postcode/state，则使用 <code>Rest of AU</code></li>
+</ol>
+
+<h3 id="7-3-单货计算">7.3 单货计算</h3>
+
+<p>Orange 按单件实重进入重量档，不用体积重计价：</p>
+
+<pre><code class="language-text">article_weight_grams = ceil(unit_weight_kg * 1000)
+band_weight_kg = article_weight_grams / 1000</code></pre>
+
+<p>用 <code>dest_zone + band_weight_kg</code> 找固定价格：</p>
+
+<pre><code class="language-text">unit_price = fixed band price
+line_base = unit_price * qty</code></pre>
+
+<p>如果目的 zone 没有对应重量档，但 <code>Rest of AU</code> 有，则 fallback 到 <code>Rest of AU</code>。</p>
+
+<p>GST：</p>
+
+<pre><code class="language-text">gst = base * 0.10
+total_inc_gst = base + gst</code></pre>
+
+<p>当前 Orange calculator 不计算 fuel。</p>
+
+<h3 id="7-4-多货计算">7.4 多货计算</h3>
+
+<p>Orange 是逐件累加：</p>
+
+<pre><code class="language-text">for each SKU line:
+  article_weight_grams = ceil(unit_weight_kg * 1000)
+  unit_price = rate(dest_zone, weight_band)
+  line_base = unit_price * qty
+
+base = sum(line_base)</code></pre>
+
+<p>多货不会把多个 SKU 的重量合并成一票再找重量档。每个 article 独立进入自己的重量档。</p>
+
+<h3 id="7-5-breakdown">7.5 Breakdown</h3>
+
+<p>Orange breakdown 会为每条 SKU line 生成 base line，并显示：</p>
+
+<ul>
+<li>destination zone</li>
+<li>article weight grams</li>
+<li>band label</li>
+<li>unit price</li>
+<li>qty</li>
+<li>fallback_to_rest_of_au</li>
+<li>GST</li>
+</ul>
+
+<h2 id="8-ubi-team-global-express-ipec">8. UBI Team Global Express IPEC</h2>
+
+<p>适用服务：</p>
+
+<ul>
+<li>UBI TGE IPEC Road</li>
+<li>Rate versions：<code>UBI-IPEC-20250707</code>、<code>UBI-IPEC-20260420</code></li>
+<li>Origins：<code>MEL1</code>、<code>SYD1</code></li>
+</ul>
+
+<h3 id="8-1-zone-来源">8.1 Zone 来源</h3>
+
+<p>IPEC zone mapping 来源：</p>
+
+<ol>
+<li>Public reference：Maropost/Neto <code>TollIPEC-ShippingZones.csv</code></li>
+<li>UBI Toll IPEC billing observed override</li>
+</ol>
+
+<p>Public CSV 的 <code>Zone Code</code> 会被规范化：</p>
+
+<pre><code class="language-text">NT 3.81 -&gt; NT
+WQLD 60.52 -&gt; WQLD
+MEL1 -&gt; MEL1</code></pre>
+
+<p>如果 UBI billing override 和 public CSV 冲突，系统优先使用 billing override。</p>
+
+<h3 id="8-2-zone-匹配">8.2 Zone 匹配</h3>
+
+<p>IPEC zone lookup：</p>
+
+<ol>
+<li>exact：<code>postcode + suburb + state</code></li>
+<li>如果有多条 exact，优先 <code>UBI_BILLING_OBSERVED_OVERRIDE</code></li>
+<li>如果 exact 不存在，查 <code>postcode + state</code></li>
+<li>如果 postcode/state 只有一个 zone，则使用该 zone</li>
+<li>多 zone 则 <code>ambiguous_destination_zone</code></li>
+<li>找不到则 <code>rate_card_not_found</code></li>
+</ol>
+
+<h3 id="8-3-单货计算">8.3 单货计算</h3>
+
+<p>IPEC 是整票计费模式。</p>
+
+<p>单货：</p>
+
+<pre><code class="language-text">actual_kg = unit_weight_kg * qty
+cubic_kg = volume_m3 * 250 * qty
+chargeable_kg = ceil(max(actual_kg, cubic_kg))</code></pre>
+
+<p>Rate rule 中包含：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>字段</th>
+<th>含义</th>
+</tr></thead><tbody>
+<tr>
+<td><code>minimum_charge</code></td>
+<td>最低收费</td>
+</tr>
+<tr>
+<td><code>basic_charge</code></td>
+<td>基础收费</td>
+</tr>
+<tr>
+<td><code>per_kg</code></td>
+<td>freight charge per kg</td>
+</tr>
+<tr>
+<td><code>kg_included_in_basic</code></td>
+<td>basic 已包含 kg</td>
+</tr>
+</tbody></table></div>
+
+<p>Base：</p>
+
+<pre><code class="language-text">rated_kg = max(0, chargeable_kg - kg_included_in_basic)
+base = max(minimum_charge, basic_charge + per_kg * rated_kg)</code></pre>
+
+<p>Fuel：</p>
+
+<pre><code class="language-text">fuel = base * FS</code></pre>
+
+<p>当前导入默认 <code>FS = 0.099</code>，配置在 <code>SurchargeRule</code>，以后可以在 Pricing 页面维护。</p>
+
+<p>GST：</p>
+
+<pre><code class="language-text">total_ex_gst = base + fuel
+gst = total_ex_gst * 0.10
+total_inc_gst = total_ex_gst + gst</code></pre>
+
+<h3 id="8-4-多货计算">8.4 多货计算</h3>
+
+<p>多货时 IPEC 先合并全部 SKU lines：</p>
+
+<pre><code class="language-text">actual_kg = sum(unit_weight_kg * qty for all lines)
+cubic_kg = sum(volume_m3 * 250 * qty for all lines)
+chargeable_kg = ceil(max(actual_kg, cubic_kg))</code></pre>
+
+<p>然后用整票 <code>chargeable_kg</code> 找一次 <code>RateRule</code>，不是逐件分别计价。</p>
+
+<h3 id="8-5-当前未计算项">8.5 当前未计算项</h3>
+
+<p>当前 IPEC calculator 已计算：</p>
+
+<ul>
+<li>Base</li>
+<li>Fuel</li>
+<li>GST</li>
+</ul>
+
+<p>当前没有自动计算：</p>
+
+<ul>
+<li>UBI additional fee 中的 penalty below 3kg / More to Pay</li>
+<li>redelivery / RTS / underticketing</li>
+<li>on-forwarding fee</li>
+<li>oversize fee</li>
+</ul>
+
+<p>这些目前主要用于 invoice reconciliation 证据或后续 surcharge 开发。若要进入报价，需要建立可预测触发条件和 <code>SurchargeRule</code>。</p>
+
+<h3 id="8-6-breakdown">8.6 Breakdown</h3>
+
+<p>IPEC breakdown 会显示：</p>
+
+<ul>
+<li>IPEC Road base</li>
+<li>Fuel levy</li>
+<li>GST</li>
+</ul>
+
+<p>Debug 中会显示：</p>
+
+<ul>
+<li>origin zone</li>
+<li>destination zone</li>
+<li>actual kg</li>
+<li>cubic kg</li>
+<li>chargeable kg</li>
+<li>cubic factor</li>
+<li>minimum/basic/per kg/kg included</li>
+<li>fuel rate</li>
+<li>zone lookup method</li>
+</ul>
+
+<h2 id="9-通用-table-rate-calculator">9. 通用 Table Rate Calculator</h2>
+
+<p>当前主要 named carrier 都使用专用 calculator。通用 <code>TableRateCalculator</code> 仍保留给简单 rate card 使用。</p>
+
+<p>通用逻辑：</p>
+
+<pre><code class="language-text">chargeable_weight = ceil(sum(max(dead, cubic) for each item))
+base = max(minimum_charge, basic_charge + per_kg * chargeable_weight)</code></pre>
+
+<p>税务：</p>
+
+<ul>
+<li>如果 <code>RateCard.tax_mode = INC_GST</code>，则 base 视为含 GST，系统反算 GST</li>
+<li>否则 base 视为 ex GST，按 <code>RateCard.gst_rate</code> 加 GST</li>
+</ul>
+
+<h2 id="10-单货-vs-多货对比示例">10. 单货 vs 多货对比示例</h2>
+
+<p>假设有两件货：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>SKU</th>
+<th>Qty</th>
+<th>Dead kg</th>
+<th>Cubic kg</th>
+</tr></thead><tbody>
+<tr>
+<td>A</td>
+<td>1</td>
+<td>10</td>
+<td>30</td>
+</tr>
+<tr>
+<td>B</td>
+<td>1</td>
+<td>20</td>
+<td>5</td>
+</tr>
+</tbody></table></div>
+
+<p>不同 carrier 的计费重量可能不同：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Carrier</th>
+<th>计算方式</th>
+<th>Chargeable kg</th>
+</tr></thead><tbody>
+<tr>
+<td>Hunter</td>
+<td><code>max(A dead, A cubic) + max(B dead, B cubic)</code></td>
+<td>30 + 20 = 50</td>
+</tr>
+<tr>
+<td>DFE</td>
+<td><code>max(sum dead, sum cubic)</code></td>
+<td>max(30, 35) = 35</td>
+</tr>
+<tr>
+<td>IPEC</td>
+<td><code>max(sum dead, sum cubic)</code></td>
+<td>max(30, 35) = 35</td>
+</tr>
+<tr>
+<td>Allied GRO</td>
+<td><code>max(round(sum dead), round(sum cubic))</code></td>
+<td>max(30, 35) = 35</td>
+</tr>
+<tr>
+<td>Allied B2C</td>
+<td>base 逐件，OWS 用整票</td>
+<td>A 按 30、B 按 20；OWS 用 50</td>
+</tr>
+<tr>
+<td>Orange Connex</td>
+<td>每件按单件实重进固定重量档</td>
+<td>A 用 10kg 档，B 用 20kg 档</td>
+</tr>
+</tbody></table></div>
+
+<p>这也是为什么同一个订单在不同快递中，单货和多货的差异可能非常大。</p>
+
+<h2 id="11-review-points">11. Review Points</h2>
+
+<p>以下是当前逻辑中建议业务确认或后续测试重点：</p>
+
+<ol>
+<li>Allied GRO <code>two_person_crew</code> 当前按代码使用 <code>single_cubic = round0((item.volume_m3 * 250) / qty)</code>。如果 <code>volume_m3</code> 本身已经是单件体积，多数量时这里可能需要业务确认是否应除以 qty。</li>
+<li>Allied GRO fuel 采用 legacy ratio，对含 GST subtotal 做倍率调整，和其他 carrier 的 fuel percentage 不同。</li>
+<li>Allied B2C 当前不拆 GST，<code>total_ex_gst</code> 和 <code>total_inc_gst</code> 都等于含 fuel 后总价。这是现有代码行为，是否需要拆税要看源费率含税定义。</li>
+<li>UBI IPEC oversize / on-forwarding 已有数据线索，但没有加入当前报价计算。加入前需要确认可预测触发条件和价格公式。</li>
+<li>Orange Connex 按实重档逐件算，不使用体积重计价，但仍用尺寸做 not-available 限制。</li>
+</ol>
+
+<!-- CONTENT_END -->
+
+      <footer class="doc-footer">
+        <span>Generated by <a href="#">md2html</a></span>
+        <span>来源: docs/Freight_Carrier_Calculation_Logic_20260618.md</span>
+      </footer>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    // ---------- Theme ----------
+    const STORAGE_KEY = "md2html-theme";
+    function currentTheme() { return document.documentElement.dataset.theme || "light"; }
+    function applyThemeIcon() {
+      const use = document.getElementById("theme-icon-use");
+      if (use) use.setAttribute("href", currentTheme() === "dark" ? "#i-sun" : "#i-moon");
+    }
+    (function restoreTheme() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) document.documentElement.dataset.theme = saved;
+    })();
+
+    // ---------- Mermaid ----------
+    const diagramSources = new Map();
+    function initMermaid() {
+      const isDark = currentTheme() === "dark";
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: isDark ? "dark" : "default",
+        themeVariables: {
+          primaryColor: isDark ? "#3A2A22" : "#FBEEE6",
+          primaryTextColor: isDark ? "#F5F0E8" : "#1A1A1A",
+          primaryBorderColor: isDark ? "#E89572" : "#D97757",
+          lineColor: isDark ? "#9A938A" : "#6B6B66",
+          secondaryColor: isDark ? "#2A2520" : "#F5F5F0",
+          tertiaryColor: isDark ? "#221E1A" : "#FFFFFF",
+          fontFamily: "Inter, system-ui, sans-serif",
+        },
+      });
+    }
+    async function renderMermaid() {
+      initMermaid();
+      const els = document.querySelectorAll(".mermaid");
+      els.forEach(el => {
+        if (!diagramSources.has(el)) diagramSources.set(el, el.textContent.trim());
+        el.textContent = diagramSources.get(el);
+        el.removeAttribute("data-processed");
+      });
+      try { await mermaid.run({ nodes: els }); } catch (e) { console.error(e); }
+    }
+    function toggleTheme() {
+      const next = currentTheme() === "light" ? "dark" : "light";
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem(STORAGE_KEY, next);
+      applyThemeIcon();
+      renderMermaid();
+    }
+
+    // ---------- TOC drawer (mobile) ----------
+    function openToc()  { document.body.classList.add("toc-open"); }
+    function closeToc() { document.body.classList.remove("toc-open"); }
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape" && document.body.classList.contains("toc-open")) closeToc();
+    });
+
+    // ---------- TOC scrollspy ----------
+    function setupTocSpy() {
+      const links = document.querySelectorAll("#toc-nav a[href^='#']");
+      if (!links.length) {
+        const toc = document.getElementById("toc");
+        if (toc) toc.style.display = "none";
+        return;
+      }
+      const map = new Map();
+      links.forEach(a => {
+        const id = a.getAttribute("href").slice(1);
+        const el = document.getElementById(id);
+        if (el) map.set(el, a);
+        a.addEventListener("click", () => {
+          if (window.matchMedia("(max-width: 900px)").matches) closeToc();
+        });
+      });
+      const obs = new IntersectionObserver((entries) => {
+        entries.forEach(en => {
+          const link = map.get(en.target);
+          if (!link) return;
+          if (en.isIntersecting) {
+            links.forEach(l => l.classList.remove("active"));
+            link.classList.add("active");
+          }
+        });
+      }, { rootMargin: "-80px 0px -70% 0px", threshold: 0 });
+      map.forEach((_, el) => obs.observe(el));
+    }
+
+    // ---------- Anchor links on h2/h3 ----------
+    function injectAnchors() {
+      document.querySelectorAll(".content h2[id], .content h3[id]").forEach(h => {
+        if (h.querySelector(".anchor")) return;
+        const a = document.createElement("a");
+        a.className = "anchor";
+        a.href = "#" + h.id;
+        a.setAttribute("aria-label", "Permalink");
+        a.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-link"/></svg>';
+        h.appendChild(a);
+      });
+    }
+
+    // ---------- Copy-to-clipboard on <pre> ----------
+    function injectCopyButtons() {
+      document.querySelectorAll(".content pre").forEach(pre => {
+        if (pre.classList.contains("mermaid")) return;
+        if (pre.querySelector(".copy-btn")) return;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "copy-btn";
+        btn.setAttribute("aria-label", "Copy code");
+        btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+        btn.addEventListener("click", async () => {
+          const code = pre.querySelector("code")?.textContent ?? pre.textContent;
+          try {
+            await navigator.clipboard.writeText(code);
+            btn.classList.add("copied");
+            btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>';
+            setTimeout(() => {
+              btn.classList.remove("copied");
+              btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+            }, 1500);
+          } catch (e) { console.error(e); }
+        });
+        pre.appendChild(btn);
+      });
+    }
+
+    // ---------- Scroll progress ----------
+    function setupScrollProgress() {
+      const bar = document.getElementById("scroll-progress");
+      if (!bar) return;
+      const onScroll = () => {
+        const h = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+        const p = h > 0 ? (document.documentElement.scrollTop / h * 100) : 0;
+        bar.style.width = p + "%";
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+    }
+
+    // ---------- Boot ----------
+    document.addEventListener("DOMContentLoaded", () => {
+      applyThemeIcon();
+      injectAnchors();
+      injectCopyButtons();
+      renderMermaid();
+      setupTocSpy();
+      setupScrollProgress();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+
+# Local secrets and databases
+.env
+*.env.local
+frontend/.env
+frontend/.env.local
+backend/.env
+backend/.env.local
+*.sqlite3
+*.db
+
+# Dependencies and build outputs
+node_modules/
+scripts/node_modules/
+dist/
+build/
+coverage/
+frontend/test-results/
+playwright-report/
+
+# Runtime logs and generated/debug outputs
+*.log
+*.err
+*.err.log
+backend-runserver.*
+backend_runserver.*
+frontend-vite*.log
+frontend-vite*.err*
+logs/
+artifacts/
+outputs/
+outputs_*.json
+backend/media/
+reports/*.json
+reports/*.csv
+
+# OS / editor
+.DS_Store
+Thumbs.db

@@ -1,0 +1,1685 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="light" style="--rec-label: '推荐'">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>UBI Rate Table System Readiness Check</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       TOKENS
+       ============================================================ */
+    :root {
+      --bg: #FAFAF7;
+      --surface: #FFFFFF;
+      --surface-2: #F5F5F0;
+      --surface-3: #EFEEE8;
+      --text: #1A1A1A;
+      --text-muted: #4A4A45;
+      --text-subtle: #6B6B66;
+      --accent: #D97757;
+      --accent-hover: #C56843;
+      --accent-soft: #FBEEE6;
+      --accent-border: #F0D5C4;
+      --accent-strong: #A85533;
+      --border: #E5E4DC;
+      --border-strong: #CDCDC4;
+      --code-bg: #F5F2EC;
+      --code-text: #2A2A2A;
+      --info: #2563EB;
+      --info-soft: #EFF6FF;
+      --info-border: #BFDBFE;
+      --warn: #B45309;
+      --warn-soft: #FFFBEB;
+      --warn-border: #FDE68A;
+      --danger: #B91C1C;
+      --danger-soft: #FEF2F2;
+      --danger-border: #FECACA;
+      --success: #047857;
+      --success-soft: #ECFDF5;
+      --success-border: #A7F3D0;
+      --decision: #6D28D9;
+      --decision-soft: #F5F3FF;
+      --decision-border: #DDD6FE;
+      --shadow-sm: 0 1px 2px rgba(20, 14, 8, 0.04);
+      --shadow: 0 1px 2px rgba(20, 14, 8, 0.04), 0 4px 12px rgba(20, 14, 8, 0.06);
+      --shadow-lg: 0 8px 24px rgba(20, 14, 8, 0.10);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans CJK JP', 'Noto Sans CJK KR', sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --z-progress: 200;
+      --z-topbar: 100;
+      --z-drawer: 300;
+      --z-backdrop: 250;
+    }
+
+    [data-theme="dark"] {
+      --bg: #1A1714;
+      --surface: #221E1A;
+      --surface-2: #2A2520;
+      --surface-3: #322C26;
+      --text: #F5F0E8;
+      --text-muted: #C8C0B6;
+      --text-subtle: #9A938A;
+      --accent: #E89572;
+      --accent-hover: #F2A87F;
+      --accent-soft: #3A2A22;
+      --accent-border: #5A3D2E;
+      --accent-strong: #F5B493;
+      --border: #2E2924;
+      --border-strong: #463F38;
+      --code-bg: #1E1B17;
+      --code-text: #E8E2D8;
+      --info: #93C5FD;
+      --info-soft: #1E2A3D;
+      --info-border: #2A4365;
+      --warn: #FBBF24;
+      --warn-soft: #332817;
+      --warn-border: #5C4520;
+      --danger: #FCA5A5;
+      --danger-soft: #3A1F1F;
+      --danger-border: #5C2A2A;
+      --success: #6EE7B7;
+      --success-soft: #1A3329;
+      --success-border: #1F5C45;
+      --decision: #C4B5FD;
+      --decision-soft: #2A1F40;
+      --decision-border: #4A3870;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.35);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    /* ============================================================
+       BASE
+       ============================================================ */
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    ::selection { background: var(--accent-soft); color: var(--accent-strong); }
+
+    /* Skip link */
+    .skip-link {
+      position: absolute;
+      top: -100px; left: 8px;
+      padding: 10px 16px;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+      z-index: 1000;
+      transition: top 0.15s;
+    }
+    .skip-link:focus { top: 8px; }
+
+    /* SVG sprite container (hidden) */
+    .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+    .icon { display: inline-block; flex-shrink: 0; vertical-align: middle; stroke: currentColor; fill: none; }
+
+    /* Scroll progress bar */
+    .scroll-progress {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      width: 0;
+      background: var(--accent);
+      z-index: var(--z-progress);
+      transition: width 0.05s linear;
+    }
+
+    /* ============================================================
+       TOPBAR
+       ============================================================ */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: var(--z-topbar);
+      background: rgba(250, 250, 247, 0.85);
+      backdrop-filter: saturate(180%) blur(12px);
+      -webkit-backdrop-filter: saturate(180%) blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    [data-theme="dark"] .topbar { background: rgba(26, 23, 20, 0.85); }
+    .topbar-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      color: var(--text);
+      font-size: 14px;
+    }
+    .brand-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+      animation: brand-pulse 2.8s ease-in-out infinite;
+    }
+    @keyframes brand-pulse {
+      0%, 100% { box-shadow: 0 0 0 4px var(--accent-soft); }
+      50%      { box-shadow: 0 0 0 7px transparent; }
+    }
+    .topbar-actions { display: flex; gap: 6px; align-items: center; }
+    .icon-btn {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+      padding: 0;
+    }
+    .icon-btn .icon { width: 18px; height: 18px; stroke-width: 2; }
+    .icon-btn[hidden] { display: none; }
+
+    /* ============================================================
+       LAYOUT
+       ============================================================ */
+    .layout {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 48px;
+      padding: 32px 24px 96px;
+    }
+    .content { min-width: 0; }
+
+    /* ============================================================
+       TOC (desktop + mobile drawer)
+       ============================================================ */
+    .toc {
+      position: sticky;
+      top: 80px;
+      align-self: start;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+    .toc::-webkit-scrollbar { width: 6px; }
+    .toc::-webkit-scrollbar-track { background: transparent; }
+    .toc::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+    .toc-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 12px 12px;
+    }
+    .toc-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-subtle);
+      margin: 0;
+    }
+    .toc-close { display: none; }
+    .toc-nav { display: flex; flex-direction: column; gap: 2px; }
+    .toc-nav a {
+      display: flex; align-items: center;
+      min-height: 36px;
+      padding: 8px 14px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13.5px;
+      border-left: 2px solid transparent;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+      line-height: 1.4;
+    }
+    .toc-nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      font-weight: 500;
+    }
+    .toc-nav a.lvl-3 { padding-left: 26px; font-size: 12.5px; }
+    .toc-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: var(--z-backdrop);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    /* ============================================================
+       DOC HEADER
+       ============================================================ */
+    .doc-header {
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .doc-eyebrow {
+      display: inline-flex; align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      border: 1px solid var(--accent-border);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      margin-bottom: 16px;
+    }
+    .doc-title {
+      font-size: clamp(28px, 3vw + 16px, 40px);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin: 0 0 12px;
+      color: var(--text);
+      text-wrap: balance;
+    }
+    .doc-subtitle {
+      font-size: clamp(15px, 0.6vw + 13px, 18px);
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin: 0 0 20px;
+      max-width: 75ch;
+      text-wrap: pretty;
+    }
+    .doc-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--text-subtle);
+    }
+    .doc-meta-item { display: inline-flex; align-items: center; gap: 6px; }
+    .doc-meta .icon { width: 14px; height: 14px; stroke-width: 2; }
+
+    /* ============================================================
+       CONTENT (typography)
+       ============================================================ */
+    .content h1, .content h2, .content h3, .content h4 {
+      color: var(--text);
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+      scroll-margin-top: 80px;
+      text-wrap: balance;
+    }
+    .content h2 {
+      font-size: 26px;
+      font-weight: 600;
+      margin: 56px 0 16px;
+      padding-top: 8px;
+      position: relative;
+    }
+    .content h3 {
+      font-size: 19px;
+      font-weight: 600;
+      margin: 36px 0 12px;
+      position: relative;
+    }
+    .content h4 {
+      font-size: 13px;
+      font-weight: 600;
+      margin: 24px 0 8px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .content > p,
+    .content > ul,
+    .content > ol,
+    .content > blockquote { max-width: 75ch; }
+    .content p { margin: 0 0 16px; text-wrap: pretty; overflow-wrap: anywhere; }
+    .content a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-border); }
+    .content ul, .content ol { padding-left: 24px; margin: 0 0 16px; }
+    .content li { margin: 4px 0; }
+    .content strong { color: var(--text); font-weight: 600; }
+    .content em { color: var(--text-muted); }
+    .content hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    /* Anchor links injected by JS on h2/h3 with id */
+    .anchor {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px;
+      margin-left: 6px;
+      color: var(--text-subtle);
+      opacity: 0;
+      transform: translateY(-1px);
+      transition: opacity 0.15s, color 0.15s;
+      border-bottom: none !important;
+      border-radius: var(--radius-sm);
+    }
+    .anchor .icon { width: 14px; height: 14px; stroke-width: 2; }
+
+    /* Images */
+    .content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin: 20px 0;
+      display: block;
+    }
+    .content figure { margin: 20px 0; }
+    .content figure img { margin: 0; }
+    .content figcaption {
+      font-size: 13px;
+      color: var(--text-subtle);
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    /* Task lists (- [ ] / - [x]) */
+    .content .task-list-item { list-style: none; margin-left: -22px; }
+    .content .task-list-item-checkbox {
+      margin-right: 8px;
+      vertical-align: -2px;
+      accent-color: var(--accent);
+    }
+
+    /* Footnotes */
+    .content .footnote-ref a,
+    .content sup a {
+      font-size: 0.75em;
+      vertical-align: super;
+      border-bottom: none;
+      padding: 0 2px;
+    }
+    .content .footnotes {
+      margin-top: 56px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* ============================================================
+       CODE
+       ============================================================ */
+    .content code {
+      font-family: var(--font-mono);
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.88em;
+      color: var(--code-text);
+      border: 1px solid var(--border);
+      overflow-wrap: anywhere;
+    }
+    .content pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-size: 13.5px;
+      line-height: 1.6;
+      margin: 16px 0;
+      position: relative;
+    }
+    .content pre code {
+      background: none; padding: 0; border: none;
+      color: var(--code-text);
+      font-size: inherit;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 32px; height: 32px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--text-subtle);
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+      padding: 0;
+    }
+    .copy-btn .icon { width: 14px; height: 14px; stroke-width: 2; }
+    .copy-btn.copied { color: var(--success); border-color: var(--success-border); opacity: 1; }
+
+    /* ============================================================
+       TIMELINE / STEPS
+       ============================================================ */
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 24px 0;
+      position: relative;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 19px;
+      top: 20px;
+      bottom: 20px;
+      width: 2px;
+      background: linear-gradient(180deg, var(--accent-border), var(--border));
+    }
+    .step {
+      display: grid;
+      grid-template-columns: 40px 1fr;
+      gap: 16px;
+      align-items: start;
+      padding: 16px 4px;
+      position: relative;
+      border-radius: var(--radius);
+      transition: background-color 0.15s;
+    }
+    .step-num {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      border: 2px solid var(--accent);
+      color: var(--accent);
+      border-radius: 50%;
+      font-weight: 600;
+      font-size: 14px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      z-index: 1;
+      transition: background-color 0.15s, color 0.15s, transform 0.15s;
+    }
+    .step.done .step-num { background: var(--accent); color: #fff; }
+    .step-body { padding-top: 6px; min-width: 0; }
+    .step-body h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .step-body p { margin: 0 0 8px; color: var(--text-muted); font-size: 14.5px; max-width: 75ch; }
+    .step-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* ============================================================
+       CALLOUTS
+       ============================================================ */
+    .callout {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 14px;
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      border: 1px solid;
+      margin: 20px 0;
+      font-size: 14.5px;
+      line-height: 1.6;
+      max-width: 75ch;
+    }
+    .callout-icon { width: 20px; height: 20px; margin-top: 2px; stroke-width: 2; }
+    .callout-body { min-width: 0; }
+    .callout-title { font-weight: 600; margin: 0 0 4px; font-size: 14px; }
+    .callout-body p:last-child { margin-bottom: 0; }
+    .callout-body code { background: rgba(0,0,0,0.04); }
+    [data-theme="dark"] .callout-body code { background: rgba(255,255,255,0.06); }
+
+    .callout-info     { background: var(--info-soft);     border-color: var(--info-border);     color: var(--text); }
+    .callout-info     .callout-title, .callout-info     .callout-icon { color: var(--info); }
+    .callout-warn     { background: var(--warn-soft);     border-color: var(--warn-border);     color: var(--text); }
+    .callout-warn     .callout-title, .callout-warn     .callout-icon { color: var(--warn); }
+    .callout-danger   { background: var(--danger-soft);   border-color: var(--danger-border);   color: var(--text); }
+    .callout-danger   .callout-title, .callout-danger   .callout-icon { color: var(--danger); }
+    .callout-success  { background: var(--success-soft);  border-color: var(--success-border);  color: var(--text); }
+    .callout-success  .callout-title, .callout-success  .callout-icon { color: var(--success); }
+    .callout-decision { background: var(--decision-soft); border-color: var(--decision-border); color: var(--text); }
+    .callout-decision .callout-title, .callout-decision .callout-icon { color: var(--decision); }
+    .callout-tip      { background: var(--accent-soft);   border-color: var(--accent-border);   color: var(--text); }
+    .callout-tip      .callout-title, .callout-tip      .callout-icon { color: var(--accent-strong); }
+
+    /* ============================================================
+       KEY-POINT HIGHLIGHT
+       ============================================================ */
+    .highlight {
+      background: linear-gradient(135deg, var(--accent-soft), var(--surface-2));
+      border-left: 4px solid var(--accent);
+      padding: 18px 22px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 24px 0;
+      font-size: 16px;
+      line-height: 1.65;
+      max-width: 75ch;
+    }
+    .highlight-label {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-strong);
+      margin-bottom: 6px;
+    }
+
+    /* ============================================================
+       MERMAID
+       ============================================================ */
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin: 24px 0;
+      box-shadow: var(--shadow-sm);
+      overflow-x: auto;
+    }
+    .diagram-caption {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+      font-size: 13px;
+      color: var(--text-subtle);
+      text-align: center;
+    }
+    .mermaid { text-align: center; min-height: 80px; }
+    .mermaid svg { max-width: 100%; height: auto; }
+    .mermaid:not([data-processed]) {
+      opacity: 0.4;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-subtle);
+      white-space: pre-wrap;
+      text-align: left;
+    }
+
+    /* ============================================================
+       PROS / CONS
+       ============================================================ */
+    .proscons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .proscons-col {
+      padding: 16px 20px;
+      border-radius: var(--radius);
+      border: 1px solid;
+    }
+    .proscons-col h4 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .proscons-col ul { margin: 0; padding-left: 18px; }
+    .proscons-col li { margin: 6px 0; }
+    .pros { background: var(--success-soft); border-color: var(--success-border); }
+    .pros h4 { color: var(--success); }
+    .cons { background: var(--danger-soft); border-color: var(--danger-border); }
+    .cons h4 { color: var(--danger); }
+
+    /* ============================================================
+       COMPARISON CARDS
+       ============================================================ */
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin: 24px 0;
+    }
+    .compare-card {
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.18s, box-shadow 0.18s;
+      position: relative;
+    }
+    .compare-card.recommended { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .compare-card.recommended::before {
+      content: var(--rec-label, "★ Recommended");
+      position: absolute; top: -10px; right: 14px;
+      background: var(--accent); color: #fff;
+      padding: 2px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+    }
+    .compare-card h4 { margin: 0 0 8px; font-size: 15px; color: var(--text); text-transform: none; letter-spacing: normal; }
+    .compare-card p { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+    /* ============================================================
+       COLLAPSIBLE
+       ============================================================ */
+    details.collapsible {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 16px 0;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    details.collapsible[open] { box-shadow: var(--shadow-sm); }
+    details.collapsible > summary {
+      cursor: pointer;
+      padding: 14px 18px;
+      font-weight: 500;
+      color: var(--text);
+      list-style: none;
+      display: flex; align-items: center; gap: 10px;
+      user-select: none;
+      transition: background 0.15s;
+      min-height: 44px;
+    }
+    details.collapsible > summary::-webkit-details-marker { display: none; }
+    details.collapsible > summary::before {
+      content: "›";
+      display: inline-block;
+      transition: transform 0.18s;
+      color: var(--accent);
+      font-size: 18px;
+      font-weight: 700;
+    }
+    details.collapsible[open] > summary::before { transform: rotate(90deg); }
+    .collapsible-body { padding: 4px 18px 18px; border-top: 1px solid var(--border); }
+    .collapsible-body > *:first-child { margin-top: 12px; }
+
+    /* ============================================================
+       TABLES (wrapped via .table-wrap or naturally responsive)
+       ============================================================ */
+    .table-wrap {
+      overflow-x: auto;
+      margin: 20px 0;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      max-width: 100%;
+    }
+    .content table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--surface);
+      margin: 0;
+    }
+    /* Standalone tables (not inside .table-wrap) keep visual border */
+    .content > table {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 20px 0;
+      display: block;
+      overflow-x: auto;
+    }
+    .content th {
+      background: var(--surface-2);
+      color: var(--text);
+      font-weight: 600;
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .content td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+    .content tr:last-child td { border-bottom: none; }
+
+    /* ============================================================
+       BLOCKQUOTE
+       ============================================================ */
+    .content blockquote {
+      margin: 20px 0;
+      padding: 4px 20px;
+      border-left: 3px solid var(--accent-border);
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* ============================================================
+       FOOTER
+       ============================================================ */
+    .doc-footer {
+      margin-top: 80px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-subtle);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .doc-footer a { color: var(--accent); text-decoration: none; }
+
+    /* ============================================================
+       FOCUS-VISIBLE (a11y)
+       ============================================================ */
+    *:focus { outline: none; }
+    *:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+      border-radius: var(--radius-sm);
+    }
+    .toc-nav a:focus-visible { outline-offset: -2px; }
+    .icon-btn:focus-visible { outline-offset: 2px; }
+    .anchor:focus-visible { opacity: 1; outline-offset: 2px; }
+    details.collapsible > summary:focus-visible { outline-offset: -2px; }
+
+    /* ============================================================
+       HOVER (only on hover-capable devices to avoid sticky-tap on mobile)
+       ============================================================ */
+    @media (hover: hover) {
+      .icon-btn:hover { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
+      .toc-nav a:hover { color: var(--accent); background: var(--accent-soft); }
+      .content a:hover { color: var(--accent-hover); border-bottom-color: var(--accent); }
+      .compare-card:hover { border-color: var(--accent-border); box-shadow: var(--shadow); }
+      .compare-card.recommended:hover { border-color: var(--accent); }
+      .content tr:hover td { background: var(--surface-2); }
+      details.collapsible > summary:hover { background: var(--surface-2); }
+      .step:hover { background: var(--surface-2); }
+      .step:hover .step-num { transform: scale(1.05); }
+      .anchor:hover { color: var(--accent); }
+      .content h2:hover .anchor,
+      .content h3:hover .anchor { opacity: 1; }
+      .copy-btn:hover { color: var(--accent); border-color: var(--accent-border); }
+      .content pre:hover .copy-btn { opacity: 1; }
+    }
+    /* On touch devices, copy-btn is always visible at low opacity */
+    @media (hover: none) {
+      .copy-btn { opacity: 0.6; }
+      .anchor { opacity: 0.4; }
+    }
+
+    /* ============================================================
+       MOBILE (≤900px) — TOC becomes off-canvas drawer
+       ============================================================ */
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 20px 16px 80px;
+      }
+      .topbar-inner { padding: 8px 12px; }
+      .doc-header { margin-bottom: 28px; padding-bottom: 20px; }
+
+      .toc-mobile-trigger { display: inline-flex !important; }
+
+      .toc {
+        position: fixed;
+        top: 0; left: 0;
+        width: min(300px, 82vw);
+        height: 100dvh;
+        max-height: 100dvh;
+        background: var(--surface);
+        z-index: var(--z-drawer);
+        padding: 16px 8px 24px 16px;
+        box-shadow: var(--shadow-lg);
+        transform: translateX(-105%);
+        transition: transform 0.25s ease;
+      }
+      .toc-head { padding: 4px 4px 12px 8px; }
+      .toc-close {
+        display: inline-flex !important;
+        width: 36px; height: 36px;
+        align-items: center; justify-content: center;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0;
+      }
+      .toc-close .icon { width: 18px; height: 18px; stroke-width: 2; }
+      body.toc-open .toc { transform: translateX(0); }
+      body.toc-open .toc-backdrop {
+        display: block;
+        opacity: 1;
+      }
+      .toc-backdrop {
+        display: block;
+        opacity: 0;
+        pointer-events: none;
+      }
+      body.toc-open .toc-backdrop { pointer-events: auto; }
+      body.toc-open { overflow: hidden; }
+    }
+    @media (min-width: 901px) {
+      .toc-mobile-trigger { display: none !important; }
+    }
+
+    /* ============================================================
+       REDUCED MOTION (a11y)
+       ============================================================ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      html { scroll-behavior: auto; }
+      .brand-dot { animation: none; box-shadow: 0 0 0 4px var(--accent-soft); }
+    }
+
+    /* ============================================================
+       PRINT
+       ============================================================ */
+    @media print {
+      .topbar, .toc, .toc-backdrop, .icon-btn, .copy-btn, .anchor, .scroll-progress { display: none !important; }
+      .layout { grid-template-columns: 1fr; padding: 0; max-width: 100%; }
+      body { background: #fff; color: #000; }
+      a { color: #000; }
+      .content pre, .callout, .compare-card, .step, .diagram { break-inside: avoid; }
+      .doc-footer { break-before: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Skip link for keyboard users -->
+  <a href="#main" class="skip-link">跳到正文</a>
+
+  <!-- Scroll progress -->
+  <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
+
+  <!-- SVG icon sprite (Lucide-style) -->
+  <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+    <symbol id="i-danger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></symbol>
+    <symbol id="i-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+    <symbol id="i-decision" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-tip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14a5 5 0 1 0-6.18 0 4 4 0 0 1 1.59 2h2.99a4 4 0 0 1 1.6-2Z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+  </svg>
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <button class="icon-btn toc-mobile-trigger" id="toc-toggle" onclick="openToc()" aria-label="目录" title="目录">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg>
+        </button>
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span>计划</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" onclick="window.print()" title="打印 / 保存 PDF" aria-label="打印 / 保存 PDF">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-printer"/></svg>
+        </button>
+        <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" title="切换主题" aria-label="切换主题">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use id="theme-icon-use" href="#i-moon"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- TOC drawer backdrop (mobile) -->
+  <div class="toc-backdrop" onclick="closeToc()" aria-hidden="true"></div>
+
+  <div class="layout">
+    <aside class="toc" id="toc" aria-label="目录">
+      <div class="toc-head">
+        <p class="toc-title">目录</p>
+        <button class="toc-close" onclick="closeToc()" aria-label="关闭">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+        </button>
+      </div>
+      <nav class="toc-nav" id="toc-nav">
+        <a href="#1-当前系统状态" class="lvl-2">1. 当前系统状态</a>
+<a href="#2-总体结论" class="lvl-2">2. 总体结论</a>
+<a href="#3-系统导入需求核对" class="lvl-2">3. 系统导入需求核对</a>
+<a href="#3-1-master-data" class="lvl-3">3.1 Master Data</a>
+<a href="#3-2-ratecard-生命周期" class="lvl-3">3.2 RateCard 生命周期</a>
+<a href="#4-各渠道明细" class="lvl-2">4. 各渠道明细</a>
+<a href="#4-1-ubi-fastway-aramex" class="lvl-3">4.1 UBI Fastway / Aramex</a>
+<a href="#4-2-ubi-eparcel-standard-express" class="lvl-3">4.2 UBI eParcel Standard / Express</a>
+<a href="#4-3-ubi-toll-ipec-road" class="lvl-3">4.3 UBI Toll IPEC Road</a>
+<a href="#4-4-ubi-toll-priority3-b2c" class="lvl-3">4.4 UBI Toll Priority3 / B2C</a>
+<a href="#5-oversize-是否应进入计算" class="lvl-2">5. Oversize 是否应进入计算</a>
+<a href="#6-penalty-below-3kg-是否进入计算" class="lvl-2">6. Penalty Below 3kg 是否进入计算</a>
+<a href="#7-最终判断" class="lvl-2">7. 最终判断</a>
+<a href="#8-建议下一步" class="lvl-2">8. 建议下一步</a>
+      </nav>
+    </aside>
+
+    <main class="content" id="main">
+      <header class="doc-header">
+        <span class="doc-eyebrow">PLAN</span>
+        <h1 class="doc-title">UBI Rate Table System Readiness Check</h1>
+        <p class="doc-subtitle">生成日期: 2026 06 18</p>
+        <div class="doc-meta">
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-file"/></svg>
+            docs/UBI_Rate_Table_System_Readiness_Check_20260618.md
+          </span>
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-calendar"/></svg>
+            2026-06-22
+          </span>
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clock"/></svg>
+            ~3 分钟阅读
+          </span>
+        </div>
+      </header>
+
+      <!-- CONTENT_START -->
+
+<p>生成日期: 2026-06-18 来源包: <code>C:\Users\KenHu\Downloads\ubi_invoices_all 1.zip</code> 相关分析:</p>
+
+<ul>
+<li><code>outputs\ubi_rate_analysis\ubi_rate_analysis_summary.json</code></li>
+<li><code>outputs\ubi_rate_analysis\ubi_rate_sheet_versions.csv</code></li>
+<li><code>docs\UBI_Rate_Import_System_Development_Plan_20260617.md</code></li>
+</ul>
+
+<h2 id="1-当前系统状态">1. 当前系统状态</h2>
+
+<p>数据库检查结果:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>对象</th>
+<th>状态</th>
+</tr></thead><tbody>
+<tr>
+<td><code>Agent=UBI</code></td>
+<td>已存在，code 为 <code>ubi</code></td>
+</tr>
+<tr>
+<td>UBI RateCard</td>
+<td>暂无</td>
+</tr>
+<tr>
+<td>UBI QuoteChannel</td>
+<td>暂无</td>
+</tr>
+</tbody></table></div>
+
+<p>结论:</p>
+
+<ul>
+<li>UBI 文件已经完成分析，但尚未正式导入到 Pricing。</li>
+<li>当前系统还不能直接计算 UBI 报价。</li>
+<li>需要按开发方案新增 parser、import command、calculator 和 quote channels。</li>
+</ul>
+
+<h2 id="2-总体结论">2. 总体结论</h2>
+
+<p>UBI 费率表整体可以进入系统，但不是所有渠道都已经完全满足“直接导入即可报价”的要求。</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>渠道</th>
+<th>是否满足系统需求</th>
+<th>主要原因</th>
+</tr></thead><tbody>
+<tr>
+<td>UBI Fastway / Aramex</td>
+<td>基本满足</td>
+<td>有 coverage mapping、rate matrix、origin、weight break；需要确认生效日期和 fuel/oversize 配置</td>
+</tr>
+<tr>
+<td>UBI eParcel Standard / Express</td>
+<td>基本满足</td>
+<td>有 postcode zone mapping、rate matrix、MLID；但当前只看到 MEL lodgement/origin</td>
+</tr>
+<tr>
+<td>UBI Toll Priority3 / B2C</td>
+<td>基本满足</td>
+<td>有 postcode zone finder、MEL/SYD origin、rate rows、effective date；无日期版本不能启用</td>
+</tr>
+<tr>
+<td>UBI Toll IPEC Road</td>
+<td>部分满足</td>
+<td>价格表完整，但缺少完整 postcode/suburb -&gt; Toll dest zone 主映射</td>
+</tr>
+<tr>
+<td>UBI Oversize</td>
+<td>可作为 surcharge 加入</td>
+<td>有尺寸字段和费用字段，可按最长边/尺寸规则预估</td>
+</tr>
+<tr>
+<td>UBI penalty below 3kg / More to Pay</td>
+<td>暂不做报价计算</td>
+<td>依赖申报重量和 carrier 实测差异，公式未确认，先用于账单复核</td>
+</tr>
+</tbody></table></div>
+
+<h2 id="3-系统导入需求核对">3. 系统导入需求核对</h2>
+
+<h3 id="3-1-master-data">3.1 Master Data</h3>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>需求</th>
+<th>状态</th>
+<th>说明</th>
+</tr></thead><tbody>
+<tr>
+<td>Agent</td>
+<td>满足</td>
+<td><code>Agent=UBI</code> 已存在</td>
+</tr>
+<tr>
+<td>Carrier</td>
+<td>需要创建/匹配</td>
+<td>Australia Post、Aramex/Fastway、TGE Toll IPEC、TGE Toll Priority 需要按现有 carrier 规范匹配</td>
+</tr>
+<tr>
+<td>CarrierService</td>
+<td>需要创建</td>
+<td>需要创建 <code>UBI_EPARCEL_STANDARD</code>、<code>UBI_EPARCEL_EXPRESS</code>、<code>UBI_FASTWAY</code>、<code>UBI_TOLL_IPEC_ROAD</code>、<code>UBI_TOLL_PRIORITY3_B2C</code></td>
+</tr>
+<tr>
+<td>QuoteChannel.agent</td>
+<td>满足</td>
+<td>系统已有字段</td>
+</tr>
+<tr>
+<td>RateCard.agent</td>
+<td>当前缺失</td>
+<td>建议新增字段，否则只能暂放 <code>metadata_json.agent_code</code></td>
+</tr>
+</tbody></table></div>
+
+<h3 id="3-2-ratecard-生命周期">3.2 RateCard 生命周期</h3>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>需求</th>
+<th>状态</th>
+<th>说明</th>
+</tr></thead><tbody>
+<tr>
+<td>version</td>
+<td>满足</td>
+<td>可用 sheet 名和 effective date 生成</td>
+</tr>
+<tr>
+<td>effective_from</td>
+<td>部分满足</td>
+<td>eParcel、Toll IPEC、Priority3 有明确日期；Fastway New Rate 需要人工确认 2025-08-01；旧 Fastway 需要人工确认</td>
+</tr>
+<tr>
+<td>effective_to</td>
+<td>满足</td>
+<td>可由新版本导入时手动关闭旧版本</td>
+</tr>
+<tr>
+<td>status/is_active</td>
+<td>满足</td>
+<td>现有模型支持</td>
+</tr>
+<tr>
+<td>priority</td>
+<td>满足</td>
+<td>现有模型支持</td>
+</tr>
+<tr>
+<td>source hash</td>
+<td>满足</td>
+<td>可放入 <code>metadata_json.source_sheet_hash</code></td>
+</tr>
+</tbody></table></div>
+
+<h2 id="4-各渠道明细">4. 各渠道明细</h2>
+
+<h3 id="4-1-ubi-fastway-aramex">4.1 UBI Fastway / Aramex</h3>
+
+<p>检查结果:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>项目</th>
+<th>结果</th>
+</tr></thead><tbody>
+<tr>
+<td>Rate matrix</td>
+<td>有</td>
+</tr>
+<tr>
+<td>旧 <code>Rate</code> origin</td>
+<td>MEL，29 个 destination</td>
+</tr>
+<tr>
+<td><code>New Rate</code> origin</td>
+<td>SYD / PER / MEL，各 29 个 destination</td>
+</tr>
+<tr>
+<td>Coverage mapping</td>
+<td>4,860 个 postcode/suburb rows</td>
+</tr>
+<tr>
+<td>Coverage states</td>
+<td>ACT、NSW、QLD、SA、TAS、VIC、WA</td>
+</tr>
+<tr>
+<td>Destination zones</td>
+<td>29 个 RF zone</td>
+</tr>
+<tr>
+<td>Weight break</td>
+<td>0.3kg 到 5.5kg，超过后 <code>Per 500g +</code></td>
+</tr>
+</tbody></table></div>
+
+<p>系统适配:</p>
+
+<ul>
+<li>可以导入 <code>RateZone</code>，postcode/suburb/state -&gt; RF。</li>
+<li>可以导入 <code>RateRule</code>，origin + RF + weight break。</li>
+<li>需要专用 calculator，因为它不是简单 <code>basic + per_kg * chargeable_kg</code>，而是 fixed break + per 500g thereafter。</li>
+<li><code>New Rate</code> 支持多 origin，适合系统按 warehouse state/origin 过滤。</li>
+</ul>
+
+<p>缺口:</p>
+
+<ul>
+<li>Fastway 旧 <code>Rate</code> 没有明确 effective date。</li>
+<li><code>New Rate</code> 没有直接写在 sheet 名中；可根据首个带 <code>New Rate</code> 的 billing closed time <code>2025-08-01</code> 作为候选，但需要人工确认。</li>
+<li>fuel rate 需要从合同或账单确认后配置成 <code>SurchargeRule</code>。</li>
+<li>NT 不在 coverage states 中，报价时应返回 not available，除非后续拿到覆盖表。</li>
+</ul>
+
+<p>结论:</p>
+
+<ul>
+<li>满足导入系统需求，P1 可优先做。</li>
+</ul>
+
+<h3 id="4-2-ubi-eparcel-standard-express">4.2 UBI eParcel Standard / Express</h3>
+
+<p>检查结果:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>项目</th>
+<th>结果</th>
+</tr></thead><tbody>
+<tr>
+<td>Standard versions</td>
+<td><code>MEL eparcel 2024.3.18</code>、<code>MEL eparcel 2025.11.01</code></td>
+</tr>
+<tr>
+<td>Express versions</td>
+<td><code>MEL express 2024.3.18</code>、<code>MEL express 2025.11.01</code></td>
+</tr>
+<tr>
+<td>Zone mapping</td>
+<td>9,092 postcode rows</td>
+</tr>
+<tr>
+<td>UBI zones</td>
+<td>38 个</td>
+</tr>
+<tr>
+<td>MLID mapping</td>
+<td>有，23 行新版、16 行旧版</td>
+</tr>
+<tr>
+<td>Weight bands</td>
+<td>有</td>
+</tr>
+<tr>
+<td>Over 22kg</td>
+<td>旧表有 Basic / Per Kg；新版也有超重/附加说明结构</td>
+</tr>
+</tbody></table></div>
+
+<p>系统适配:</p>
+
+<ul>
+<li>postcode -&gt; UBI zone 可导入 <code>RateZone</code>。</li>
+<li>weight band matrix 可进入 <code>RateRule.raw_payload.weight_breaks</code>。</li>
+<li>需要专用 calculator，因为它是 zone + weight band 固定价，不是现有通用 table rate。</li>
+</ul>
+
+<p>缺口:</p>
+
+<ul>
+<li>当前 rate sheet 都是 MEL lodgement/origin，没有看到 SYD lodgement/origin 的 eParcel rate。</li>
+<li>Zone mapping 只有 postcode，没有 suburb/state 精确粒度；如果 postcode 唯一映射 zone，可以接受。</li>
+<li>Over 22kg 和新版附加说明需要 parser 单测确认。</li>
+</ul>
+
+<p>结论:</p>
+
+<ul>
+<li>满足 MEL origin 的导入系统需求。</li>
+<li>如果 NSW/SYD 仓库也要走 UBI eParcel，需要额外确认是否使用同一 MEL lodgement rate，还是缺少 SYD rate sheet。</li>
+</ul>
+
+<h3 id="4-3-ubi-toll-ipec-road">4.3 UBI Toll IPEC Road</h3>
+
+<p>检查结果:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>项目</th>
+<th>结果</th>
+</tr></thead><tbody>
+<tr>
+<td>Versions</td>
+<td><code>IPEC Rate 07.07.25</code>、<code>IPEC Rate 20.04.26</code></td>
+</tr>
+<tr>
+<td>Rate rows</td>
+<td>每版 84 条</td>
+</tr>
+<tr>
+<td>Origins</td>
+<td>SYD1 42 条、MEL1 42 条</td>
+</tr>
+<tr>
+<td>Destination zones</td>
+<td>42 个</td>
+</tr>
+<tr>
+<td>Cubic conversion</td>
+<td>250</td>
+</tr>
+<tr>
+<td>Price fields</td>
+<td>Minimum Charge、BasicChargeAmount、FreightChargeAmount、KG Included In Basic</td>
+</tr>
+</tbody></table></div>
+
+<p>系统适配:</p>
+
+<ul>
+<li>价格结构非常适合导入 <code>RateRule</code>。</li>
+<li>calculator 可以按 <code>max(minimum, basic + per_kg * chargeable_kg)</code> 实现。</li>
+<li>origin 可以按 warehouse state 匹配 MEL/SYD。</li>
+</ul>
+
+<p>缺口:</p>
+
+<ul>
+<li>缺少完整 postcode/suburb -&gt; Toll <code>To Zone</code> 主映射。</li>
+<li>Billing sheet 中有 <code>To Zone</code>，可抽取到 2,078 个历史出现过的 postcode，发现 36 个 postcode 映射冲突。这只能用于复核或临时补洞，不适合作为完整报价 zone master。</li>
+<li>已复核之前提供的 <code>lsp_carrier_rate_reference_2026-06-05/csv/lsp_carrier_zone.csv</code>：该文件包含 Hunter Road Freight、UBI AUPOST、PF Logistics 等 zone/rate 数据，但没有 Toll/IPEC/TGE 的 carrier zone rows。</li>
+<li>已复核之前提供的 <code>lsp_quote_response_location_analysis_2026-06-05</code>：只确认 LSP API quote response 中存在 <code>predict_carrier_code=toll</code> 的历史报价记录，不包含 postcode/suburb -&gt; Toll <code>To Zone</code> 的主数据表。</li>
+<li>已复核当前系统库：<code>RateCard/RateZone</code> 中没有 Toll/IPEC/TGE/Priority 正式报价 mapping；invoice 侧只有 UBI Toll/Toll P3 的账单来源和历史明细，不是报价用 zone master。</li>
+<li>已复核 <code>data_raw.lsp</code> 原始库：<code>lsp_carrier_rate</code> 有 <code>AU.TGE.PRIORITY.PRO</code> 的 MEL/SYD rate rows，但 <code>lsp_carrier_zone</code> 对 Toll/IPEC/TGE 为 0 行，<code>lsp_platform_zone</code> 为空表。</li>
+<li>不建议直接借用 Toll Priority3 的 <code>Priority Zone Finder</code> 给 IPEC：Priority zone finder 有 53 个 zone，IPEC 有 42 个 dest zone，两者只重合 16 个 zone，<code>NSW1/QLD1/VIC1</code> 等 Priority 分区与 <code>CNSW/SEQLD/IVIC</code> 等 IPEC 分区不是同一套命名。</li>
+<li>2026-06-18 补充网站复核：Maropost/Neto 公开 IPEC setup 文档链接了 <code>TollIPEC-ShippingZones.csv</code>。该 CSV 有 16,361 行、2,876 个 postcode、14,826 个 suburb；把 <code>Zone Code</code> 前缀规范化后，正好覆盖 UBI IPEC rate table 的 42 个 dest zone。与 UBI Toll IPEC billing 70,813 行比对，70,422 行匹配，覆盖率约 99.86%，匹配率约 99.45%。建议作为 DRAFT mapping 导入，并把 UBI billing mismatch 做 override/review。</li>
+<li>要正式用于 Manual Quote，可以先使用 Maropost/Neto CSV 作为 DRAFT zone finder；生产启用前建议让业务确认来源可接受，或从 LSP/UBI/TeamGE 获得账号级正式 mapping，并保留 UBI billing mismatch override。</li>
+</ul>
+
+<p>结论:</p>
+
+<ul>
+<li>费率价格表满足系统需求。</li>
+<li>地址到 zone 的 mapping 不完整，因此不能直接全面上线报价。</li>
+<li>可以先用于 invoice/audit 中已知 <code>To Zone</code> 的订单复算，或先上线为受限渠道。</li>
+</ul>
+
+<h3 id="4-4-ubi-toll-priority3-b2c">4.4 UBI Toll Priority3 / B2C</h3>
+
+<p>检查结果:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>项目</th>
+<th>结果</th>
+</tr></thead><tbody>
+<tr>
+<td>明确版本</td>
+<td>Effective 2025-07-07、Effective 2026-04-20</td>
+</tr>
+<tr>
+<td>无日期版本</td>
+<td>1 个 hash，需 review</td>
+</tr>
+<tr>
+<td>Zone finder</td>
+<td>6,400 postcode rows</td>
+</tr>
+<tr>
+<td>Origins</td>
+<td>MEL 51 条、SYD 51 条</td>
+</tr>
+<tr>
+<td>Destination zones</td>
+<td>51 个</td>
+</tr>
+<tr>
+<td>Rate fields</td>
+<td>Min Charge、Basic、Kilo Rate Thereafter、Kilos Included、weight breaks</td>
+</tr>
+</tbody></table></div>
+
+<p>系统适配:</p>
+
+<ul>
+<li>postcode -&gt; PriorityZone 可导入 <code>RateZone</code>。</li>
+<li>MEL/SYD origin 满足 warehouse state 过滤。</li>
+<li>需要专用 calculator 处理 Priority3 的 min/basic/kilo thereafter/weight break。</li>
+</ul>
+
+<p>缺口:</p>
+
+<ul>
+<li>无日期版本不能激活。</li>
+<li>需要确认 cubic/chargeable weight 规则。</li>
+</ul>
+
+<p>结论:</p>
+
+<ul>
+<li>明确日期的两个版本满足导入系统需求。</li>
+<li>无日期版本只保存为 DRAFT/REVIEW。</li>
+</ul>
+
+<h2 id="5-oversize-是否应进入计算">5. Oversize 是否应进入计算</h2>
+
+<p>结论: 应进入计算。</p>
+
+<p>证据:</p>
+
+<ul>
+<li><code>oversize</code> 表中有 <code>ParcelLength</code>、<code>ParcelWidth</code>、<code>ParcelHeight</code>、<code>LabelCost</code>、<code>service_type=Oversize Length Surcharge</code>。</li>
+<li>样本中多数 <code>LabelCost</code> 为 ex GST 15。</li>
+<li>触发样本的长度集中在 100cm 以上，最长边可作为主要判断条件。</li>
+</ul>
+
+<p>建议:</p>
+
+<ul>
+<li>不导入成基础 <code>RateRule</code>。</li>
+<li>导入成 <code>SurchargeRule</code> 或 calculator 内部 surcharge config。</li>
+<li>条件先做成可配置，不硬编码:</li>
+<li><code>longest_side_cm &gt;= threshold</code></li>
+<li><code>fee_amount = 15</code></li>
+<li>可按 service/rate_card/effective date 区分</li>
+</ul>
+
+<p>Breakdown 示例:</p>
+
+<pre><code class="language-text">Oversize length surcharge: $15.00</code></pre>
+
+<p>Trace 必须记录:</p>
+
+<ul>
+<li>longest_side_cm</li>
+<li>threshold_cm</li>
+<li>surcharge_rule_id</li>
+<li>source folder = <code>oversize</code></li>
+<li>source service_type = <code>Oversize Length Surcharge</code></li>
+</ul>
+
+<h2 id="6-penalty-below-3kg-是否进入计算">6. Penalty Below 3kg 是否进入计算</h2>
+
+<p>结论: 当前不进入计算。</p>
+
+<p>原因:</p>
+
+<ul>
+<li>它依赖 declared weight、actual weight、billed weight、actual dimensions、charge code、fuel/security/additional charge 等组合。</li>
+<li>样本表明它更像 carrier 事后复测/补收费，不是稳定的基础报价规则。</li>
+<li>在公式未确认前加入报价会制造误差。</li>
+</ul>
+
+<p>处理方式:</p>
+
+<ul>
+<li>保留为 Invoice Reconciliation evidence。</li>
+<li>不进入 Manual Quote。</li>
+<li>不进入 Freight Audit Matrix system estimate。</li>
+<li>不在 breakdown 显示 predicted penalty。</li>
+</ul>
+
+<h2 id="7-最终判断">7. 最终判断</h2>
+
+<p>UBI 费率表满足系统导入的主体需求，但需要按渠道分阶段处理。</p>
+
+<p>可以优先导入:</p>
+
+<ol>
+<li>Fastway / Aramex</li>
+<li>Toll Priority3 / B2C</li>
+<li>eParcel Standard / Express for MEL origin</li>
+</ol>
+
+<p>谨慎导入:</p>
+
+<ol>
+<li>Toll IPEC Road</li>
+</ol>
+
+<ul>
+<li>价格表可以导入。</li>
+<li>但完整 zone mapping 缺失，需要补 zone finder 后才能全面报价。</li>
+</ul>
+
+<p>可以加入计算的 surcharge:</p>
+
+<ol>
+<li>Oversize Length Surcharge</li>
+</ol>
+
+<p>暂不加入计算:</p>
+
+<ol>
+<li>Penalty below 3kg</li>
+<li>More to Pay</li>
+<li>Redelivery</li>
+<li>RTS</li>
+<li>Underticketing</li>
+</ol>
+
+<h2 id="8-建议下一步">8. 建议下一步</h2>
+
+<ol>
+<li>先实现 UBI import parser 的 dry-run，输出每个渠道的 row counts、hash、effective date、zone mapping 覆盖率。</li>
+<li>P1 导入 Fastway + oversize surcharge，因为它的 coverage 和 rate matrix 最完整。</li>
+<li>P2 导入 Toll Priority3 和 eParcel。</li>
+<li>Toll IPEC 先导入价格表为 DRAFT，等拿到完整 postcode zone mapping 后再启用报价。</li>
+<li>所有 UBI channel 的 outer result 只显示 inc GST total，breakdown 显示 base/fuel/oversize/GST。</li>
+</ol>
+
+<!-- CONTENT_END -->
+
+      <footer class="doc-footer">
+        <span>Generated by <a href="#">md2html</a></span>
+        <span>来源: docs/UBI_Rate_Table_System_Readiness_Check_20260618.md</span>
+      </footer>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    // ---------- Theme ----------
+    const STORAGE_KEY = "md2html-theme";
+    function currentTheme() { return document.documentElement.dataset.theme || "light"; }
+    function applyThemeIcon() {
+      const use = document.getElementById("theme-icon-use");
+      if (use) use.setAttribute("href", currentTheme() === "dark" ? "#i-sun" : "#i-moon");
+    }
+    (function restoreTheme() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) document.documentElement.dataset.theme = saved;
+    })();
+
+    // ---------- Mermaid ----------
+    const diagramSources = new Map();
+    function initMermaid() {
+      const isDark = currentTheme() === "dark";
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: isDark ? "dark" : "default",
+        themeVariables: {
+          primaryColor: isDark ? "#3A2A22" : "#FBEEE6",
+          primaryTextColor: isDark ? "#F5F0E8" : "#1A1A1A",
+          primaryBorderColor: isDark ? "#E89572" : "#D97757",
+          lineColor: isDark ? "#9A938A" : "#6B6B66",
+          secondaryColor: isDark ? "#2A2520" : "#F5F5F0",
+          tertiaryColor: isDark ? "#221E1A" : "#FFFFFF",
+          fontFamily: "Inter, system-ui, sans-serif",
+        },
+      });
+    }
+    async function renderMermaid() {
+      initMermaid();
+      const els = document.querySelectorAll(".mermaid");
+      els.forEach(el => {
+        if (!diagramSources.has(el)) diagramSources.set(el, el.textContent.trim());
+        el.textContent = diagramSources.get(el);
+        el.removeAttribute("data-processed");
+      });
+      try { await mermaid.run({ nodes: els }); } catch (e) { console.error(e); }
+    }
+    function toggleTheme() {
+      const next = currentTheme() === "light" ? "dark" : "light";
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem(STORAGE_KEY, next);
+      applyThemeIcon();
+      renderMermaid();
+    }
+
+    // ---------- TOC drawer (mobile) ----------
+    function openToc()  { document.body.classList.add("toc-open"); }
+    function closeToc() { document.body.classList.remove("toc-open"); }
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape" && document.body.classList.contains("toc-open")) closeToc();
+    });
+
+    // ---------- TOC scrollspy ----------
+    function setupTocSpy() {
+      const links = document.querySelectorAll("#toc-nav a[href^='#']");
+      if (!links.length) {
+        const toc = document.getElementById("toc");
+        if (toc) toc.style.display = "none";
+        return;
+      }
+      const map = new Map();
+      links.forEach(a => {
+        const id = a.getAttribute("href").slice(1);
+        const el = document.getElementById(id);
+        if (el) map.set(el, a);
+        a.addEventListener("click", () => {
+          if (window.matchMedia("(max-width: 900px)").matches) closeToc();
+        });
+      });
+      const obs = new IntersectionObserver((entries) => {
+        entries.forEach(en => {
+          const link = map.get(en.target);
+          if (!link) return;
+          if (en.isIntersecting) {
+            links.forEach(l => l.classList.remove("active"));
+            link.classList.add("active");
+          }
+        });
+      }, { rootMargin: "-80px 0px -70% 0px", threshold: 0 });
+      map.forEach((_, el) => obs.observe(el));
+    }
+
+    // ---------- Anchor links on h2/h3 ----------
+    function injectAnchors() {
+      document.querySelectorAll(".content h2[id], .content h3[id]").forEach(h => {
+        if (h.querySelector(".anchor")) return;
+        const a = document.createElement("a");
+        a.className = "anchor";
+        a.href = "#" + h.id;
+        a.setAttribute("aria-label", "Permalink");
+        a.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-link"/></svg>';
+        h.appendChild(a);
+      });
+    }
+
+    // ---------- Copy-to-clipboard on <pre> ----------
+    function injectCopyButtons() {
+      document.querySelectorAll(".content pre").forEach(pre => {
+        if (pre.classList.contains("mermaid")) return;
+        if (pre.querySelector(".copy-btn")) return;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "copy-btn";
+        btn.setAttribute("aria-label", "Copy code");
+        btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+        btn.addEventListener("click", async () => {
+          const code = pre.querySelector("code")?.textContent ?? pre.textContent;
+          try {
+            await navigator.clipboard.writeText(code);
+            btn.classList.add("copied");
+            btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>';
+            setTimeout(() => {
+              btn.classList.remove("copied");
+              btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+            }, 1500);
+          } catch (e) { console.error(e); }
+        });
+        pre.appendChild(btn);
+      });
+    }
+
+    // ---------- Scroll progress ----------
+    function setupScrollProgress() {
+      const bar = document.getElementById("scroll-progress");
+      if (!bar) return;
+      const onScroll = () => {
+        const h = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+        const p = h > 0 ? (document.documentElement.scrollTop / h * 100) : 0;
+        bar.style.width = p + "%";
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+    }
+
+    // ---------- Boot ----------
+    document.addEventListener("DOMContentLoaded", () => {
+      applyThemeIcon();
+      injectAnchors();
+      injectCopyButtons();
+      renderMermaid();
+      setupTocSpy();
+      setupScrollProgress();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1930 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="light" style="--rec-label: '推荐'">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>UBI Rate Import Into Freight Intelligence Development Plan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       TOKENS
+       ============================================================ */
+    :root {
+      --bg: #FAFAF7;
+      --surface: #FFFFFF;
+      --surface-2: #F5F5F0;
+      --surface-3: #EFEEE8;
+      --text: #1A1A1A;
+      --text-muted: #4A4A45;
+      --text-subtle: #6B6B66;
+      --accent: #D97757;
+      --accent-hover: #C56843;
+      --accent-soft: #FBEEE6;
+      --accent-border: #F0D5C4;
+      --accent-strong: #A85533;
+      --border: #E5E4DC;
+      --border-strong: #CDCDC4;
+      --code-bg: #F5F2EC;
+      --code-text: #2A2A2A;
+      --info: #2563EB;
+      --info-soft: #EFF6FF;
+      --info-border: #BFDBFE;
+      --warn: #B45309;
+      --warn-soft: #FFFBEB;
+      --warn-border: #FDE68A;
+      --danger: #B91C1C;
+      --danger-soft: #FEF2F2;
+      --danger-border: #FECACA;
+      --success: #047857;
+      --success-soft: #ECFDF5;
+      --success-border: #A7F3D0;
+      --decision: #6D28D9;
+      --decision-soft: #F5F3FF;
+      --decision-border: #DDD6FE;
+      --shadow-sm: 0 1px 2px rgba(20, 14, 8, 0.04);
+      --shadow: 0 1px 2px rgba(20, 14, 8, 0.04), 0 4px 12px rgba(20, 14, 8, 0.06);
+      --shadow-lg: 0 8px 24px rgba(20, 14, 8, 0.10);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans CJK JP', 'Noto Sans CJK KR', sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --z-progress: 200;
+      --z-topbar: 100;
+      --z-drawer: 300;
+      --z-backdrop: 250;
+    }
+
+    [data-theme="dark"] {
+      --bg: #1A1714;
+      --surface: #221E1A;
+      --surface-2: #2A2520;
+      --surface-3: #322C26;
+      --text: #F5F0E8;
+      --text-muted: #C8C0B6;
+      --text-subtle: #9A938A;
+      --accent: #E89572;
+      --accent-hover: #F2A87F;
+      --accent-soft: #3A2A22;
+      --accent-border: #5A3D2E;
+      --accent-strong: #F5B493;
+      --border: #2E2924;
+      --border-strong: #463F38;
+      --code-bg: #1E1B17;
+      --code-text: #E8E2D8;
+      --info: #93C5FD;
+      --info-soft: #1E2A3D;
+      --info-border: #2A4365;
+      --warn: #FBBF24;
+      --warn-soft: #332817;
+      --warn-border: #5C4520;
+      --danger: #FCA5A5;
+      --danger-soft: #3A1F1F;
+      --danger-border: #5C2A2A;
+      --success: #6EE7B7;
+      --success-soft: #1A3329;
+      --success-border: #1F5C45;
+      --decision: #C4B5FD;
+      --decision-soft: #2A1F40;
+      --decision-border: #4A3870;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.35);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    /* ============================================================
+       BASE
+       ============================================================ */
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    ::selection { background: var(--accent-soft); color: var(--accent-strong); }
+
+    /* Skip link */
+    .skip-link {
+      position: absolute;
+      top: -100px; left: 8px;
+      padding: 10px 16px;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+      z-index: 1000;
+      transition: top 0.15s;
+    }
+    .skip-link:focus { top: 8px; }
+
+    /* SVG sprite container (hidden) */
+    .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+    .icon { display: inline-block; flex-shrink: 0; vertical-align: middle; stroke: currentColor; fill: none; }
+
+    /* Scroll progress bar */
+    .scroll-progress {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      width: 0;
+      background: var(--accent);
+      z-index: var(--z-progress);
+      transition: width 0.05s linear;
+    }
+
+    /* ============================================================
+       TOPBAR
+       ============================================================ */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: var(--z-topbar);
+      background: rgba(250, 250, 247, 0.85);
+      backdrop-filter: saturate(180%) blur(12px);
+      -webkit-backdrop-filter: saturate(180%) blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    [data-theme="dark"] .topbar { background: rgba(26, 23, 20, 0.85); }
+    .topbar-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      color: var(--text);
+      font-size: 14px;
+    }
+    .brand-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+      animation: brand-pulse 2.8s ease-in-out infinite;
+    }
+    @keyframes brand-pulse {
+      0%, 100% { box-shadow: 0 0 0 4px var(--accent-soft); }
+      50%      { box-shadow: 0 0 0 7px transparent; }
+    }
+    .topbar-actions { display: flex; gap: 6px; align-items: center; }
+    .icon-btn {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+      padding: 0;
+    }
+    .icon-btn .icon { width: 18px; height: 18px; stroke-width: 2; }
+    .icon-btn[hidden] { display: none; }
+
+    /* ============================================================
+       LAYOUT
+       ============================================================ */
+    .layout {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 48px;
+      padding: 32px 24px 96px;
+    }
+    .content { min-width: 0; }
+
+    /* ============================================================
+       TOC (desktop + mobile drawer)
+       ============================================================ */
+    .toc {
+      position: sticky;
+      top: 80px;
+      align-self: start;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+    .toc::-webkit-scrollbar { width: 6px; }
+    .toc::-webkit-scrollbar-track { background: transparent; }
+    .toc::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+    .toc-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 12px 12px;
+    }
+    .toc-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-subtle);
+      margin: 0;
+    }
+    .toc-close { display: none; }
+    .toc-nav { display: flex; flex-direction: column; gap: 2px; }
+    .toc-nav a {
+      display: flex; align-items: center;
+      min-height: 36px;
+      padding: 8px 14px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13.5px;
+      border-left: 2px solid transparent;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+      line-height: 1.4;
+    }
+    .toc-nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      font-weight: 500;
+    }
+    .toc-nav a.lvl-3 { padding-left: 26px; font-size: 12.5px; }
+    .toc-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: var(--z-backdrop);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    /* ============================================================
+       DOC HEADER
+       ============================================================ */
+    .doc-header {
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .doc-eyebrow {
+      display: inline-flex; align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      border: 1px solid var(--accent-border);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      margin-bottom: 16px;
+    }
+    .doc-title {
+      font-size: clamp(28px, 3vw + 16px, 40px);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin: 0 0 12px;
+      color: var(--text);
+      text-wrap: balance;
+    }
+    .doc-subtitle {
+      font-size: clamp(15px, 0.6vw + 13px, 18px);
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin: 0 0 20px;
+      max-width: 75ch;
+      text-wrap: pretty;
+    }
+    .doc-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--text-subtle);
+    }
+    .doc-meta-item { display: inline-flex; align-items: center; gap: 6px; }
+    .doc-meta .icon { width: 14px; height: 14px; stroke-width: 2; }
+
+    /* ============================================================
+       CONTENT (typography)
+       ============================================================ */
+    .content h1, .content h2, .content h3, .content h4 {
+      color: var(--text);
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+      scroll-margin-top: 80px;
+      text-wrap: balance;
+    }
+    .content h2 {
+      font-size: 26px;
+      font-weight: 600;
+      margin: 56px 0 16px;
+      padding-top: 8px;
+      position: relative;
+    }
+    .content h3 {
+      font-size: 19px;
+      font-weight: 600;
+      margin: 36px 0 12px;
+      position: relative;
+    }
+    .content h4 {
+      font-size: 13px;
+      font-weight: 600;
+      margin: 24px 0 8px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .content > p,
+    .content > ul,
+    .content > ol,
+    .content > blockquote { max-width: 75ch; }
+    .content p { margin: 0 0 16px; text-wrap: pretty; overflow-wrap: anywhere; }
+    .content a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-border); }
+    .content ul, .content ol { padding-left: 24px; margin: 0 0 16px; }
+    .content li { margin: 4px 0; }
+    .content strong { color: var(--text); font-weight: 600; }
+    .content em { color: var(--text-muted); }
+    .content hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    /* Anchor links injected by JS on h2/h3 with id */
+    .anchor {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px;
+      margin-left: 6px;
+      color: var(--text-subtle);
+      opacity: 0;
+      transform: translateY(-1px);
+      transition: opacity 0.15s, color 0.15s;
+      border-bottom: none !important;
+      border-radius: var(--radius-sm);
+    }
+    .anchor .icon { width: 14px; height: 14px; stroke-width: 2; }
+
+    /* Images */
+    .content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin: 20px 0;
+      display: block;
+    }
+    .content figure { margin: 20px 0; }
+    .content figure img { margin: 0; }
+    .content figcaption {
+      font-size: 13px;
+      color: var(--text-subtle);
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    /* Task lists (- [ ] / - [x]) */
+    .content .task-list-item { list-style: none; margin-left: -22px; }
+    .content .task-list-item-checkbox {
+      margin-right: 8px;
+      vertical-align: -2px;
+      accent-color: var(--accent);
+    }
+
+    /* Footnotes */
+    .content .footnote-ref a,
+    .content sup a {
+      font-size: 0.75em;
+      vertical-align: super;
+      border-bottom: none;
+      padding: 0 2px;
+    }
+    .content .footnotes {
+      margin-top: 56px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* ============================================================
+       CODE
+       ============================================================ */
+    .content code {
+      font-family: var(--font-mono);
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.88em;
+      color: var(--code-text);
+      border: 1px solid var(--border);
+      overflow-wrap: anywhere;
+    }
+    .content pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-size: 13.5px;
+      line-height: 1.6;
+      margin: 16px 0;
+      position: relative;
+    }
+    .content pre code {
+      background: none; padding: 0; border: none;
+      color: var(--code-text);
+      font-size: inherit;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 32px; height: 32px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--text-subtle);
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+      padding: 0;
+    }
+    .copy-btn .icon { width: 14px; height: 14px; stroke-width: 2; }
+    .copy-btn.copied { color: var(--success); border-color: var(--success-border); opacity: 1; }
+
+    /* ============================================================
+       TIMELINE / STEPS
+       ============================================================ */
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 24px 0;
+      position: relative;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 19px;
+      top: 20px;
+      bottom: 20px;
+      width: 2px;
+      background: linear-gradient(180deg, var(--accent-border), var(--border));
+    }
+    .step {
+      display: grid;
+      grid-template-columns: 40px 1fr;
+      gap: 16px;
+      align-items: start;
+      padding: 16px 4px;
+      position: relative;
+      border-radius: var(--radius);
+      transition: background-color 0.15s;
+    }
+    .step-num {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      border: 2px solid var(--accent);
+      color: var(--accent);
+      border-radius: 50%;
+      font-weight: 600;
+      font-size: 14px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      z-index: 1;
+      transition: background-color 0.15s, color 0.15s, transform 0.15s;
+    }
+    .step.done .step-num { background: var(--accent); color: #fff; }
+    .step-body { padding-top: 6px; min-width: 0; }
+    .step-body h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .step-body p { margin: 0 0 8px; color: var(--text-muted); font-size: 14.5px; max-width: 75ch; }
+    .step-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* ============================================================
+       CALLOUTS
+       ============================================================ */
+    .callout {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 14px;
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      border: 1px solid;
+      margin: 20px 0;
+      font-size: 14.5px;
+      line-height: 1.6;
+      max-width: 75ch;
+    }
+    .callout-icon { width: 20px; height: 20px; margin-top: 2px; stroke-width: 2; }
+    .callout-body { min-width: 0; }
+    .callout-title { font-weight: 600; margin: 0 0 4px; font-size: 14px; }
+    .callout-body p:last-child { margin-bottom: 0; }
+    .callout-body code { background: rgba(0,0,0,0.04); }
+    [data-theme="dark"] .callout-body code { background: rgba(255,255,255,0.06); }
+
+    .callout-info     { background: var(--info-soft);     border-color: var(--info-border);     color: var(--text); }
+    .callout-info     .callout-title, .callout-info     .callout-icon { color: var(--info); }
+    .callout-warn     { background: var(--warn-soft);     border-color: var(--warn-border);     color: var(--text); }
+    .callout-warn     .callout-title, .callout-warn     .callout-icon { color: var(--warn); }
+    .callout-danger   { background: var(--danger-soft);   border-color: var(--danger-border);   color: var(--text); }
+    .callout-danger   .callout-title, .callout-danger   .callout-icon { color: var(--danger); }
+    .callout-success  { background: var(--success-soft);  border-color: var(--success-border);  color: var(--text); }
+    .callout-success  .callout-title, .callout-success  .callout-icon { color: var(--success); }
+    .callout-decision { background: var(--decision-soft); border-color: var(--decision-border); color: var(--text); }
+    .callout-decision .callout-title, .callout-decision .callout-icon { color: var(--decision); }
+    .callout-tip      { background: var(--accent-soft);   border-color: var(--accent-border);   color: var(--text); }
+    .callout-tip      .callout-title, .callout-tip      .callout-icon { color: var(--accent-strong); }
+
+    /* ============================================================
+       KEY-POINT HIGHLIGHT
+       ============================================================ */
+    .highlight {
+      background: linear-gradient(135deg, var(--accent-soft), var(--surface-2));
+      border-left: 4px solid var(--accent);
+      padding: 18px 22px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 24px 0;
+      font-size: 16px;
+      line-height: 1.65;
+      max-width: 75ch;
+    }
+    .highlight-label {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-strong);
+      margin-bottom: 6px;
+    }
+
+    /* ============================================================
+       MERMAID
+       ============================================================ */
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin: 24px 0;
+      box-shadow: var(--shadow-sm);
+      overflow-x: auto;
+    }
+    .diagram-caption {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+      font-size: 13px;
+      color: var(--text-subtle);
+      text-align: center;
+    }
+    .mermaid { text-align: center; min-height: 80px; }
+    .mermaid svg { max-width: 100%; height: auto; }
+    .mermaid:not([data-processed]) {
+      opacity: 0.4;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-subtle);
+      white-space: pre-wrap;
+      text-align: left;
+    }
+
+    /* ============================================================
+       PROS / CONS
+       ============================================================ */
+    .proscons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .proscons-col {
+      padding: 16px 20px;
+      border-radius: var(--radius);
+      border: 1px solid;
+    }
+    .proscons-col h4 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .proscons-col ul { margin: 0; padding-left: 18px; }
+    .proscons-col li { margin: 6px 0; }
+    .pros { background: var(--success-soft); border-color: var(--success-border); }
+    .pros h4 { color: var(--success); }
+    .cons { background: var(--danger-soft); border-color: var(--danger-border); }
+    .cons h4 { color: var(--danger); }
+
+    /* ============================================================
+       COMPARISON CARDS
+       ============================================================ */
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin: 24px 0;
+    }
+    .compare-card {
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.18s, box-shadow 0.18s;
+      position: relative;
+    }
+    .compare-card.recommended { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .compare-card.recommended::before {
+      content: var(--rec-label, "★ Recommended");
+      position: absolute; top: -10px; right: 14px;
+      background: var(--accent); color: #fff;
+      padding: 2px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+    }
+    .compare-card h4 { margin: 0 0 8px; font-size: 15px; color: var(--text); text-transform: none; letter-spacing: normal; }
+    .compare-card p { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+    /* ============================================================
+       COLLAPSIBLE
+       ============================================================ */
+    details.collapsible {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 16px 0;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    details.collapsible[open] { box-shadow: var(--shadow-sm); }
+    details.collapsible > summary {
+      cursor: pointer;
+      padding: 14px 18px;
+      font-weight: 500;
+      color: var(--text);
+      list-style: none;
+      display: flex; align-items: center; gap: 10px;
+      user-select: none;
+      transition: background 0.15s;
+      min-height: 44px;
+    }
+    details.collapsible > summary::-webkit-details-marker { display: none; }
+    details.collapsible > summary::before {
+      content: "›";
+      display: inline-block;
+      transition: transform 0.18s;
+      color: var(--accent);
+      font-size: 18px;
+      font-weight: 700;
+    }
+    details.collapsible[open] > summary::before { transform: rotate(90deg); }
+    .collapsible-body { padding: 4px 18px 18px; border-top: 1px solid var(--border); }
+    .collapsible-body > *:first-child { margin-top: 12px; }
+
+    /* ============================================================
+       TABLES (wrapped via .table-wrap or naturally responsive)
+       ============================================================ */
+    .table-wrap {
+      overflow-x: auto;
+      margin: 20px 0;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      max-width: 100%;
+    }
+    .content table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--surface);
+      margin: 0;
+    }
+    /* Standalone tables (not inside .table-wrap) keep visual border */
+    .content > table {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 20px 0;
+      display: block;
+      overflow-x: auto;
+    }
+    .content th {
+      background: var(--surface-2);
+      color: var(--text);
+      font-weight: 600;
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .content td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+    .content tr:last-child td { border-bottom: none; }
+
+    /* ============================================================
+       BLOCKQUOTE
+       ============================================================ */
+    .content blockquote {
+      margin: 20px 0;
+      padding: 4px 20px;
+      border-left: 3px solid var(--accent-border);
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* ============================================================
+       FOOTER
+       ============================================================ */
+    .doc-footer {
+      margin-top: 80px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-subtle);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .doc-footer a { color: var(--accent); text-decoration: none; }
+
+    /* ============================================================
+       FOCUS-VISIBLE (a11y)
+       ============================================================ */
+    *:focus { outline: none; }
+    *:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+      border-radius: var(--radius-sm);
+    }
+    .toc-nav a:focus-visible { outline-offset: -2px; }
+    .icon-btn:focus-visible { outline-offset: 2px; }
+    .anchor:focus-visible { opacity: 1; outline-offset: 2px; }
+    details.collapsible > summary:focus-visible { outline-offset: -2px; }
+
+    /* ============================================================
+       HOVER (only on hover-capable devices to avoid sticky-tap on mobile)
+       ============================================================ */
+    @media (hover: hover) {
+      .icon-btn:hover { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
+      .toc-nav a:hover { color: var(--accent); background: var(--accent-soft); }
+      .content a:hover { color: var(--accent-hover); border-bottom-color: var(--accent); }
+      .compare-card:hover { border-color: var(--accent-border); box-shadow: var(--shadow); }
+      .compare-card.recommended:hover { border-color: var(--accent); }
+      .content tr:hover td { background: var(--surface-2); }
+      details.collapsible > summary:hover { background: var(--surface-2); }
+      .step:hover { background: var(--surface-2); }
+      .step:hover .step-num { transform: scale(1.05); }
+      .anchor:hover { color: var(--accent); }
+      .content h2:hover .anchor,
+      .content h3:hover .anchor { opacity: 1; }
+      .copy-btn:hover { color: var(--accent); border-color: var(--accent-border); }
+      .content pre:hover .copy-btn { opacity: 1; }
+    }
+    /* On touch devices, copy-btn is always visible at low opacity */
+    @media (hover: none) {
+      .copy-btn { opacity: 0.6; }
+      .anchor { opacity: 0.4; }
+    }
+
+    /* ============================================================
+       MOBILE (≤900px) — TOC becomes off-canvas drawer
+       ============================================================ */
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 20px 16px 80px;
+      }
+      .topbar-inner { padding: 8px 12px; }
+      .doc-header { margin-bottom: 28px; padding-bottom: 20px; }
+
+      .toc-mobile-trigger { display: inline-flex !important; }
+
+      .toc {
+        position: fixed;
+        top: 0; left: 0;
+        width: min(300px, 82vw);
+        height: 100dvh;
+        max-height: 100dvh;
+        background: var(--surface);
+        z-index: var(--z-drawer);
+        padding: 16px 8px 24px 16px;
+        box-shadow: var(--shadow-lg);
+        transform: translateX(-105%);
+        transition: transform 0.25s ease;
+      }
+      .toc-head { padding: 4px 4px 12px 8px; }
+      .toc-close {
+        display: inline-flex !important;
+        width: 36px; height: 36px;
+        align-items: center; justify-content: center;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0;
+      }
+      .toc-close .icon { width: 18px; height: 18px; stroke-width: 2; }
+      body.toc-open .toc { transform: translateX(0); }
+      body.toc-open .toc-backdrop {
+        display: block;
+        opacity: 1;
+      }
+      .toc-backdrop {
+        display: block;
+        opacity: 0;
+        pointer-events: none;
+      }
+      body.toc-open .toc-backdrop { pointer-events: auto; }
+      body.toc-open { overflow: hidden; }
+    }
+    @media (min-width: 901px) {
+      .toc-mobile-trigger { display: none !important; }
+    }
+
+    /* ============================================================
+       REDUCED MOTION (a11y)
+       ============================================================ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      html { scroll-behavior: auto; }
+      .brand-dot { animation: none; box-shadow: 0 0 0 4px var(--accent-soft); }
+    }
+
+    /* ============================================================
+       PRINT
+       ============================================================ */
+    @media print {
+      .topbar, .toc, .toc-backdrop, .icon-btn, .copy-btn, .anchor, .scroll-progress { display: none !important; }
+      .layout { grid-template-columns: 1fr; padding: 0; max-width: 100%; }
+      body { background: #fff; color: #000; }
+      a { color: #000; }
+      .content pre, .callout, .compare-card, .step, .diagram { break-inside: avoid; }
+      .doc-footer { break-before: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Skip link for keyboard users -->
+  <a href="#main" class="skip-link">跳到正文</a>
+
+  <!-- Scroll progress -->
+  <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
+
+  <!-- SVG icon sprite (Lucide-style) -->
+  <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+    <symbol id="i-danger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></symbol>
+    <symbol id="i-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+    <symbol id="i-decision" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-tip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14a5 5 0 1 0-6.18 0 4 4 0 0 1 1.59 2h2.99a4 4 0 0 1 1.6-2Z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+  </svg>
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <button class="icon-btn toc-mobile-trigger" id="toc-toggle" onclick="openToc()" aria-label="目录" title="目录">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg>
+        </button>
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span>计划</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" onclick="window.print()" title="打印 / 保存 PDF" aria-label="打印 / 保存 PDF">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-printer"/></svg>
+        </button>
+        <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" title="切换主题" aria-label="切换主题">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use id="theme-icon-use" href="#i-moon"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- TOC drawer backdrop (mobile) -->
+  <div class="toc-backdrop" onclick="closeToc()" aria-hidden="true"></div>
+
+  <div class="layout">
+    <aside class="toc" id="toc" aria-label="目录">
+      <div class="toc-head">
+        <p class="toc-title">目录</p>
+        <button class="toc-close" onclick="closeToc()" aria-label="关闭">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+        </button>
+      </div>
+      <nav class="toc-nav" id="toc-nav">
+        <a href="#1-本次开发目标" class="lvl-2">1. 本次开发目标</a>
+<a href="#2-ubi-在系统中的建模方式" class="lvl-2">2. UBI 在系统中的建模方式</a>
+<a href="#3-导入范围" class="lvl-2">3. 导入范围</a>
+<a href="#3-1-p1-优先导入" class="lvl-3">3.1 P1 优先导入</a>
+<a href="#3-2-p2-导入" class="lvl-3">3.2 P2 导入</a>
+<a href="#3-3-不导入为基础-linehaul但需要区分可预估-surcharge" class="lvl-3">3.3 不导入为基础 linehaul，但需要区分可预估 surcharge</a>
+<a href="#4-数据库改动方案" class="lvl-2">4. 数据库改动方案</a>
+<a href="#4-1-ratecard-增加-agent" class="lvl-3">4.1 RateCard 增加 agent</a>
+<a href="#4-2-ratecard-metadata-json-记录导入证据" class="lvl-3">4.2 RateCard metadata json 记录导入证据</a>
+<a href="#4-3-最小导入日志模型" class="lvl-3">4.3 最小导入日志模型</a>
+<a href="#5-后端导入命令" class="lvl-2">5. 后端导入命令</a>
+<a href="#5-1-analyze-命令" class="lvl-3">5.1 Analyze 命令</a>
+<a href="#5-2-import-命令" class="lvl-3">5.2 Import 命令</a>
+<a href="#6-ratecard-rule-导入映射" class="lvl-2">6. RateCard / Rule 导入映射</a>
+<a href="#6-1-toll-ipec-road" class="lvl-3">6.1 Toll IPEC Road</a>
+<a href="#6-2-fastway-aramex" class="lvl-3">6.2 Fastway / Aramex</a>
+<a href="#6-3-eparcel-standard-express" class="lvl-3">6.3 eParcel Standard / Express</a>
+<a href="#6-4-toll-priority3-b2c" class="lvl-3">6.4 Toll Priority3 / B2C</a>
+<a href="#6-5-ubi-可预估-surcharge" class="lvl-3">6.5 UBI 可预估 surcharge</a>
+<a href="#7-calculator-文件规划" class="lvl-2">7. Calculator 文件规划</a>
+<a href="#8-前端配置和展示" class="lvl-2">8. 前端配置和展示</a>
+<a href="#8-1-pricing-页面" class="lvl-3">8.1 Pricing 页面</a>
+<a href="#8-2-quote-channel-页面" class="lvl-3">8.2 Quote Channel 页面</a>
+<a href="#8-3-manual-quote-audit-matrix" class="lvl-3">8.3 Manual Quote / Audit Matrix</a>
+<a href="#9-测试计划" class="lvl-2">9. 测试计划</a>
+<a href="#9-1-p1-单元测试" class="lvl-3">9.1 P1 单元测试</a>
+<a href="#9-2-p2-集成测试" class="lvl-3">9.2 P2 集成测试</a>
+<a href="#9-3-p3-ui-e2e" class="lvl-3">9.3 P3 UI/E2E</a>
+<a href="#10-推荐开发顺序" class="lvl-2">10. 推荐开发顺序</a>
+<a href="#第一阶段-最小可用导入" class="lvl-3">第一阶段: 最小可用导入</a>
+<a href="#第二阶段-p1-可计算渠道" class="lvl-3">第二阶段: P1 可计算渠道</a>
+<a href="#第三阶段-p2-可计算渠道" class="lvl-3">第三阶段: P2 可计算渠道</a>
+<a href="#第四阶段-前端完善" class="lvl-3">第四阶段: 前端完善</a>
+<a href="#11-验收标准" class="lvl-2">11. 验收标准</a>
+      </nav>
+    </aside>
+
+    <main class="content" id="main">
+      <header class="doc-header">
+        <span class="doc-eyebrow">PLAN</span>
+        <h1 class="doc-title">UBI Rate Import Into Freight Intelligence Development Plan</h1>
+        <p class="doc-subtitle">生成日期: 2026 06 17</p>
+        <div class="doc-meta">
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-file"/></svg>
+            docs/UBI_Rate_Import_System_Development_Plan_20260617.md
+          </span>
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-calendar"/></svg>
+            2026-06-22
+          </span>
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clock"/></svg>
+            ~4 分钟阅读
+          </span>
+        </div>
+      </header>
+
+      <!-- CONTENT_START -->
+
+<p>生成日期: 2026-06-17 目标: 将 UBI agent 下的可计算费率表正式导入 Freight Intelligence，并实现对应 calculator。 重要边界: 不做自动 email / 文件夹监听 / 定时自动更新。所有 UBI rate package 由管理员手动上传或通过命令手动导入，和当前其他 carrier rate 的维护方式保持一致。</p>
+
+<h2 id="1-本次开发目标">1. 本次开发目标</h2>
+
+<p>本次只做三件事:</p>
+
+<ol>
+<li>把 UBI 可计算费率表导入系统标准 rate template。</li>
+<li>给 UBI 各渠道建立 calculator，让 Manual Quote / Freight Audit Matrix 可以算出真实价格。</li>
+<li>保留导入来源、hash、版本、生效日期和 breakdown trace，方便以后复核。</li>
+</ol>
+
+<p>不做:</p>
+
+<ul>
+<li>不做自动扫描 UBI invoice 邮件。</li>
+<li>不做自动监听文件夹。</li>
+<li>不做每次 invoice 到达后自动更新 rate card。</li>
+<li>不自动覆盖当前 active rate card。</li>
+<li>不把 penalty / oversize / RTS / underticketing 这类账单事件表导成基础 linehaul rate card。</li>
+<li>当前只把可由尺寸提前判断的 oversize length 加入 <code>SurchargeRule</code> 或 calculator surcharge。</li>
+<li><code>penalty below 3kg</code> / <code>More to Pay</code> 暂不进入报价计算，先只用于 Invoice Reconciliation 复核。</li>
+</ul>
+
+<h2 id="2-ubi-在系统中的建模方式">2. UBI 在系统中的建模方式</h2>
+
+<p>UBI 是 <code>Agent</code>。</p>
+
+<p>UBI 下面的渠道需要分别映射到 carrier/service:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>UBI 渠道</th>
+<th>Agent</th>
+<th>Carrier</th>
+<th>Service</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td>eParcel Standard</td>
+<td>UBI</td>
+<td>Australia Post</td>
+<td>UBI_EPARCEL_STANDARD</td>
+<td>Australia Post eParcel 标准件</td>
+</tr>
+<tr>
+<td>eParcel Express</td>
+<td>UBI</td>
+<td>Australia Post</td>
+<td>UBI_EPARCEL_EXPRESS</td>
+<td>Australia Post eParcel express</td>
+</tr>
+<tr>
+<td>Fastway / Aramex</td>
+<td>UBI</td>
+<td>Aramex/Fastway</td>
+<td>UBI_FASTWAY</td>
+<td>Fastway/Aramex road parcel</td>
+</tr>
+<tr>
+<td>Toll IPEC Road</td>
+<td>UBI</td>
+<td>TGE Toll IPEC</td>
+<td>UBI_TOLL_IPEC_ROAD</td>
+<td>Toll IPEC Road Express</td>
+</tr>
+<tr>
+<td>Toll Priority3 / B2C</td>
+<td>UBI</td>
+<td>TGE Toll Priority</td>
+<td>UBI_TOLL_PRIORITY3_B2C</td>
+<td>Toll Priority B2C / Priority3</td>
+</tr>
+</tbody></table></div>
+
+<p><code>QuoteChannel</code> 按 agent + carrier + service + origin/strategy 建立，不因为重复导入同一个 workbook 而新增。</p>
+
+<p><code>RateCard</code> 按版本和生效日期建立。重复导入同样内容时不新增 rate card。</p>
+
+<h2 id="3-导入范围">3. 导入范围</h2>
+
+<h3 id="3-1-p1-优先导入">3.1 P1 优先导入</h3>
+
+<p>优先导入结构最清晰、最接近现有 <code>RateRule</code> 模型的渠道:</p>
+
+<ol>
+<li>UBI Toll IPEC Road Express</li>
+</ol>
+
+<ul>
+<li><code>IPEC Rate 07.07.25</code></li>
+<li><code>IPEC Rate 20.04.26</code></li>
+</ul>
+
+<ol>
+<li>UBI Fastway / Aramex</li>
+</ol>
+
+<ul>
+<li>旧 <code>Rate</code></li>
+<li>新 <code>New Rate</code></li>
+<li><code>Fastway Coverage</code></li>
+</ul>
+
+<p>原因:</p>
+
+<ul>
+<li>两者都是 origin zone + destination zone + weight/rate 结构。</li>
+<li>可以较快映射到 <code>RateZone</code> / <code>RateRule</code>。</li>
+<li>比 eParcel 的多重量段、多附加说明更直接。</li>
+</ul>
+
+<h3 id="3-2-p2-导入">3.2 P2 导入</h3>
+
+<ol>
+<li>UBI eParcel Standard</li>
+</ol>
+
+<ul>
+<li><code>MEL eparcel 2024.3.18</code></li>
+<li><code>MEL eparcel 2025.11.01</code></li>
+</ul>
+
+<ol>
+<li>UBI eParcel Express</li>
+</ol>
+
+<ul>
+<li><code>MEL express 2024.3.18</code></li>
+<li><code>MEL express 2025.11.01</code></li>
+</ul>
+
+<ol>
+<li>UBI Toll Priority3 / B2C</li>
+</ol>
+
+<ul>
+<li>Effective 2025-07-07</li>
+<li>Effective 2026-04-20</li>
+<li>无日期版本只记录为 review，不激活</li>
+</ul>
+
+<h3 id="3-3-不导入为基础-linehaul但需要区分可预估-surcharge">3.3 不导入为基础 linehaul，但需要区分可预估 surcharge</h3>
+
+<p>以下目录不进入基础 <code>RateRule</code> linehaul:</p>
+
+<ul>
+<li><code>additional_fee</code></li>
+<li><code>oversize</code></li>
+<li><code>redelivery</code></li>
+<li><code>rts</code></li>
+<li><code>underticketing</code></li>
+</ul>
+
+<p>处理方式:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>目录</th>
+<th>是否可提前预估</th>
+<th>系统处理</th>
+</tr></thead><tbody>
+<tr>
+<td><code>oversize</code></td>
+<td>可以，前提是 SKU/parcel 尺寸准确</td>
+<td>加入 UBI surcharge 计算，并在 invoice reconciliation 中复核实际收取</td>
+</tr>
+<tr>
+<td><code>additional_fee</code> 中的 <code>Penalty</code> / <code>penalty below 3 kg</code></td>
+<td>暂不做报价预估</td>
+<td>只进入 Invoice Reconciliation 复核</td>
+</tr>
+<tr>
+<td><code>additional_fee</code> 中的 <code>More to Pay</code></td>
+<td>暂不做报价预估</td>
+<td>只进入 Invoice Reconciliation 复核</td>
+</tr>
+<tr>
+<td><code>redelivery</code></td>
+<td>通常不能提前知道</td>
+<td>只进入 invoice reconciliation</td>
+</tr>
+<tr>
+<td><code>rts</code></td>
+<td>通常不能提前知道</td>
+<td>只进入 invoice reconciliation</td>
+</tr>
+<tr>
+<td><code>underticketing</code></td>
+<td>事后稽核类</td>
+<td>只进入 invoice reconciliation，除非能还原稳定触发规则</td>
+</tr>
+</tbody></table></div>
+
+<p><code>oversize</code> 样本中有 <code>ParcelLength</code>、<code>ParcelWidth</code>、<code>ParcelHeight</code>、<code>LabelCost</code>、<code>service_type=Oversize Length Surcharge</code>，多数单项费用为 ex GST 15。该类费用可以由尺寸阈值预判，应进入报价 breakdown。</p>
+
+<p><code>penalty below 3 kg</code> 样本中有:</p>
+
+<ul>
+<li><code>Weight</code></li>
+<li><code>Actual Weight</code></li>
+<li><code>Actual Length</code></li>
+<li><code>Actual Width</code></li>
+<li><code>Actual Height</code></li>
+<li><code>Billed Weight</code></li>
+<li><code>Charge Code</code></li>
+<li><code>Fuel Surcharge(ex GST)</code></li>
+<li><code>Security Management Charge</code></li>
+<li><code>Additional Charge</code></li>
+<li><code>service_type=Penalty</code></li>
+</ul>
+
+<p>这说明它不是普通 linehaul，而是申报重量/尺寸与 carrier 实测重量/尺寸不一致时产生的补收费。当前阶段先不加入报价计算，避免在没有完整公式时误报价格；只在 invoice reconciliation 中用于解释 actual charge 差异。</p>
+
+<h2 id="4-数据库改动方案">4. 数据库改动方案</h2>
+
+<h3 id="4-1-ratecard-增加-agent">4.1 RateCard 增加 agent</h3>
+
+<p>建议给 <code>RateCard</code> 增加可空 FK:</p>
+
+<pre><code class="language-text">agent -&gt; Agent, null=True</code></pre>
+
+<p>原因:</p>
+
+<ul>
+<li>同一个 carrier 在不同 agent 下可能价格不同。</li>
+<li>UBI/Fastway 和 Broers/Fastway 不能只靠 carrier 区分。</li>
+<li><code>QuoteChannel.agent</code> 已存在，RateCard 也应该能表达 rate owner。</li>
+</ul>
+
+<p>查询逻辑:</p>
+
+<ul>
+<li>QuoteChannel 有 agent 时，只优先匹配同 agent 的 RateCard。</li>
+<li>RateCard.agent 为空时作为 legacy/global card。</li>
+</ul>
+
+<h3 id="4-2-ratecard-metadata-json-记录导入证据">4.2 RateCard metadata json 记录导入证据</h3>
+
+<p>每个 UBI rate card 的 <code>metadata_json</code> 至少记录:</p>
+
+<pre><code class="language-json">{
+  &quot;agent_code&quot;: &quot;UBI&quot;,
+  &quot;ubi_role_key&quot;: &quot;ubi_toll_ipec_road_rate&quot;,
+  &quot;source_package&quot;: &quot;ubi_invoices_all 1.zip&quot;,
+  &quot;source_sheet&quot;: &quot;IPEC Rate 20.04.26&quot;,
+  &quot;source_sheet_hash&quot;: &quot;sha256...&quot;,
+  &quot;source_rows&quot;: 86,
+  &quot;source_cols&quot;: 16,
+  &quot;effective_from_source&quot;: &quot;sheet_name&quot;,
+  &quot;imported_by_command&quot;: &quot;import_ubi_rate_package&quot;
+}</code></pre>
+
+<h3 id="4-3-最小导入日志模型">4.3 最小导入日志模型</h3>
+
+<p>因为不做自动更新，导入追踪可以保持轻量。</p>
+
+<p>新增 <code>RateImportBatch</code>:</p>
+
+<ul>
+<li><code>id</code></li>
+<li><code>agent</code></li>
+<li><code>source_file_name</code></li>
+<li><code>source_file_hash</code></li>
+<li><code>import_mode</code>: <code>DRY_RUN</code> / <code>COMMIT</code></li>
+<li><code>status</code>: <code>SUCCESS</code> / <code>FAILED</code></li>
+<li><code>summary_json</code></li>
+<li><code>created_at</code></li>
+<li><code>created_by</code></li>
+</ul>
+
+<p>新增 <code>RateImportSheetSnapshot</code>:</p>
+
+<ul>
+<li><code>batch</code></li>
+<li><code>agent</code></li>
+<li><code>role_key</code></li>
+<li><code>sheet_name</code></li>
+<li><code>normalized_hash</code></li>
+<li><code>effective_from_candidate</code></li>
+<li><code>decision</code>: <code>UNCHANGED</code> / <code>IMPORT</code> / <code>REVIEW</code> / <code>IGNORED</code></li>
+<li><code>rate_card</code></li>
+<li><code>preview_json</code></li>
+</ul>
+
+<p>不需要做完整文件监听队列，也不需要做自动任务表。</p>
+
+<h2 id="5-后端导入命令">5. 后端导入命令</h2>
+
+<h3 id="5-1-analyze-命令">5.1 Analyze 命令</h3>
+
+<p>命令:</p>
+
+<pre><code class="language-powershell">python backend\manage.py analyze_ubi_rate_package --zip &quot;C:\Users\KenHu\Downloads\ubi_invoices_all 1.zip&quot;</code></pre>
+
+<p>作用:</p>
+
+<ul>
+<li>只分析，不写 Pricing 数据。</li>
+<li>读取 zip 内 workbook。</li>
+<li>识别可导入渠道。</li>
+<li>计算 normalized hash。</li>
+<li>输出哪些是:</li>
+<li>已存在</li>
+<li>新版本</li>
+<li>缺少生效日期，需要人工确认</li>
+<li>adjustment-only，忽略导入</li>
+</ul>
+
+<p>输出:</p>
+
+<ul>
+<li>控制台 summary。</li>
+<li>JSON report。</li>
+<li>CSV report。</li>
+</ul>
+
+<h3 id="5-2-import-命令">5.2 Import 命令</h3>
+
+<p>命令:</p>
+
+<pre><code class="language-powershell">python backend\manage.py import_ubi_rate_package --zip &quot;C:\Users\KenHu\Downloads\ubi_invoices_all 1.zip&quot; --commit</code></pre>
+
+<p>可选参数:</p>
+
+<pre><code class="language-powershell">--dry-run
+--only toll_ipec
+--only fastway
+--only eparcel
+--only priority3
+--effective-from ubi_fastway_new=2025-08-01
+--activate
+--deactivate-previous</code></pre>
+
+<p>规则:</p>
+
+<ul>
+<li>默认 <code>--dry-run</code>。</li>
+<li>没有 <code>--commit</code> 不写入 RateCard/RateRule。</li>
+<li>没有可信 effective date 的版本不激活。</li>
+<li>相同 hash 不重复导入。</li>
+<li><code>--activate</code> 才把导入卡设为 ACTIVE。</li>
+<li><code>--deactivate-previous</code> 才自动关闭同 role key 的旧版本。</li>
+</ul>
+
+<p>这样可以避免误操作，也符合当前系统其他 rate 的维护方式。</p>
+
+<h2 id="6-ratecard-rule-导入映射">6. RateCard / Rule 导入映射</h2>
+
+<h3 id="6-1-toll-ipec-road">6.1 Toll IPEC Road</h3>
+
+<p>RateCard:</p>
+
+<ul>
+<li><code>UBI-TOLL-IPEC-ROAD-2025-07-07</code></li>
+<li><code>UBI-TOLL-IPEC-ROAD-2026-04-20</code></li>
+</ul>
+
+<p>RateRule:</p>
+
+<ul>
+<li><code>from_zone</code> = <code>sce_zone</code>，例如 <code>SYD1</code> / <code>MEL1</code></li>
+<li><code>to_zone</code> = <code>dest_zone</code></li>
+<li><code>minimum_charge</code> = <code>Minimum Charge</code></li>
+<li><code>basic_charge</code> = <code>BasicChargeAmount</code></li>
+<li><code>per_kg</code> = <code>FreightChargeAmount</code></li>
+<li><code>cubic_factor</code> = <code>Cubic Conversion</code></li>
+<li><code>raw_payload.KG Included In Basic</code> 保留</li>
+</ul>
+
+<p>Calculator:</p>
+
+<ul>
+<li>chargeable kg = <code>ceil(max(actual_kg, cubic_kg))</code></li>
+<li>base = <code>max(minimum_charge, basic_charge + per_kg * chargeable_kg)</code></li>
+<li>GST 在系统统一计算</li>
+<li>fuel 走 <code>SurchargeRule</code>，不写死</li>
+</ul>
+
+<h3 id="6-2-fastway-aramex">6.2 Fastway / Aramex</h3>
+
+<p>RateCard:</p>
+
+<ul>
+<li><code>UBI-FASTWAY-MEL-LEGACY</code></li>
+<li><code>UBI-FASTWAY-MEL-SYD-PER-2025-08-01</code></li>
+</ul>
+
+<p>RateZone:</p>
+
+<ul>
+<li>来源 <code>Fastway Coverage</code></li>
+<li><code>postcode</code></li>
+<li><code>suburb</code></li>
+<li><code>state</code></li>
+<li><code>dest_zone</code> = RF</li>
+</ul>
+
+<p>RateRule:</p>
+
+<ul>
+<li><code>from_zone</code> = origin，例如 <code>MEL</code> / <code>SYD</code> / <code>PER</code></li>
+<li><code>to_zone</code> = RF destination</li>
+<li>fixed weight break 进入 <code>raw_payload.weight_breaks</code></li>
+<li><code>per_kg</code> 或 <code>raw_payload.per_500g_after_5_5kg</code> 保存超过 5.5kg 的加收</li>
+</ul>
+
+<p>Calculator:</p>
+
+<ul>
+<li>destination 通过 coverage 找 RF。</li>
+<li>0.3kg 到 5.5kg 用固定 break。</li>
+<li>超 5.5kg 按每 500g 加收。</li>
+<li>fuel 走 <code>SurchargeRule</code>。</li>
+</ul>
+
+<h3 id="6-3-eparcel-standard-express">6.3 eParcel Standard / Express</h3>
+
+<p>RateCard:</p>
+
+<ul>
+<li><code>UBI-EPARCEL-STANDARD-MEL-2024-03-18</code></li>
+<li><code>UBI-EPARCEL-STANDARD-MEL-2025-11-01</code></li>
+<li><code>UBI-EPARCEL-EXPRESS-MEL-2024-03-18</code></li>
+<li><code>UBI-EPARCEL-EXPRESS-MEL-2025-11-01</code></li>
+</ul>
+
+<p>RateZone:</p>
+
+<ul>
+<li>来源 <code>zone mapping</code></li>
+<li><code>postcode</code></li>
+<li><code>dest_zone</code> = UBI Zone</li>
+</ul>
+
+<p>RateRule:</p>
+
+<ul>
+<li>每个 destination zone 保存 weight band matrix。</li>
+<li>固定价 band 放在 <code>raw_payload.weight_breaks</code>。</li>
+</ul>
+
+<p>Calculator:</p>
+
+<ul>
+<li>postcode -&gt; UBI zone。</li>
+<li>actual/cubic 取计费重量。</li>
+<li>选择对应 weight band。</li>
+<li>超出最高 band 的处理必须按 workbook 说明实现，未确认前超过范围返回 not available。</li>
+</ul>
+
+<h3 id="6-4-toll-priority3-b2c">6.4 Toll Priority3 / B2C</h3>
+
+<p>RateCard:</p>
+
+<ul>
+<li><code>UBI-TOLL-PRIORITY3-B2C-2025-07-07</code></li>
+<li><code>UBI-TOLL-PRIORITY3-B2C-2026-04-20</code></li>
+<li>无日期版本只建 DRAFT/REVIEW，不参与报价</li>
+</ul>
+
+<p>RateZone:</p>
+
+<ul>
+<li>来源 <code>Priority Zone Finder</code></li>
+<li><code>postcode</code></li>
+<li><code>dest_zone</code> = PriorityZone</li>
+</ul>
+
+<p>RateRule:</p>
+
+<ul>
+<li><code>from_zone</code> = <code>From</code></li>
+<li><code>to_zone</code> = <code>To</code></li>
+<li><code>raw_payload.Org</code></li>
+<li><code>minimum_charge</code></li>
+<li><code>basic_charge</code></li>
+<li><code>per_kg</code></li>
+<li><code>raw_payload.weight_breaks</code></li>
+</ul>
+
+<p>Calculator:</p>
+
+<ul>
+<li>postcode -&gt; PriorityZone。</li>
+<li>origin + destination zone 找 rule。</li>
+<li>按 min/basic/kilo thereafter/weight breaks 计算。</li>
+</ul>
+
+<h3 id="6-5-ubi-可预估-surcharge">6.5 UBI 可预估 surcharge</h3>
+
+<h4>Oversize Length Surcharge</h4>
+
+<p>来源:</p>
+
+<ul>
+<li><code>ubi_invoices_all/oversize</code></li>
+</ul>
+
+<p>导入方式:</p>
+
+<ul>
+<li>不建基础 <code>RateCard</code>。</li>
+<li>建 <code>SurchargeRule</code>，绑定 UBI agent + 对应 carrier/service/rate card。</li>
+<li><code>raw_payload</code> 保存来源样本和触发字段。</li>
+</ul>
+
+<p>建议规则:</p>
+
+<ul>
+<li>如果最长边超过 UBI/Fastway 当前合同阈值，则收取 oversize length surcharge。</li>
+<li>从样本看触发长度最小约为 106 cm，多数收费为 ex GST 15；正式导入前需要把阈值和金额作为可配置项，不硬编码。</li>
+<li>若未来发现不同 service/origin/period 金额不同，用 <code>effective_from/effective_to</code> 和 <code>rate_card</code> 绑定。</li>
+</ul>
+
+<p>Breakdown:</p>
+
+<pre><code class="language-text">Oversize length surcharge: $15.00</code></pre>
+
+<p>Trace:</p>
+
+<ul>
+<li>longest_side_cm</li>
+<li>threshold_cm</li>
+<li>surcharge_rule_id</li>
+<li>source_folder=oversize</li>
+<li>source_service_type=Oversize Length Surcharge</li>
+</ul>
+
+<h4>Penalty Below 3kg / More To Pay</h4>
+
+<p>来源:</p>
+
+<ul>
+<li><code>ubi_invoices_all/additional_fee</code></li>
+</ul>
+
+<p>当前决定:</p>
+
+<ul>
+<li>暂不进入报价计算。</li>
+<li>暂不在 Manual Quote / Freight Audit Matrix 中加入 predicted penalty。</li>
+<li>保留在 Invoice Reconciliation / surcharge audit 中，用于解释实际账单差异。</li>
+</ul>
+
+<p>后续如果要启用，需要先确认:</p>
+
+<ul>
+<li>carrier 处罚公式。</li>
+<li>label 申报重量的系统来源。</li>
+<li>billed weight / actual weight / volumetric weight 的取值优先级。</li>
+<li>fuel/security/additional charge 的拆分方式。</li>
+</ul>
+
+<h2 id="7-calculator-文件规划">7. Calculator 文件规划</h2>
+
+<p>新增:</p>
+
+<pre><code class="language-text">backend\freight\calculators\ubi_toll_ipec.py
+backend\freight\calculators\ubi_fastway.py
+backend\freight\calculators\ubi_eparcel.py
+backend\freight\calculators\ubi_toll_priority3.py</code></pre>
+
+<p>注册到:</p>
+
+<pre><code class="language-text">backend\freight\calculators\registry.py</code></pre>
+
+<p>calculator key:</p>
+
+<pre><code class="language-text">ubi_toll_ipec
+ubi_fastway
+ubi_eparcel
+ubi_toll_priority3</code></pre>
+
+<p>每个 calculator 必须输出:</p>
+
+<ul>
+<li>availability</li>
+<li>not_available_reason</li>
+<li>base</li>
+<li>surcharge</li>
+<li>fuel</li>
+<li>gst</li>
+<li>total_inc_gst</li>
+<li>chargeable_kg</li>
+<li>destination zone</li>
+<li>rate_card</li>
+<li>source rule id</li>
+<li>breakdown lines</li>
+</ul>
+
+<h2 id="8-前端配置和展示">8. 前端配置和展示</h2>
+
+<h3 id="8-1-pricing-页面">8.1 Pricing 页面</h3>
+
+<p>Rate Card 列表需要能看到:</p>
+
+<ul>
+<li>Agent</li>
+<li>Carrier</li>
+<li>Service</li>
+<li>Version</li>
+<li>Effective from</li>
+<li>Effective to</li>
+<li>Status</li>
+<li>Source sheet hash</li>
+<li>Imported at</li>
+</ul>
+
+<h3 id="8-2-quote-channel-页面">8.2 Quote Channel 页面</h3>
+
+<p>新增 UBI quote channels:</p>
+
+<ul>
+<li>UBI Toll IPEC Road</li>
+<li>UBI Fastway</li>
+<li>UBI eParcel Standard</li>
+<li>UBI eParcel Express</li>
+<li>UBI Toll Priority3</li>
+</ul>
+
+<p>显示上要明确:</p>
+
+<ul>
+<li>Agent = UBI</li>
+<li>Carrier = 真实承运商</li>
+<li>Service = UBI 下的服务</li>
+</ul>
+
+<h3 id="8-3-manual-quote-audit-matrix">8.3 Manual Quote / Audit Matrix</h3>
+
+<p>结果排序继续沿用当前逻辑:</p>
+
+<ul>
+<li>available 在前</li>
+<li>inc GST total 从低到高</li>
+<li>最低价高亮</li>
+</ul>
+
+<p>Breakdown 需要显示:</p>
+
+<ul>
+<li>Agent</li>
+<li>Carrier</li>
+<li>Service</li>
+<li>RateCard version</li>
+<li>Base</li>
+<li>Fuel</li>
+<li>Surcharge</li>
+<li>GST</li>
+<li>Final inc GST</li>
+</ul>
+
+<h2 id="9-测试计划">9. 测试计划</h2>
+
+<h3 id="9-1-p1-单元测试">9.1 P1 单元测试</h3>
+
+<ul>
+<li>Toll IPEC 2025 样本计算。</li>
+<li>Toll IPEC 2026 样本计算。</li>
+<li>Fastway old Rate 样本计算。</li>
+<li>Fastway New Rate 样本计算。</li>
+<li>Oversize Length Surcharge 尺寸触发测试。</li>
+<li>相同 hash 重复导入不新增 RateCard。</li>
+<li>无 <code>--commit</code> 时不写入 Pricing。</li>
+<li>adjustment-only sheet 不生成 RateCard。</li>
+</ul>
+
+<h3 id="9-2-p2-集成测试">9.2 P2 集成测试</h3>
+
+<ul>
+<li>导入 UBI Toll IPEC 后，Manual Quote 能返回 UBI Toll 价格。</li>
+<li>导入 UBI Fastway 后，Manual Quote 能返回 UBI Fastway 价格。</li>
+<li>Freight Audit Matrix 可以按历史订单跑 UBI channels。</li>
+<li>quote date 在不同版本区间时选择正确 RateCard。</li>
+<li>warehouse origin 只匹配对应 origin rate。</li>
+</ul>
+
+<h3 id="9-3-p3-ui-e2e">9.3 P3 UI/E2E</h3>
+
+<ul>
+<li>Pricing 列表能搜索 UBI / carrier / version。</li>
+<li>QuoteChannel 显示 Agent。</li>
+<li>Breakdown 中能看到 UBI RateCard 和费用来源。</li>
+<li>Oversize 能在 breakdown 中解释触发原因。</li>
+</ul>
+
+<h2 id="10-推荐开发顺序">10. 推荐开发顺序</h2>
+
+<h3 id="第一阶段-最小可用导入">第一阶段: 最小可用导入</h3>
+
+<ol>
+<li>给 <code>RateCard</code> 增加 <code>agent</code> 字段。</li>
+<li>新增轻量导入日志模型。</li>
+<li>新增 UBI parser 基础框架。</li>
+<li>实现 <code>analyze_ubi_rate_package</code>。</li>
+<li>实现 <code>import_ubi_rate_package --dry-run/--commit</code>。</li>
+</ol>
+
+<h3 id="第二阶段-p1-可计算渠道">第二阶段: P1 可计算渠道</h3>
+
+<ol>
+<li>导入 Toll IPEC Road。</li>
+<li>实现 <code>ubi_toll_ipec</code> calculator。</li>
+<li>导入 Fastway。</li>
+<li>实现 <code>ubi_fastway</code> calculator。</li>
+<li>添加单元测试和 Manual Quote 验证。</li>
+</ol>
+
+<h3 id="第三阶段-p2-可计算渠道">第三阶段: P2 可计算渠道</h3>
+
+<ol>
+<li>导入 eParcel Standard / Express。</li>
+<li>实现 <code>ubi_eparcel</code> calculator。</li>
+<li>导入 Toll Priority3。</li>
+<li>实现 <code>ubi_toll_priority3</code> calculator。</li>
+<li>添加 Audit Matrix 验证。</li>
+</ol>
+
+<h3 id="第四阶段-前端完善">第四阶段: 前端完善</h3>
+
+<ol>
+<li>Pricing 列表显示 Agent。</li>
+<li>QuoteChannel 列表显示 Agent。</li>
+<li>Breakdown 显示 UBI agent/rate card/source hash。</li>
+<li>可选增加手动上传分析页面，但不是必须。</li>
+</ol>
+
+<h2 id="11-验收标准">11. 验收标准</h2>
+
+<p>本功能完成后应满足:</p>
+
+<ul>
+<li>UBI 作为 Agent 可在 Master Data 中看到。</li>
+<li>UBI 下的 Toll IPEC / Fastway / eParcel / Priority3 可作为 QuoteChannel 启用。</li>
+<li>手动导入同一份 zip 不重复创建相同 rate card。</li>
+<li>不同版本 rate card 按 effective date 存在系统里。</li>
+<li>Manual Quote 可以算出 UBI 渠道真实结果。</li>
+<li>Freight Audit Matrix 可以跑 UBI 渠道历史订单估算。</li>
+<li>Breakdown 能解释每个 UBI 报价来自哪个 rate card、哪个 zone、哪个 weight/rule。</li>
+<li>oversize 进入 surcharge 计算，而不是基础 linehaul。</li>
+<li>penalty below 3kg / More to Pay 暂不进入报价计算，只用于账单复核。</li>
+<li>redelivery / RTS / underticketing 没有被错误导入成基础报价。</li>
+</ul>
+
+<!-- CONTENT_END -->
+
+      <footer class="doc-footer">
+        <span>Generated by <a href="#">md2html</a></span>
+        <span>来源: docs/UBI_Rate_Import_System_Development_Plan_20260617.md</span>
+      </footer>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    // ---------- Theme ----------
+    const STORAGE_KEY = "md2html-theme";
+    function currentTheme() { return document.documentElement.dataset.theme || "light"; }
+    function applyThemeIcon() {
+      const use = document.getElementById("theme-icon-use");
+      if (use) use.setAttribute("href", currentTheme() === "dark" ? "#i-sun" : "#i-moon");
+    }
+    (function restoreTheme() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) document.documentElement.dataset.theme = saved;
+    })();
+
+    // ---------- Mermaid ----------
+    const diagramSources = new Map();
+    function initMermaid() {
+      const isDark = currentTheme() === "dark";
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: isDark ? "dark" : "default",
+        themeVariables: {
+          primaryColor: isDark ? "#3A2A22" : "#FBEEE6",
+          primaryTextColor: isDark ? "#F5F0E8" : "#1A1A1A",
+          primaryBorderColor: isDark ? "#E89572" : "#D97757",
+          lineColor: isDark ? "#9A938A" : "#6B6B66",
+          secondaryColor: isDark ? "#2A2520" : "#F5F5F0",
+          tertiaryColor: isDark ? "#221E1A" : "#FFFFFF",
+          fontFamily: "Inter, system-ui, sans-serif",
+        },
+      });
+    }
+    async function renderMermaid() {
+      initMermaid();
+      const els = document.querySelectorAll(".mermaid");
+      els.forEach(el => {
+        if (!diagramSources.has(el)) diagramSources.set(el, el.textContent.trim());
+        el.textContent = diagramSources.get(el);
+        el.removeAttribute("data-processed");
+      });
+      try { await mermaid.run({ nodes: els }); } catch (e) { console.error(e); }
+    }
+    function toggleTheme() {
+      const next = currentTheme() === "light" ? "dark" : "light";
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem(STORAGE_KEY, next);
+      applyThemeIcon();
+      renderMermaid();
+    }
+
+    // ---------- TOC drawer (mobile) ----------
+    function openToc()  { document.body.classList.add("toc-open"); }
+    function closeToc() { document.body.classList.remove("toc-open"); }
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape" && document.body.classList.contains("toc-open")) closeToc();
+    });
+
+    // ---------- TOC scrollspy ----------
+    function setupTocSpy() {
+      const links = document.querySelectorAll("#toc-nav a[href^='#']");
+      if (!links.length) {
+        const toc = document.getElementById("toc");
+        if (toc) toc.style.display = "none";
+        return;
+      }
+      const map = new Map();
+      links.forEach(a => {
+        const id = a.getAttribute("href").slice(1);
+        const el = document.getElementById(id);
+        if (el) map.set(el, a);
+        a.addEventListener("click", () => {
+          if (window.matchMedia("(max-width: 900px)").matches) closeToc();
+        });
+      });
+      const obs = new IntersectionObserver((entries) => {
+        entries.forEach(en => {
+          const link = map.get(en.target);
+          if (!link) return;
+          if (en.isIntersecting) {
+            links.forEach(l => l.classList.remove("active"));
+            link.classList.add("active");
+          }
+        });
+      }, { rootMargin: "-80px 0px -70% 0px", threshold: 0 });
+      map.forEach((_, el) => obs.observe(el));
+    }
+
+    // ---------- Anchor links on h2/h3 ----------
+    function injectAnchors() {
+      document.querySelectorAll(".content h2[id], .content h3[id]").forEach(h => {
+        if (h.querySelector(".anchor")) return;
+        const a = document.createElement("a");
+        a.className = "anchor";
+        a.href = "#" + h.id;
+        a.setAttribute("aria-label", "Permalink");
+        a.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-link"/></svg>';
+        h.appendChild(a);
+      });
+    }
+
+    // ---------- Copy-to-clipboard on <pre> ----------
+    function injectCopyButtons() {
+      document.querySelectorAll(".content pre").forEach(pre => {
+        if (pre.classList.contains("mermaid")) return;
+        if (pre.querySelector(".copy-btn")) return;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "copy-btn";
+        btn.setAttribute("aria-label", "Copy code");
+        btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+        btn.addEventListener("click", async () => {
+          const code = pre.querySelector("code")?.textContent ?? pre.textContent;
+          try {
+            await navigator.clipboard.writeText(code);
+            btn.classList.add("copied");
+            btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>';
+            setTimeout(() => {
+              btn.classList.remove("copied");
+              btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+            }, 1500);
+          } catch (e) { console.error(e); }
+        });
+        pre.appendChild(btn);
+      });
+    }
+
+    // ---------- Scroll progress ----------
+    function setupScrollProgress() {
+      const bar = document.getElementById("scroll-progress");
+      if (!bar) return;
+      const onScroll = () => {
+        const h = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+        const p = h > 0 ? (document.documentElement.scrollTop / h * 100) : 0;
+        bar.style.width = p + "%";
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+    }
+
+    // ---------- Boot ----------
+    document.addEventListener("DOMContentLoaded", () => {
+      applyThemeIcon();
+      injectAnchors();
+      injectCopyButtons();
+      renderMermaid();
+      setupTocSpy();
+      setupScrollProgress();
+    });
+  </script>
+</body>
+</html>

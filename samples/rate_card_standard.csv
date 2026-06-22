@@ -1,0 +1,6 @@
+record_type,state,suburb,postcode,origin_zone,dest_zone,deliverable,from_zone,to_zone,weight_min_kg,weight_max_kg,basic_charge,per_kg,minimum_charge,rule_type,code,rule_name,min_threshold,max_threshold,ratio,fee_amount,match_dimension
+zone,VIC,SOUTH MELBOURNE,3205,V01,H1,true,,,,,,,,,,,,,,
+zone,VIC,MELBOURNE,3000,V01,H1,true,,,,,,,,,,,,,,
+rule,,,,,,,,H1,0,,12.00,1.20,15.00,LINEHAUL,,,,,,,
+surcharge,,,,,,,,,,,,,,,RESI,Residential,0,,,2.50,WEIGHT
+surcharge,,,,,,,,,,,,,,,FS,Fuel,,,,1.12,0,ALWAYS
