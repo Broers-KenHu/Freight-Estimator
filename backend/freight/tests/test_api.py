@@ -1,6 +1,7 @@
 import pytest
 import jwt
 from decimal import Decimal
+from types import SimpleNamespace
 from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
@@ -10,6 +11,8 @@ from freight.models import (
     Carrier,
     CarrierService,
     ErpShipmentSnapshot,
+    FreightAuditResult,
+    FreightAuditRow,
     HistoricalOrder,
     HistoricalOrderItem,
     HistoricalOrderShipment,
@@ -20,6 +23,7 @@ from freight.models import (
     LspQuoteTaskLogItem,
     Platform,
     PlatformCarrier,
+    QuoteChannel,
     SKUComboComponent,
     Warehouse,
     WarehouseCarrier,
@@ -660,6 +664,50 @@ def test_invoice_sync_endpoint_returns_latest_job_and_batches(api, monkeypatch):
 
 
 @pytest.mark.django_db
+def test_freight_audit_carrier_summary_and_channel_filter(api):
+    channel = QuoteChannel.objects.select_related("carrier", "service", "rate_card").filter(enabled=True).first()
+    row = FreightAuditRow.objects.create(
+        source_system="test",
+        source_external_id="AUDIT-1",
+        calculation_mode=FreightAuditRow.CalculationMode.CONSIGNMENT,
+        order_no="ERP-AUDIT-1",
+        tracking_no="TRK-AUDIT-1",
+        erp_estimated_freight=Decimal("10.00"),
+        invoice_actual_freight=Decimal("15.00"),
+        status="COMPLETED",
+    )
+    FreightAuditResult.objects.create(
+        row=row,
+        quote_channel=channel,
+        carrier=channel.carrier,
+        carrier_service=channel.service,
+        carrier_key="test_carrier",
+        carrier_name=channel.carrier.name,
+        service_name=channel.service.name if channel.service_id else "",
+        provider_type=channel.provider_type,
+        availability="AVAILABLE",
+        total_inc_gst=Decimal("12.00"),
+        variance_to_invoice=Decimal("-3.00"),
+    )
+
+    response = api.get("/api/freight-audit-rows/carrier-summary/?calculation_mode=CONSIGNMENT")
+
+    assert response.status_code == 200
+    summary = next(item for item in response.data if item["quote_channel_code"] == channel.code)
+    assert summary["carrier_key"] == "test_carrier"
+    assert summary["audit_rows"] == 1
+    assert summary["available_invoice_rows"] == 1
+    assert Decimal(str(summary["system_minus_invoice_total"])) == Decimal("-3.00")
+    assert Decimal(str(summary["erp_estimated_total_inc_gst"])) == Decimal("11.00")
+
+    response = api.get(f"/api/freight-audit-rows/?quote_channel_code={channel.code}")
+
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["order_no"] == "ERP-AUDIT-1"
+
+
+@pytest.mark.django_db
 def test_platform_detail_summary_returns_related_config(api):
     platform = Platform.objects.get(code="SHOPIFY_AU")
 
@@ -705,6 +753,16 @@ def test_warehouse_sync_endpoint_returns_latest_job(api, monkeypatch):
 
     assert response.status_code == 200
     assert response.data["import_job"]["job_type"] == ImportJob.JobType.WAREHOUSE_SYNC
+
+
+@pytest.mark.django_db
+def test_sku_sync_async_endpoint_returns_celery_task(api, monkeypatch):
+    monkeypatch.setattr("freight.views.sync_sku_from_wms_task.delay", lambda **kwargs: SimpleNamespace(id="task-sku-1"))
+
+    response = api.post("/api/skus/sync-from-wms-async/", {"full": True, "limit": 10}, format="json")
+
+    assert response.status_code == 202
+    assert response.data == {"task_id": "task-sku-1", "status": "PENDING", "job_type": ImportJob.JobType.SKU_SYNC}
 
 
 @pytest.mark.django_db

@@ -1,4 +1,4 @@
-import { CalculatorOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { CalculatorOutlined, EyeOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Button,
@@ -19,7 +19,14 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import { useMemo, useState } from 'react'
 import { api, type Paginated } from '../api/client'
-import type { FreightAuditChargeLine, FreightAuditComponent, FreightAuditItem, FreightAuditResult, FreightAuditRow } from '../types'
+import type {
+  FreightAuditCarrierSummary,
+  FreightAuditChargeLine,
+  FreightAuditComponent,
+  FreightAuditItem,
+  FreightAuditResult,
+  FreightAuditRow,
+} from '../types'
 import { nonZeroChargeLines } from '../utils/charges'
 
 const carrierLabels: Record<string, string> = {
@@ -333,15 +340,29 @@ export function FreightAuditMatrix() {
   const [batchId, setBatchId] = useState<number | null>(221)
   const [limit, setLimit] = useState<number | null>(5000)
   const [selected, setSelected] = useState<FreightAuditRow | null>(null)
+  const [selectedCarrierKey, setSelectedCarrierKey] = useState('')
+  const [selectedQuoteChannelCode, setSelectedQuoteChannelCode] = useState('')
+
+  const { data: carrierSummary = [], isFetching: isFetchingCarrierSummary } = useQuery({
+    queryKey: ['freight-audit-carrier-summary', mode],
+    queryFn: async () =>
+      (
+        await api.get<FreightAuditCarrierSummary[]>('/freight-audit-rows/carrier-summary/', {
+          params: { calculation_mode: mode },
+        })
+      ).data,
+  })
 
   const { data, isFetching } = useQuery({
-    queryKey: ['freight-audit-rows', mode, search, page, pageSize],
+    queryKey: ['freight-audit-rows', mode, search, selectedCarrierKey, selectedQuoteChannelCode, page, pageSize],
     queryFn: async () =>
       (
         await api.get<Paginated<FreightAuditRow>>('/freight-audit-rows/', {
           params: {
             calculation_mode: mode,
             search: search || undefined,
+            carrier_key: selectedCarrierKey || undefined,
+            quote_channel_code: selectedQuoteChannelCode || undefined,
             page,
             page_size: pageSize,
           },
@@ -353,6 +374,9 @@ export function FreightAuditMatrix() {
   const total = data?.count || 0
   const carrierKeys = useMemo(() => {
     const discovered = new Set<string>(preferredCarrierOrder)
+    carrierSummary.forEach((item) => {
+      if (item.carrier_key) discovered.add(item.carrier_key)
+    })
     rows.forEach((row) => {
       Object.keys(row.best_results || {}).forEach((key) => {
         if (key) discovered.add(key)
@@ -362,16 +386,27 @@ export function FreightAuditMatrix() {
       ...preferredCarrierOrder.filter((key) => discovered.has(key)),
       ...Array.from(discovered).filter((key) => !preferredCarrierOrder.includes(key)).sort(),
     ]
-  }, [rows])
+  }, [carrierSummary, rows])
+  const selectedCarrierSummary = useMemo(
+    () => carrierSummary.find((item) => item.quote_channel_code === selectedQuoteChannelCode),
+    [carrierSummary, selectedQuoteChannelCode],
+  )
+  const carrierLabelByKey = useMemo(() => {
+    const labels = new Map<string, string>()
+    carrierSummary.forEach((item) => {
+      if (item.carrier_key) labels.set(item.carrier_key, item.carrier_name)
+    })
+    return labels
+  }, [carrierSummary])
 
   const buildMutation = useMutation({
     mutationFn: async () =>
       (
         await api.post('/freight-audit-rows/build-from-reconciliation/', {
           batch_id: batchId || undefined,
-          source_config: 'HUNTER',
           mode,
           limit: limit || undefined,
+          carrier_keyword: selectedQuoteChannelCode ? [selectedQuoteChannelCode] : undefined,
           order_batch_size: 5000,
         })
       ).data,
@@ -379,9 +414,95 @@ export function FreightAuditMatrix() {
       messageApi.success('Freight audit matrix build completed')
       if (payload?.output) console.info(payload.output)
       queryClient.invalidateQueries({ queryKey: ['freight-audit-rows'] })
+      queryClient.invalidateQueries({ queryKey: ['freight-audit-carrier-summary'] })
     },
     onError: () => messageApi.error('Freight audit matrix build failed'),
   })
+
+  const carrierSummaryColumns: ColumnsType<FreightAuditCarrierSummary> = [
+    {
+      title: 'Carrier / Service',
+      width: 280,
+      fixed: 'left',
+      render: (_, record) => (
+        <div className="audit-summary-carrier">
+          <Typography.Text strong>{record.carrier_name}</Typography.Text>
+          <Typography.Text type="secondary">{record.service_name || record.quote_channel_name}</Typography.Text>
+          <Space size={4} wrap>
+            {record.agent_name && <Tag>{record.agent_name}</Tag>}
+            <Tag color={record.provider_type === 'API' ? 'purple' : 'blue'}>{record.provider_type}</Tag>
+          </Space>
+        </div>
+      ),
+    },
+    { title: 'Channel', dataIndex: 'quote_channel_code', width: 170, className: 'audit-wrap-cell' },
+    {
+      title: 'Rate Card',
+      width: 250,
+      className: 'audit-wrap-cell',
+      render: (_, record) => (
+        <Space size={4} wrap>
+          <Typography.Text>{record.rate_card_name || '-'}</Typography.Text>
+          {record.rate_card_status && <Tag color={record.rate_card_status === 'Active' ? 'green' : 'default'}>{record.rate_card_status}</Tag>}
+        </Space>
+      ),
+    },
+    { title: 'Audit Rows', dataIndex: 'audit_rows', width: 92, align: 'right', render: (value) => compactNumber(value, 0) },
+    { title: 'Available', dataIndex: 'available_rows', width: 92, align: 'right', render: (value) => compactNumber(value, 0) },
+    { title: 'Invoice Rows', dataIndex: 'available_invoice_rows', width: 104, align: 'right', render: (value) => compactNumber(value, 0) },
+    { title: 'System Est inc GST', dataIndex: 'system_estimated_total', width: 132, align: 'right', render: money },
+    { title: 'Invoice Actual inc GST', dataIndex: 'invoice_actual_total', width: 142, align: 'right', render: money },
+    {
+      title: 'System - Invoice',
+      dataIndex: 'system_minus_invoice_total',
+      width: 126,
+      align: 'right',
+      render: (value) => <Typography.Text style={{ color: varianceColor(value) }}>{money(value)}</Typography.Text>,
+    },
+    { title: 'ERP Est inc GST', dataIndex: 'erp_estimated_total_inc_gst', width: 126, align: 'right', render: money },
+    {
+      title: 'Action',
+      width: 104,
+      fixed: 'right',
+      render: (_, record) => (
+        <Button
+          size="small"
+          icon={<EyeOutlined />}
+          type={record.quote_channel_code === selectedQuoteChannelCode ? 'primary' : 'default'}
+          onClick={() => {
+            setSelectedCarrierKey(record.carrier_key)
+            setSelectedQuoteChannelCode(record.quote_channel_code)
+            setPage(1)
+          }}
+        >
+          Review
+        </Button>
+      ),
+    },
+  ]
+
+  const auditResultColumns: ColumnsType<FreightAuditRow> = selectedQuoteChannelCode
+    ? [
+        {
+          title: selectedCarrierSummary?.service_name || selectedQuoteChannelCode,
+          dataIndex: 'results',
+          width: 156,
+          align: 'right' as const,
+          render: (_: unknown, record: FreightAuditRow) => (
+            <ResultAmount
+              result={record.results.find((result) => result.quote_channel_code === selectedQuoteChannelCode)}
+              erpEstimate={record.erp_estimated_freight}
+            />
+          ),
+        },
+      ]
+    : carrierKeys.map((key) => ({
+        title: carrierLabelByKey.get(key) || carrierLabel(key),
+        dataIndex: ['best_results', key],
+        width: 126,
+        align: 'right' as const,
+        render: (_: unknown, record: FreightAuditRow) => <ResultAmount result={record.best_results?.[key]} erpEstimate={record.erp_estimated_freight} />,
+      }))
 
   const columns: ColumnsType<FreightAuditRow> = [
     { title: 'Order No', dataIndex: 'order_no', width: 190, fixed: 'left', className: 'audit-wrap-cell' },
@@ -393,13 +514,7 @@ export function FreightAuditMatrix() {
     { title: 'Items', dataIndex: 'item_count', width: 72, align: 'right' },
     { title: 'ERP Est. inc GST', dataIndex: 'erp_estimated_freight', width: 126, align: 'right', render: erpEstimateMoney },
     { title: 'Actual', dataIndex: 'invoice_actual_freight', width: 96, align: 'right', render: money },
-    ...carrierKeys.map((key) => ({
-      title: carrierLabel(key),
-      dataIndex: ['best_results', key],
-      width: 126,
-      align: 'right' as const,
-      render: (_: unknown, record: FreightAuditRow) => <ResultAmount result={record.best_results?.[key]} erpEstimate={record.erp_estimated_freight} />,
-    })),
+    ...auditResultColumns,
     { title: 'Status', dataIndex: 'status', width: 112, render: (value) => <Tag color={value === 'COMPLETED' ? 'green' : value === 'FAILED' ? 'red' : 'default'}>{value}</Tag> },
   ]
 
@@ -434,6 +549,8 @@ export function FreightAuditMatrix() {
             onChange={(value) => {
               setMode(value as AuditMode)
               setPage(1)
+              setSelectedCarrierKey('')
+              setSelectedQuoteChannelCode('')
             }}
           />
           <InputNumber aria-label="Batch ID" min={1} value={batchId} onChange={(value) => setBatchId(value)} placeholder="Batch" />
@@ -442,6 +559,40 @@ export function FreightAuditMatrix() {
             Build Orders
           </Button>
         </Space>
+      </div>
+      <div className="audit-summary-panel">
+        <div className="audit-summary-heading">
+          <div>
+            <Typography.Title level={4}>Estimate-enabled carriers</Typography.Title>
+            <Typography.Text type="secondary">Use this list to review actual invoice charges one carrier or rate channel at a time.</Typography.Text>
+          </div>
+          {selectedCarrierSummary && (
+            <Tag
+              closable
+              color="blue"
+              onClose={(event) => {
+                event.preventDefault()
+                setSelectedCarrierKey('')
+                setSelectedQuoteChannelCode('')
+                setPage(1)
+              }}
+            >
+              Reviewing {selectedCarrierSummary.carrier_name} / {selectedCarrierSummary.service_name || selectedCarrierSummary.quote_channel_code}
+            </Tag>
+          )}
+        </div>
+        <Table<FreightAuditCarrierSummary>
+          rowKey="quote_channel_code"
+          size="small"
+          className="audit-carrier-summary-table"
+          loading={isFetchingCarrierSummary}
+          columns={carrierSummaryColumns}
+          dataSource={carrierSummary}
+          pagination={false}
+          tableLayout="fixed"
+          scroll={{ x: 1620 }}
+          rowClassName={(record) => (record.quote_channel_code === selectedQuoteChannelCode ? 'audit-summary-row-selected' : '')}
+        />
       </div>
       <div className="audit-filter-bar">
         <Input
@@ -455,7 +606,13 @@ export function FreightAuditMatrix() {
             setPage(1)
           }}
         />
-        <Button icon={<ReloadOutlined />} onClick={() => queryClient.invalidateQueries({ queryKey: ['freight-audit-rows'] })}>
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ['freight-audit-rows'] })
+            queryClient.invalidateQueries({ queryKey: ['freight-audit-carrier-summary'] })
+          }}
+        >
           Refresh
         </Button>
         <Typography.Text type="secondary">{total.toLocaleString()} rows</Typography.Text>
@@ -468,7 +625,7 @@ export function FreightAuditMatrix() {
         columns={columns}
         dataSource={rows}
         tableLayout="fixed"
-        scroll={{ x: 1580 + carrierKeys.length * 126, y: 'calc(100vh - 280px)' }}
+        scroll={{ x: 1580 + auditResultColumns.length * 156, y: 'calc(100vh - 500px)' }}
         pagination={{
           current: page,
           pageSize,

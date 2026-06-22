@@ -617,6 +617,59 @@
   margin-bottom: 10px;
 }
 
+.audit-summary-panel {
+  margin: 12px 0 10px;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.audit-summary-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.audit-summary-heading h4 {
+  margin: 0 0 2px;
+}
+
+.audit-carrier-summary-table .ant-table {
+  border: 1px solid #edf0f3;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.audit-carrier-summary-table .ant-table-thead > tr > th,
+.audit-carrier-summary-table .ant-table-tbody > tr > td {
+  padding: 5px 7px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.audit-carrier-summary-table .ant-table-thead > tr > th {
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 650;
+}
+
+.audit-summary-carrier {
+  display: grid;
+  gap: 2px;
+}
+
+.audit-summary-carrier .ant-typography {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.audit-summary-row-selected > td {
+  background: #eff6ff !important;
+}
+
 .freight-audit-table .ant-table {
   border: 1px solid #e5e7eb;
   border-radius: 6px;
@@ -1443,7 +1496,8 @@
   }
 
   .page-toolbar,
-  .audit-filter-bar {
+  .audit-filter-bar,
+  .audit-summary-heading {
     align-items: stretch;
     flex-direction: column;
   }

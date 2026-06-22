@@ -375,3 +375,35 @@ export type FreightAuditRow = {
   created_at: string
   updated_at: string
 }
+
+export type FreightAuditCarrierSummary = {
+  quote_channel_id: number
+  quote_channel_code: string
+  quote_channel_name: string
+  agent_code: string
+  agent_name: string
+  carrier_id: number
+  carrier_key: string
+  carrier_code: string
+  carrier_name: string
+  service_id: number | null
+  service_code: string
+  service_name: string
+  provider_type: string
+  calculator_key: string
+  rate_card_id: number | null
+  rate_card_name: string
+  rate_card_version: string
+  rate_card_status: string
+  result_count: number
+  audit_rows: number
+  available_rows: number
+  invoice_rows: number
+  available_invoice_rows: number
+  system_estimated_total: string | null
+  invoice_actual_total: string | null
+  erp_estimated_total_inc_gst: string | null
+  system_minus_invoice_total: string | null
+  erp_minus_invoice_total: string | null
+  system_variance_to_invoice_total: string | null
+}

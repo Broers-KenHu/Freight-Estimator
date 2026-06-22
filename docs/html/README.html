@@ -963,9 +963,11 @@
       <nav class="toc-nav" id="toc-nav">
         <a href="#technology-stack" class="lvl-2">Technology Stack</a>
 <a href="#repository-layout" class="lvl-2">Repository Layout</a>
+<a href="#project-docs" class="lvl-2">Project Docs</a>
 <a href="#environment-files" class="lvl-2">Environment Files</a>
 <a href="#backend-local-setup" class="lvl-2">Backend Local Setup</a>
 <a href="#frontend-local-setup" class="lvl-2">Frontend Local Setup</a>
+<a href="#docker-compose-local-setup" class="lvl-2">Docker Compose Local Setup</a>
 <a href="#settings-profiles" class="lvl-2">Settings Profiles</a>
 <a href="#database-configuration" class="lvl-2">Database Configuration</a>
 <a href="#test-commands" class="lvl-2">Test Commands</a>
@@ -993,7 +995,7 @@
           </span>
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clock"/></svg>
-            ~4 min read
+            ~5 min read
           </span>
         </div>
       </header>
@@ -1023,6 +1025,15 @@ docs/html/     HTML-rendered documentation index
 samples/       Sample CSV templates
 scripts/       Local helper scripts
 reports/       Markdown analysis reports</code></pre>
+
+<h2 id="project-docs">Project Docs</h2>
+
+<ul>
+<li><code>docs/development.md</code>: local setup, environment files, management commands, async task worker.</li>
+<li><code>docs/deployment.md</code>: production settings, required services, deployment steps, PostgreSQL operations.</li>
+<li><code>docs/security.md</code>: secrets, authentication, permissions, upload limits, audit logs.</li>
+<li><code>docs/testing.md</code>: backend, frontend, E2E, Docker, and CI checks.</li>
+</ul>
 
 <h2 id="environment-files">Environment Files</h2>
 
@@ -1075,6 +1086,37 @@ npm run dev -- --host 127.0.0.1 --port 5173</code></pre>
 npm install
 copy .env.example .env
 npm run dev -- --host 127.0.0.1 --port 5173</code></pre>
+
+<h2 id="docker-compose-local-setup">Docker Compose Local Setup</h2>
+
+<p>For a cross-platform development stack with PostgreSQL, Redis, Django, and Vite:</p>
+
+<pre><code class="language-bash">docker compose up --build</code></pre>
+
+<p>Open:</p>
+
+<ul>
+<li>Frontend: <code>http://127.0.0.1:5173</code></li>
+<li>Backend API: <code>http://127.0.0.1:8010/api</code></li>
+</ul>
+
+<p>The compose stack uses local-only credentials and runs:</p>
+
+<ul>
+<li>PostgreSQL on <code>5432</code></li>
+<li>Redis on <code>6379</code></li>
+<li>Django on <code>8010</code></li>
+<li>Vite on <code>5173</code></li>
+</ul>
+
+<p>Useful commands:</p>
+
+<pre><code class="language-bash">docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py seed_demo_data
+docker compose exec backend python manage.py check
+docker compose down</code></pre>
+
+<p>If port <code>5432</code>, <code>6379</code>, <code>8010</code>, or <code>5173</code> is already used on your machine, change the left side of the matching <code>ports</code> entry in <code>docker-compose.yml</code>.</p>
 
 <h2 id="settings-profiles">Settings Profiles</h2>
 
@@ -1190,6 +1232,13 @@ python manage.py sync_orders_from_erp --limit 5000
 python manage.py sync_reconciliation_snapshots --limit 100
 python manage.py build_freight_audit_matrix --limit 100</code></pre>
 
+<p>Celery worker for async task execution:</p>
+
+<pre><code class="language-bash">cd backend
+celery -A config worker -l info</code></pre>
+
+<p>The synchronous management commands remain available even when Celery/Redis is not running.</p>
+
 <p>Demo data cleanup:</p>
 
 <pre><code class="language-bash">cd backend
@@ -1212,6 +1261,10 @@ python manage.py purge_demo_data</code></pre>
 
 <ul>
 <li>HTML documentation index: <code>docs/html/index.html</code></li>
+<li>Development guide: <code>docs/development.md</code></li>
+<li>Deployment guide: <code>docs/deployment.md</code></li>
+<li>Operational security guide: <code>docs/security.md</code></li>
+<li>Testing guide: <code>docs/testing.md</code></li>
 <li>Architecture: <code>docs/architecture.md</code></li>
 <li>Carrier calculation logic: <code>docs/Freight_Carrier_Calculation_Logic_20260618.md</code></li>
 <li>Project overview for external review: <code>docs/Freight_Intelligence_Project_Overview_For_GPT.md</code></li>

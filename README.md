@@ -24,6 +24,13 @@ scripts/       Local helper scripts
 reports/       Markdown analysis reports
 ```
 
+## Project Docs
+
+- `docs/development.md`: local setup, environment files, management commands, async task worker.
+- `docs/deployment.md`: production settings, required services, deployment steps, PostgreSQL operations.
+- `docs/security.md`: secrets, authentication, permissions, upload limits, audit logs.
+- `docs/testing.md`: backend, frontend, E2E, Docker, and CI checks.
+
 ## Environment Files
 
 Copy examples before starting local development:
@@ -265,6 +272,10 @@ python manage.py purge_demo_data
 ## Documentation
 
 - HTML documentation index: `docs/html/index.html`
+- Development guide: `docs/development.md`
+- Deployment guide: `docs/deployment.md`
+- Operational security guide: `docs/security.md`
+- Testing guide: `docs/testing.md`
 - Architecture: `docs/architecture.md`
 - Carrier calculation logic: `docs/Freight_Carrier_Calculation_Logic_20260618.md`
 - Project overview for external review: `docs/Freight_Intelligence_Project_Overview_For_GPT.md`

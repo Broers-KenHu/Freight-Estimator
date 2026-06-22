@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
-  <title>AGENTS.md</title>
+  <title>Security Guide</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -936,7 +936,7 @@
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg>
         </button>
         <span class="brand-dot" aria-hidden="true"></span>
-        <span>System Design</span>
+        <span>Runbook</span>
       </div>
       <div class="topbar-actions">
         <button class="icon-btn" onclick="window.print()" title="Print / Save PDF" aria-label="Print / Save PDF">
@@ -961,30 +961,24 @@
         </button>
       </div>
       <nav class="toc-nav" id="toc-nav">
-        <a href="#project" class="lvl-2">Project</a>
-<a href="#environment-and-secrets" class="lvl-2">Environment And Secrets</a>
-<a href="#system-critical-points" class="lvl-2">System Critical Points</a>
-<a href="#current-data-state" class="lvl-2">Current Data State</a>
-<a href="#real-source-mapping" class="lvl-2">Real Source Mapping</a>
-<a href="#rates-and-calculators" class="lvl-2">Rates And Calculators</a>
-<a href="#manual-quote-behavior" class="lvl-2">Manual Quote Behavior</a>
-<a href="#important-backend-files" class="lvl-2">Important Backend Files</a>
-<a href="#frontend-notes" class="lvl-2">Frontend Notes</a>
-<a href="#safe-operating-rules" class="lvl-2">Safe Operating Rules</a>
-<a href="#commands" class="lvl-2">Commands</a>
-<a href="#last-known-real-manual-quote-smoke-test" class="lvl-2">Last Known Real Manual Quote Smoke Test</a>
+        <a href="#secrets" class="lvl-2">Secrets</a>
+<a href="#authentication" class="lvl-2">Authentication</a>
+<a href="#authorization" class="lvl-2">Authorization</a>
+<a href="#upload-safety" class="lvl-2">Upload Safety</a>
+<a href="#audit-logs" class="lvl-2">Audit Logs</a>
+<a href="#production-checklist" class="lvl-2">Production Checklist</a>
       </nav>
     </aside>
 
     <main class="content" id="main">
       <header class="doc-header">
-        <span class="doc-eyebrow">SYSTEM DESIGN</span>
-        <h1 class="doc-title">AGENTS.md</h1>
-        <p class="doc-subtitle">Working notes for Codex agents continuing this project after context compaction.</p>
+        <span class="doc-eyebrow">RUNBOOK</span>
+        <h1 class="doc-title">Security Guide</h1>
+        <p class="doc-subtitle">Freight Intelligence handles carrier rates, ERP/WMS order data, SKU dimensions, invoice charges, quote traces, and user permissions. Treat these as internal business sensitive data.</p>
         <div class="doc-meta">
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-file"/></svg>
-            AGENTS.md
+            docs/security.md
           </span>
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-calendar"/></svg>
@@ -992,402 +986,94 @@
           </span>
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clock"/></svg>
-            ~18 min read
+            ~1 min read
           </span>
         </div>
       </header>
 
       <!-- CONTENT_START -->
 
-<p>Working notes for Codex agents continuing this project after context compaction.</p>
+<p>Freight Intelligence handles carrier rates, ERP/WMS order data, SKU dimensions, invoice charges, quote traces, and user permissions. Treat these as internal business-sensitive data.</p>
 
-<h2 id="project">Project</h2>
-
-<ul>
-<li>Project root: <code>C:\Users\KenHu\.vscode\CourieDelivery</code></li>
-<li>Backend: Django / DRF in <code>backend</code>, served on <code>http://127.0.0.1:8010</code></li>
-<li>Frontend: React / Vite / Ant Design in <code>frontend</code>, served on <code>http://127.0.0.1:5173</code></li>
-<li>Browser is usually already open at <code>http://127.0.0.1:5173/</code></li>
-<li>This directory is not currently a git repository, so do not rely on <code>git status</code>.</li>
-</ul>
-
-<h2 id="environment-and-secrets">Environment And Secrets</h2>
+<h2 id="secrets">Secrets</h2>
 
 <ul>
-<li>Read runtime connection details from <code>backend\.env</code>; do not hardcode or repeat passwords in summaries.</li>
-<li>Main application DB is PostgreSQL database <code>CourieDelivery</code>.</li>
-<li>External raw PostgreSQL source DB is <code>data_raw</code>.</li>
-<li>External SQL Server source DB is <code>PostageCalculator</code>.</li>
-<li>Use existing management commands for sync/import work instead of ad hoc DB writes where possible.</li>
-<li>Main operational sync command: <code>manage.py sync_operational_data</code>.</li>
-<li>Before full ERP/order sync, run: <code>manage.py ensure_data_raw_sync_indexes --only-missing</code></li>
-<li>Full: <code>manage.py sync_operational_data --full --order-batch-size 5000 --lsp-batch-size 1000 --log-batch-size 3000</code></li>
-<li>Incremental: <code>manage.py sync_operational_data --incremental --order-batch-size 5000 --lsp-batch-size 1000 --log-batch-size 3000</code></li>
-<li>It runs ERP/LSP/WMS master sync, ERP order/manual-order sync, LSP API quote/log sync, removes non-ERP legacy <code>HistoricalOrder</code> rows by default, and opens all active platform/warehouse/carrier-service relationships.</li>
-<li>When opening quote channels, it must only enable channels whose carrier is active and whose service is either active or null; inactive services such as DFE PALLET must remain disabled.</li>
-<li>Design/operations doc: <code>docs\erp_lsp_operational_sync.md</code>.</li>
-<li>Current Codex app 10-hour incremental automation id: <code>freight-intelligence-erp-lsp-incremental-sync</code>; it now verifies <code>data_raw.erp</code> source indexes before running incremental sync.</li>
-<li><code>data_raw.erp</code> Airbyte tables may have no native indexes; <code>ensure_data_raw_sync_indexes</code> creates non-destructive <code>fi_src_*</code> indexes on source order/SKU/tracking/address/estimate tables.</li>
-<li>The same command also creates <code>fi_src_lsp_*</code> indexes for LSP booking/quote-task lookup. With <code>--only-missing</code>, all existing ERP/LSP source indexes should be skipped quickly and should not ANALYZE large tables.</li>
-<li>Do not import LSP rate tables into pricing as part of this operational sync; user previously chose CourieDelivery/PostageCalculator rate templates over LSP rates.</li>
-<li>Operational data policy: keep only ERP/WMS/LSP live synced data in operational tables; remove non-ERP legacy <code>HistoricalOrder</code> rows unless the user explicitly asks for a troubleshooting exception.</li>
-<li>LSP OpenAPI quote snapshots must be matched carefully:</li>
-<li>Primary quote link: <code>lsp_openapi_quote_task.quote_id -&gt; lsp_quote_task.id</code>.</li>
-<li><code>lsp_quote_task.order_code</code> is usually an LSP/internal request order code and often does <strong>not</strong> match ERP.</li>
-<li>Preferred booking bridge: <code>lsp_quote_task.shipment_code -&gt; lsp_booking_order.shipment_code</code>.</li>
-<li>Preferred ERP bridge after booking: <code>lsp_booking_order.reference_no</code> or booking <code>shipment_code</code> -&gt; <code>data_raw.erp.hpoms_owner_order.rd3_order_id/platform_reference_no/owner_order_no</code>; package suffix normalization such as trailing <code>_1</code> or <code>-P1</code> can be attempted, but do not use broad fuzzy matching.</li>
-<li><code>lsp_booking_order.tracking_number</code> rarely matches ERP shipment tracking for these LSP API quote rows; use it as supporting evidence, not the primary ERP bridge.</li>
-<li>Current observed source mix: W-NSY/WSY01 rows are mostly standalone/API/test-style quote traffic with no ERP reference; LDX/LDX01 rows contain booking reference data and are the main ERP-matchable subset.</li>
-<li>Keep unmatched snapshots as independent historical request/response evidence; do not delete or force-match them.</li>
-<li>PostgreSQL optimization from <code>docs\Freight_Intelligence_Intranet_PostgreSQL_Optimization_Guide.docx</code> has project-level implementation notes in <code>docs\postgresql_optimization_applied.md</code>.</li>
-<li>Current app-level PostgreSQL tuning lives in <code>backend\config\settings.py</code>: connection reuse, health checks, connect/statement/lock/idle transaction timeouts, and <code>application_name</code>.</li>
-<li>PostgreSQL search/audit indexes are in migration <code>backend\freight\migrations\0022_postgresql_search_and_audit_indexes.py</code>; it is PostgreSQL-only, enables <code>pg_trgm</code>, and creates indexes concurrently for SKU, order/tracking, invoice reconciliation, quote history/trace, Freight Audit Matrix, and LSP logs.</li>
-<li>Use <code>manage.py check_postgres_optimization --show-missing</code> to verify extension/index status and key table sizes. <code>pg_stat_statements</code>, PgBouncer, server memory parameters, PITR backups, and table partitioning are still server/DBA deployment tasks.</li>
+<li>Do not commit <code>.env</code> files.</li>
+<li>Do not commit real database connection strings, SQL Server passwords, API tokens, Microsoft Entra secrets, or carrier credentials.</li>
+<li>Use <code>backend/.env.example</code> and <code>frontend/.env.example</code> only as templates.</li>
+<li>Keep API credentials out of logs and error responses.</li>
 </ul>
 
-<h2 id="system-critical-points">System Critical Points</h2>
+<h2 id="authentication">Authentication</h2>
+
+<p>Local development can use <code>AUTH_ALLOW_DEV_USER=True</code> through <code>config.settings.local</code>.</p>
+
+<p>Production must use:</p>
+
+<pre><code class="language-env">DJANGO_SETTINGS_MODULE=config.settings.production
+AUTH_ALLOW_DEV_USER=False
+MSAL_ALLOW_UNVERIFIED_DEV_TOKENS=False</code></pre>
+
+<p>Microsoft Entra SSO requires configured tenant and audience values:</p>
+
+<pre><code class="language-env">MSAL_TENANT_ID=
+MSAL_AUDIENCE=
+MSAL_AUDIENCES=</code></pre>
+
+<h2 id="authorization">Authorization</h2>
+
+<p>Permissions are enforced by <code>freight.permissions.HasFreightPermission</code> and the role/permission catalog in <code>freight.authentication</code>.</p>
+
+<p>Use the Access Management screen for:</p>
 
 <ul>
-<li>This is an internal AU freight estimation and audit system, not a customer-facing checkout. Prefer dense, operational Ant Design screens over marketing-style UI.</li>
-<li>Authentication/access control:</li>
-<li>Login UI is an AuthGate over the whole React app; unauthenticated users should not see business pages.</li>
-<li>Account modes are <code>LOCAL</code>, <code>ENTRA</code>, and <code>HYBRID</code> on <code>UserProfile</code>.</li>
-<li>Local login endpoint: <code>/api/auth/login</code>, returns a CourieDelivery signed access token.</li>
-<li>Microsoft Entra login uses MSAL in the frontend. Silent SSO should be attempted first when MSAL env vars are configured.</li>
-<li>Production Entra setup must use a custom API scope/audience; backend validates Entra access-token audience via <code>MSAL_AUDIENCE</code>.</li>
-<li>Do not enable <code>AUTH_ALLOW_DEV_USER</code> or <code>VITE_ALLOW_DEV_AUTH</code> in production.</li>
-<li>Permission system docs: <code>docs\security_access_control.md</code>.</li>
-<li>Local Microsoft Entra setup docs: <code>docs\microsoft_entra_local_sso_setup.md</code>.</li>
-<li>DRF authorization is enforced by <code>freight.permissions.HasFreightPermission</code>; roles are templates plus per-user <code>permission_overrides</code>.</li>
-<li>Entra login requires a custom API scope. Frontend only enables MSAL when <code>VITE_MSAL_CLIENT_ID</code>, <code>VITE_MSAL_TENANT_ID</code>, and <code>VITE_MSAL_SCOPE</code> are all configured. Backend validates Entra access tokens only when <code>MSAL_TENANT_ID</code> and <code>MSAL_AUDIENCE</code> are configured.</li>
-<li><code>MSAL_ALLOW_UNVERIFIED_DEV_TOKENS</code> defaults to <code>False</code>; do not enable it outside an explicit local diagnostic test.</li>
-<li>System data flow:</li>
-<li>WMS/ERP/InvoiceReader/PostageCalculator external systems are synced or imported into CourieDelivery snapshot/template tables.</li>
-<li>Quote calculation always runs from CourieDelivery data, not directly from remote source tables in request-time UI flows.</li>
-<li>Remote source reads should be inside management commands or explicit sync actions.</li>
-<li>ERP estimate scope is order-level unless proven otherwise from source DDL/data:</li>
-<li><code>ErpShipmentSnapshot.estimated_freight</code> currently comes from <code>hpoms_owner_order.postage_shipping_estimated_amount</code> then <code>shipping_estimated_amount</code>.</li>
-<li>Never compare one tracking/consignment system estimate directly to ERP Est.</li>
-<li>For multi-tracking orders, quote each tracking when needed, aggregate back to owner-order level, then compare with ERP Est.</li>
-<li>Invoice actual scope is invoice/tracking charge data:</li>
-<li>Match InvoiceReader charges to ERP shipments by tracking first.</li>
-<li>If several tracking rows belong to one owner order, sum actual freight before comparing to order-level ERP/system estimates.</li>
-<li>Quote engine behavior:</li>
-<li><code>quote_manual</code> uses platform/warehouse/carrier eligibility.</li>
-<li><code>quote_selected_channels</code> intentionally bypasses eligibility for audit matrix comparisons and runs specified enabled <code>QuoteChannel</code>s.</li>
-<li>SKU snapshots and combo expansion happen before quote calculation; keep these snapshots for traceability.</li>
-<li>Freight Audit Matrix is the preferred historical recalculation/audit surface:</li>
-<li><code>CONSIGNMENT</code> mode is one row per owner order; it quotes tracking groups and aggregates per carrier/channel to the order row.</li>
-<li><code>ORDER</code> mode quotes all order SKU lines together.</li>
-<li><code>ITEM</code> mode is for single SKU-line checks and should not compare to order-level ERP Est.</li>
-<li>Detail UI must group carrier breakdowns by <code>tracking</code>, sorted by tracking. Do not flatten multi-tracking lines into one undifferentiated table.</li>
-<li>Full audit runs are heavy:</li>
-<li>One 5000-order run can create many <code>QuoteRun</code>, <code>QuoteCandidate</code>, <code>QuoteChargeLine</code>, <code>FreightAuditRow</code>, and <code>FreightAuditResult</code> rows.</li>
-<li>Use <code>--limit</code>, <code>--order-batch-size</code>, dry runs, and idempotent reruns. Do not start huge foreground jobs without telling the user.</li>
-<li>Network to <code>192.168.72.18</code> can drop; commands should abort/retry rather than marking many business rows as calculation errors.</li>
-<li>Current real calculation channels are PostageCalculator/approved local table channels. EIZ appears in UI columns only once a real EIZ <code>QuoteChannel</code>/calculator/API config exists.</li>
-<li>Demo/mock data must stay out of the live local DB. <code>seed_demo_data.py</code> is for isolated tests only.</li>
-<li>After backend code or API route changes, restart the backend server on <code>127.0.0.1:8010</code>; Vite usually hot reloads frontend changes on <code>127.0.0.1:5173</code>.</li>
+<li>Local account activation and deactivation</li>
+<li>Role assignment</li>
+<li>Microsoft Entra account linkage</li>
+<li>Permission overrides</li>
 </ul>
 
-<h2 id="current-data-state">Current Data State</h2>
+<p>Disable users instead of deleting them so audit history remains meaningful.</p>
+
+<h2 id="upload-safety">Upload Safety</h2>
+
+<p>CSV uploads are limited by:</p>
+
+<pre><code class="language-env">MAX_CSV_UPLOAD_MB=20
+MAX_CSV_IMPORT_ROWS=50000</code></pre>
+
+<p>Importers should report row-level errors without logging raw secrets or full external payloads.</p>
+
+<h2 id="audit-logs">Audit Logs</h2>
+
+<p>Use audit logs to review administrative and pricing changes, including:</p>
 
 <ul>
-<li>Local demo seed data has been removed from the live app DB:</li>
-<li>Demo carriers <code>HUNTER</code>, <code>ALLIED</code>, <code>SUNYEE</code></li>
-<li>Demo platform <code>SHOPIFY_AU</code></li>
-<li>Demo warehouse <code>MEL_WH</code></li>
-<li>Demo SKU/order rows starting with <code>DEMO-</code></li>
-<li>Old demo quote channels and mock channel</li>
-<li><code>seed_demo_data.py</code> still exists for isolated tests/local fixtures. Do not run it against the live local DB unless the user explicitly asks for demo data.</li>
-<li>There should be no active mock quote channel in the live app. If mock/demo data reappears, use <code>manage.py purge_demo_data --dry-run</code> first, then only purge if appropriate.</li>
+<li>Rate card approval, activation, closing, and upload</li>
+<li>Master data create/update/delete actions</li>
+<li>User and permission changes</li>
 </ul>
 
-<h2 id="real-source-mapping">Real Source Mapping</h2>
+<p>Quote traces and Freight Audit Matrix rows explain calculation behavior and are not a substitute for access control.</p>
+
+<h2 id="production-checklist">Production Checklist</h2>
 
 <ul>
-<li>SKU master:</li>
-<li>Source: <code>data_raw.wms.bas_sku</code></li>
-<li>Category field: <code>sku_Group2</code></li>
-<li>Sync command: <code>manage.py sync_sku_from_wms</code></li>
-<li>Scheduled sync target: daily 03:00 Australia/Sydney</li>
-<li>Combo SKU:</li>
-<li>Source: <code>data_raw.erp.hpoms_product_combo</code> and <code>hpoms_product_combo_skus</code></li>
-<li>Combo type labels come from ERP dictionary tables; do not guess numeric labels.</li>
-<li>Parent combo SKUs expand into component SKU snapshots before quote calculation.</li>
-<li>Warehouses:</li>
-<li>Source: <code>data_raw.wms.bsm_warehouse</code></li>
-<li>Sync command: <code>manage.py sync_warehouses_from_wms</code></li>
-<li>Platforms:</li>
-<li>Source: <code>data_raw.erp.hpoms_platform_info</code></li>
-<li><code>platform_type</code> and <code>platform_group</code> must be resolved from ERP dictionary/DDL evidence, not guessed.</li>
-<li>Sync command: <code>manage.py sync_platforms_from_erp</code></li>
-<li>Agents:</li>
-<li>Agent is Master Data, not a hardcoded quote-display mapping. Use it to separate API/quote ownership such as Broers, EIZ, SHIPPIT, UBI, OrangeConnex, and other LSP/API agents.</li>
-<li>Source: <code>data_raw.lsp.lsp_carrier_agent</code>, with channel/carrier counts from <code>data_raw.lsp.lsp_carrier_channel</code> and <code>data_raw.lsp.lsp_carrier</code>.</li>
-<li>If LSP source only contains partial agents, <code>sync_agents_from_lsp</code> also seeds/infer missing API agents from the local LSP quote history and the known business agent list. Those seeded records are editable in Master Data and should not be treated as immutable source truth.</li>
-<li>Local model/API: <code>Agent</code>, <code>/api/agents/</code>.</li>
-<li>Sync command: <code>manage.py sync_agents_from_lsp</code>.</li>
-<li><code>QuoteChannel.agent</code> and <code>ApiCredential.agent</code> should be populated when an API or historical quote belongs to a specific agent. The same carrier can produce different prices under different agents.</li>
-<li>LSP historical quote display should prefer <code>Agent</code> master data for names, then fall back to inferred codes only when the agent has not been synced yet.</li>
-<li>Orders:</li>
-<li>Source: <code>data_raw.erp.hpoms_owner_order</code> and manual-order ERP tables.</li>
-<li>Shipment tracking source: <code>data_raw.erp.hpoms_owner_order_shipment_detail</code>.</li>
-<li>Local shipment model: <code>HistoricalOrderShipment</code>.</li>
-<li>Reconciliation snapshot model: <code>ErpShipmentSnapshot</code>; it stores tracking no, ERP order no, owner order no, third-party/rd3 order no, platform order no, platform, carrier/channel/service, warehouse, and shipping estimate.</li>
-<li><code>sync_orders_from_erp</code> now imports all available owner-order shipment tracking rows, not only the latest tracking on <code>HistoricalOrder.consignment_no</code>.</li>
-<li>Use <code>manage.py sync_orders_from_erp --shipments-only</code> to backfill shipment tracking rows for already imported owner orders without reimporting all order/SKU data.</li>
-<li>Invoice reconciliation should match InvoiceReader actual charges to ERP shipment snapshots by tracking number, then use carrier/channel/service text only to disambiguate duplicate tracking candidates. The matched ERP shipment supplies ERP order no, third-party/rd3 order no, platform order no, platform, carrier, warehouse, and saved shipping estimate.</li>
-<li>Carriers:</li>
-<li>Source: <code>data_raw.lsp</code></li>
-<li>Import command: <code>manage.py import_carriers_from_lsp</code></li>
-<li>This is manual/one-time by default, not a scheduled sync.</li>
-<li>InvoiceReader:</li>
-<li>Source DB: SQL Server <code>invoiceReader</code> on <code>.8</code>.</li>
-<li>Source documents analyzed:</li>
-<li><code>C:\Users\KenHu\Downloads\Invoice_Automation_Documentation.md</code></li>
-<li><code>C:\Users\KenHu\Downloads\invoicereader_database_design.xlsx</code></li>
-<li>Project design doc: <code>docs\invoice_reader_integration_design.md</code></li>
-<li>Header source of truth: <code>dbo.invoice_header_local_freight</code>.</li>
-<li>Import only operational <code>dbo.invoice_detail_*</code> production charge tables. Do not import <code>stg_*</code>, <code>fact_*</code>, <code>column_mapping</code>, or dimension/reference tables as reconciliation charge rows.</li>
-<li>Important user correction: do not use <code>fact_invoice_order_normalized</code> for CourieDelivery invoice sync unless the user explicitly asks to change this.</li>
-<li>Sync command: <code>manage.py sync_invoices_from_sqlserver</code>.</li>
-<li>Default command mode is documented mapping, not heuristic scanning. Legacy heuristic import is only available with <code>--auto-discover</code> for diagnostics.</li>
-<li>Imported actual freight is normalized to inc GST because quote candidates use <code>total_inc_gst</code>.</li>
-<li>Reconciliation snapshot model: <code>InvoiceChargeSnapshot</code>; it stores InvoiceReader source, invoice no/date, tracking no, actual charge, carrier/service/account, and raw mapping metadata.</li>
-<li>Invoice rows are grouped before import by invoice source, freight account, invoice number, order reference, and consignment/tracking number, so one carrier invoice with multiple fee/surcharge rows does not compare the same estimate repeatedly.</li>
-<li>Matching order for the preferred path: <code>InvoiceChargeSnapshot.tracking_no</code> to <code>ErpShipmentSnapshot.tracking_no</code>, then carrier/channel/service scoring if multiple ERP rows share the same tracking. Do not rely on <code>fact_invoice_order_normalized</code>.</li>
-<li>Once matched by shipment tracking, <code>InvoiceReconciliationItem.order_no</code> should be filled from <code>ErpShipmentSnapshot.erp_order_no</code> so the UI can show the ERP order number and saved estimate.</li>
-<li><code>InvoiceReconciliationItem.estimated_freight</code> is ERP Est. from ERP owner order fields. <code>system_estimated_freight</code> is CourieDelivery System Est. calculated by the current quote engine/rate cards.</li>
-<li>System estimate backfill command: <code>manage.py backfill_reconciliation_system_estimates --batch-id 221 --source-config HUNTER --limit 100</code>. Use <code>--order-desc</code> to fill the newest Review rows first. This command reads ERP address/SKU lines for matched invoice tracking rows, runs the current quote engine, and stores <code>system_estimated_freight</code>, <code>system_variance_amount</code>, and <code>system_variance_percent</code>.</li>
-<li>Freight Audit Matrix is the preferred module for cross-carrier historical recalculation. Models: <code>FreightAuditRow</code> and <code>FreightAuditResult</code>. API: <code>/api/freight-audit-rows/</code>. Frontend page: <code>frontend\src\pages\FreightAuditMatrix.tsx</code>.</li>
-<li>Freight Audit Matrix command: <code>manage.py build_freight_audit_matrix --batch-id 221 --mode CONSIGNMENT --limit 5000 --order-batch-size 5000</code>. Add <code>--source-config HUNTER</code> only when intentionally limiting invoice source rows. Add <code>--carrier-keyword pc_hunter_mel_2023</code> or another channel/carrier keyword when reviewing one calculator/channel at a time. <code>--limit</code> is distinct ERP owner-order count, not invoice row count. Remove <code>--limit</code> to process every matching owner order, but this can be very slow because every order runs enabled quote channels and stores traceable quote runs/results.</li>
-<li>Freight Audit Matrix API now has <code>/api/freight-audit-rows/carrier-summary/</code> for the current estimate-enabled carrier/channel list and supports <code>carrier_key</code> / <code>quote_channel_code</code> filters on <code>/api/freight-audit-rows/</code>.</li>
-<li>ERP estimate scope is currently <code>ORDER</code>: <code>ErpShipmentSnapshot.estimated_freight</code> comes from <code>hpoms_owner_order.postage_shipping_estimated_amount</code> / <code>shipping_estimated_amount</code>. Do not compare a single tracking quote directly to ERP Est. In <code>CONSIGNMENT</code> mode the command quotes each tracking/consignment separately, then aggregates totals per carrier/channel back to one owner-order row before calculating variance to ERP Est.</li>
-<li>ERP freight estimate values imported from ERP are ex GST. UI must display ERP Est as inc GST (<code>ERP Est * 1.10</code>). Internal calculator totals are already <code>total_inc_gst</code>; only show that inc-GST total on outer lists/cards. Ex-GST Base/Surcharge/Fuel/GST belongs in breakdown/detail tables.</li>
-<li>Matrix modes: <code>CONSIGNMENT</code> creates one row per owner order and aggregates all tracking-level quote totals; <code>ORDER</code> calculates all order SKU lines together; <code>ITEM</code> creates one audit row per source SKU line for single-item freight checks and does not compare to ERP order-level estimate.</li>
-<li>Freight Audit Matrix detail UI groups aggregated carrier breakdowns by <code>tracking</code> inside each carrier card, sorted by tracking. Do not collapse multi-tracking charge lines back into one flat table.</li>
-<li>Freight Audit Matrix intentionally calls <code>QuoteEngine.quote_selected_channels</code>, bypassing platform/warehouse carrier eligibility so enabled real calculators can be compared side by side for the same historical order. API channels will appear once their <code>QuoteChannel</code> and calculator/API integration are configured.</li>
-<li>Async task endpoints are additive and do not replace sync endpoints: <code>/api/skus/sync-from-wms-async/</code>, <code>/api/historical-orders/sync-from-erp-async/</code>, <code>/api/lsp-api-quotes/sync-from-lsp-async/</code>, <code>/api/lsp-quote-log-items/sync-from-lsp-async/</code>, <code>/api/invoice-reconciliation-batches/sync-from-sqlserver-async/</code>, and <code>/api/freight-audit-rows/build-from-reconciliation-async/</code>.</li>
-<li>CSV upload limits are configurable with <code>MAX_CSV_UPLOAD_MB</code> and <code>MAX_CSV_IMPORT_ROWS</code>; CSV importers should report row-level <code>errors</code> without leaking credentials or raw secrets.</li>
-<li>New preferred command: <code>manage.py sync_reconciliation_snapshots</code>. It builds <code>InvoiceChargeSnapshot</code>, syncs matching <code>ErpShipmentSnapshot</code> rows by invoice tracking, then creates <code>InvoiceReconciliationBatch</code> / <code>InvoiceReconciliationItem</code> from tracking-based snapshot matching.</li>
-<li>Default <code>sync_reconciliation_snapshots</code> flow imports InvoiceReader charges first, then creates a temporary tracking table in the ERP/data_raw connection and syncs only ERP shipment rows that appear in the invoice snapshot. This avoids scanning/syncing all ~4.8M ERP shipment rows for every reconciliation run.</li>
-<li>ERP snapshot estimate source is intentionally limited to <code>hpoms_owner_order.postage_shipping_estimated_amount</code> then <code>hpoms_owner_order.shipping_estimated_amount</code>; do not add a lateral fallback to <code>hpoms_order_shipping_estimated_detail</code> without checking indexes because it is too slow on large imports.</li>
-<li>Useful modes: <code>--erp-only</code>, <code>--erp-from-invoices-only</code>, <code>--invoice-only</code>, <code>--reconcile-only</code>, <code>--clear-snapshots</code>, <code>--clear-reconciliation</code>, <code>--source-config HUNTER</code>, <code>--limit 100</code>, <code>--dry-run</code>.</li>
-<li>Source mappings are declared in <code>backend\freight\management\commands\sync_invoices_from_sqlserver.py</code> via <code>INVOICE_SOURCE_CONFIGS</code>.</li>
-<li>Mapped sources include Allied, EIZ, eSolution Direct Freight, Hunter, Shippit, Sunyee, Orange Connex, UBI Toll, UBI Toll P3, UBI eParcel, UBI Fastway, and UBI Misc Adjustments.</li>
-<li>UBI Misc Adjustments is marked <code>REVIEW</code>; the workbook documents some tables in overview but not in the verified reconciliation map.</li>
+<li><code>DEBUG=False</code></li>
+<li>Strong <code>DJANGO_SECRET_KEY</code></li>
+<li>Strict <code>DJANGO_ALLOWED_HOSTS</code></li>
+<li>Correct <code>CORS_ALLOWED_ORIGINS</code></li>
+<li>Microsoft Entra validation enabled</li>
+<li>Database backups and restore test completed</li>
+<li>Redis protected from external access</li>
+<li>Logs reviewed for secret leakage</li>
 </ul>
-
-<h2 id="rates-and-calculators">Rates And Calculators</h2>
-
-<ul>
-<li>Current calculation logic reference: <code>docs\Freight_Carrier_Calculation_Logic_20260618.md</code>. It explains all enabled carrier calculators, origin filtering, single-item vs multi-item calculation, order/tracking audit scope, GST display scope, and review points.</li>
-<li>LSP rate snapshot:</li>
-<li>Current table model: <code>LspRateTableCurrent</code></li>
-<li>Archive table model: <code>LspRateTableArchive</code></li>
-<li>Sync command: <code>manage.py sync_lsp_rate_tables</code></li>
-<li>Template import command: <code>manage.py import_lsp_rates_to_template</code></li>
-<li>PostageCalculator SP rates:</li>
-<li>Import command: <code>manage.py import_postagecalculator_rates</code></li>
-<li>The import command skips approved local override rate cards by default, including Broers-sourced Hunter SYD. Use <code>--overwrite-approved-overrides</code> only when the user explicitly wants to replace an approved local source with PostageCalculator again.</li>
-<li>Pricing repair command: <code>manage.py repair_pricing_configuration --dry-run</code>; without <code>--dry-run</code> it normalizes known carrier display names such as DFE <code>454 -&gt; Direct Freight Express</code>, disables quote channels linked to inactive services, and removes exact duplicate Allied GRO surcharge rows.</li>
-<li>Cleanup command: <code>manage.py purge_demo_data</code></li>
-<li>Current real SP quote channels:</li>
-<li><code>pc_hunter_mel_2023</code></li>
-<li><code>pc_hunter_syd_2025</code> (channel retained for compatibility; underlying <code>SP-HUNTER-SYD-2025</code> rate card was overwritten on 2026-06-12 with Broers Hunter SYD 20240920 because the user confirmed HUNTER SYD is the source of truth)</li>
-<li><code>pc_allied_gro_2023_mel</code></li>
-<li><code>pc_allied_gro_2023_syd</code></li>
-<li><code>pc_allied_b2c_2025_mel</code></li>
-<li>Current default live config created for immediate Manual Quote testing:</li>
-<li>Platform <code>PI2022080502320043121506</code> / Shopify</li>
-<li>Warehouse <code>BG01</code></li>
-<li>Melbourne SP services for Hunter and Allied</li>
-<li>Direct Freight Express Feb 2025 proposal rates:</li>
-<li>Design/calculation doc: <code>docs\freight_calculators\direct_freight_express_2025.md</code></li>
-<li>Import command: <code>manage.py import_dfe_rates</code></li>
-<li>Source rate file: <code>C:\Users\KenHu\Downloads\Direct Feight Express Rates Proposal EX SYD Ex MEL Feb 2025.xlsx</code></li>
-<li>Source zone file: <code>C:\Users\KenHu\Downloads\Zone List - postcodes 1.csv</code>; the extension is <code>.csv</code> but the content is XLSX, so read it as an Excel workbook.</li>
-<li>DFE reuses carrier code <code>454</code> and normalizes the carrier display name to <code>Direct Freight Express</code>; the carrier is <code>HYBRID</code> because it may also have API/invoice mappings.</li>
-<li>Imported rate cards:</li>
-<li><code>DFE-EX-MEL-FEB-2025</code>, channel <code>dfe_ex_mel_2025</code>, service <code>DFE_KILO_EX_MEL_2025</code></li>
-<li><code>DFE-EX-SYD-FEB-2025</code>, channel <code>dfe_ex_syd_2025</code>, service <code>DFE_KILO_EX_SYD_2025</code></li>
-<li>PALLET rows are imported as disabled services/channels (<code>DFE_PALLET_EX_*_2025</code>) for future use. Do not auto-calculate pallet rates until order input captures pallet count/package type.</li>
-<li>The DFE zone list imports postcode/suburb/state to <code>RateZone.dest_zone = CarrierZone</code>; imported unique zone rows are 16,257 per rate card, and all 60 proposal zones are covered.</li>
-<li>DFE calculator file: <code>backend\freight\calculators\direct_freight_express_2025.py</code></li>
-<li>DFE postcode handling pads pure numeric postcodes to 4 digits, e.g. source <code>800</code> becomes <code>0800</code>, to support NT/leading-zero postcodes.</li>
-<li>DFE profile is strict not-available by default per proposal conditions:</li>
-<li>unit item weight &gt; 30 kg</li>
-<li>longest side &gt; 120 cm</li>
-<li>two sides &gt; 70 cm in the same parcel</li>
-<li>DFE chargeable kg is <code>ceil(max(actual_kg, cubic_kg))</code> with cubic factor 250. Base is <code>basic_charge + per_kg * chargeable_kg</code>, floored by <code>minimum_charge</code>.</li>
-<li>DFE fuel is configured in <code>SurchargeRule</code> code <code>FS</code>, currently <code>0.196</code>; do not hard-code fuel in formulas. Destination surcharge uses code <code>DFE_DEST</code>.</li>
-<li>Default live configuration after import links platform <code>PI2022080502320043121506</code> and warehouse <code>BG01</code> to <code>DFE_KILO_EX_MEL_2025</code>; SYD remains available as a quote channel/audit channel but is not forced onto BG01.</li>
-<li>Orange Connex eFN 2026 rates:</li>
-<li>Design/calculation doc: <code>docs\freight_calculators\orange_connex_efn_2026.md</code></li>
-<li>Import command: <code>manage.py import_orange_connex_rates</code></li>
-<li>Source file: <code>C:\Users\KenHu\Downloads\2026 AU eFN rate.xlsx</code></li>
-<li>Source sheets: <code>PFL MEL</code>, <code>PFL SYD</code>, and <code>PFL Zone</code>.</li>
-<li>Carrier display name is normalized to <code>Orange Connex</code>. Reuse an existing Orange carrier if present, including the previously auto-created invoice-derived <code>orange adjust bill</code> carrier.</li>
-<li>Imported rate cards/channels:</li>
-<li><code>ORANGE-EFN-MEL-2026</code>, channel <code>orange_efn_mel_2026</code>, service <code>ORANGE_EFN_MEL_2026</code></li>
-<li><code>ORANGE-EFN-SYD-2026</code>, channel <code>orange_efn_syd_2026</code>, service <code>ORANGE_EFN_SYD_2026</code></li>
-<li>Orange Connex eFN uses fixed article weight bands, not per-kg linehaul:</li>
-<li>calculate each article/SKU unit by <code>ceil(unit_weight_kg * 1000)</code> grams</li>
-<li>choose the matching fixed price band for the destination zone</li>
-<li>multiply by line qty and sum lines</li>
-<li>GST is then added because workbook fees are ex GST</li>
-<li>Workbook limits are strict not-available checks:</li>
-<li>article weight &gt; 25 kg</li>
-<li>longest side &gt; 105 cm</li>
-<li>volume &gt; 0.088 m3</li>
-<li>Zone lookup uses exact postcode/suburb/state, then postcode/state when all candidates share one zone. If no zone mapping exists, use the workbook <code>Rest of AU</code> rate row.</li>
-<li>Other charges such as Missing Manifest and Return to Sender are imported only as inactive/reference surcharge rows because they need operational event data.</li>
-<li>Freight Audit Matrix carrier key should be <code>orange_connex</code>; frontend preferred order includes it.</li>
-<li>UBI invoice-attached rate packages:</li>
-<li>Analysis/design doc: <code>docs\UBI_Agent_Rate_Table_Analysis_Development_Plan_20260617.md</code></li>
-<li>Manual import implementation plan: <code>docs\UBI_Rate_Import_System_Development_Plan_20260617.md</code></li>
-<li>System readiness check: <code>docs\UBI_Rate_Table_System_Readiness_Check_20260618.md</code></li>
-<li>Source package analyzed: <code>C:\Users\KenHu\Downloads\ubi_invoices_all 1.zip</code></li>
-<li>UBI is an <code>Agent</code>, not a carrier. Use <code>QuoteChannel.agent</code> and, when added, <code>RateCard.agent</code> to separate UBI-maintained prices from the same carrier under other agents.</li>
-<li>Do not build automatic email/folder monitoring for UBI rate packages. This project should follow the existing manual rate maintenance pattern: an admin uploads/runs an import command when a new UBI package needs to be assessed.</li>
-<li>Do not create a new <code>QuoteChannel</code> every time UBI sends an invoice workbook. Stable concepts are agent + carrier + service + origin/strategy; during manual import, changed workbook contents can create new <code>RateCard</code> versions by effective date.</li>
-<li>Content hashing rule: normalize candidate rate/mapping sheets and compare <code>normalized_hash</code>. Same hash means no pricing update; record a source snapshot only. Different hash plus trusted effective date creates a new rate card version. Different hash without date goes to manual review.</li>
-<li>Base-rate candidates found:</li>
-<li>eParcel standard: <code>MEL eparcel 2024.3.18</code> and <code>MEL eparcel 2025.11.01</code>.</li>
-<li>eParcel express: <code>MEL express 2024.3.18</code> and <code>MEL express 2025.11.01</code>.</li>
-<li>Fastway: old <code>Rate</code> plus <code>New Rate</code>; <code>New Rate</code> first appears with 2025-08-01 billing rows and supports SYD/PER/MEL origins.</li>
-<li>Toll IPEC Road: <code>IPEC Rate 07.07.25</code> and <code>IPEC Rate 20.04.26</code>.</li>
-<li>Toll Priority3/B2C: Effective 2025-07-07 and 2026-04-20 plus one no-date hash that must remain review-only.</li>
-<li>UBI <code>oversize</code> is not a base linehaul rate card, but oversize length should be calculated from parcel/SKU dimensions as a surcharge. UBI <code>additional_fee</code> penalty-below-3kg / More-to-Pay is deferred and must not be added to quote calculation for now; keep it as invoice reconciliation evidence only. <code>redelivery</code>, <code>rts</code>, and most <code>underticketing</code> remain invoice reconciliation inputs unless a stable pre-shipment trigger is proven.</li>
-<li>Current readiness: Fastway/Aramex is the best P1 import target because it has coverage mapping plus rate matrix. eParcel is usable for MEL-origin/lodgement only unless a SYD-origin sheet is provided. Toll Priority3 has postcode zone finder and MEL/SYD rates. Toll IPEC has complete price rows and, after a 2026-06-18 web check, a public Maropost/Neto <code>TollIPEC-ShippingZones.csv</code> candidate mapping was found and saved under <code>outputs\ipec_zone_lookup\</code>. Its normalized zone prefixes cover all 42 UBI IPEC dest zones and match about 99.45% of checked UBI Toll billing rows. Treat this as a DRAFT/public-reference mapping, not account-official TeamGE master data, and keep UBI billing mismatch overrides. Do not borrow Toll Priority3 <code>Priority Zone Finder</code> for IPEC: IPEC and Priority zone code sets only partially overlap and use different regional split names.</li>
-<li>UBI TGE IPEC implementation now exists:</li>
-<li>Import command: <code>manage.py import_ubi_ipec_rates --open-all-access</code></li>
-<li>Calculator: <code>backend\freight\calculators\ubi_tge_ipec.py</code></li>
-<li>Tests: <code>backend\freight\tests\test_ubi_tge_ipec.py</code></li>
-<li>Import result on 2026-06-18: 4 rate cards (<code>UBI-IPEC-20250707/20260420</code> x <code>MEL1/SYD1</code>), 168 rate rules, 16,460 zone rows per card, 99 UBI billing override rows, zero missing IPEC dest-zone mappings, linked to all active platforms and warehouses.</li>
-<li>Fuel is a configurable <code>SurchargeRule</code> code <code>FS</code>; imported default is <code>0.099</code>. Do not hard-code fuel in the calculator.</li>
-<li>Analysis artifacts: <code>outputs\ubi_rate_analysis\ubi_rate_analysis_summary.json</code>, <code>outputs\ubi_rate_analysis\ubi_rate_sheet_inventory.json</code>, and <code>outputs\ubi_rate_analysis\ubi_rate_sheet_versions.csv</code>.</li>
-<li>Key calculator files:</li>
-<li><code>backend\freight\calculators\hunter_base.py</code></li>
-<li><code>backend\freight\calculators\allied_gro_2023_melbourne.py</code></li>
-<li><code>backend\freight\calculators\allied_b2c_2025_melbourne.py</code></li>
-<li><code>backend\freight\calculators\direct_freight_express_2025.py</code></li>
-<li><code>backend\freight\calculators\orange_connex_efn_2026.py</code></li>
-<li><code>backend\freight\calculators\table_rate.py</code></li>
-<li>Quote channel loading is lazy via <code>calculator_key</code> in <code>backend\freight\calculators\registry.py</code>.</li>
-<li><code>MockApiCalculator</code> is test-only now. Do not add active mock channels unless the user explicitly asks.</li>
-</ul>
-
-<h2 id="manual-quote-behavior">Manual Quote Behavior</h2>
-
-<ul>
-<li>Frontend page: <code>frontend\src\pages\ManualQuote.tsx</code></li>
-<li>Manual Quote has two modes:</li>
-<li>Manual dimensions: user types qty, kg, L/W/H; SKU is optional.</li>
-<li>SKU / Combo SKU: user opens SKU picker modal, searches and bulk selects SKU/combo SKU; user only edits qty.</li>
-<li>Manual Quote snapshots SKU dimensions into <code>QuoteRun.input_snapshot_json</code>.</li>
-<li>Combo parent lines are preserved under submitted items, and calculation items are expanded component lines.</li>
-<li>Quote results must show total plus breakdown and trace. Do not remove View Breakdown or trace behavior.</li>
-</ul>
-
-<h2 id="important-backend-files">Important Backend Files</h2>
-
-<ul>
-<li>Quote engine: <code>backend\freight\quote_engine.py</code></li>
-<li>Models: <code>backend\freight\models.py</code></li>
-<li>API views/routes: <code>backend\freight\views.py</code>, <code>backend\freight\urls.py</code></li>
-<li>Serializers: <code>backend\freight\serializers.py</code></li>
-<li>Management commands: <code>backend\freight\management\commands</code></li>
-</ul>
-
-<h2 id="frontend-notes">Frontend Notes</h2>
-
-<ul>
-<li>Ant Design style is required: keep UI concise, clean, and operational.</li>
-<li>Avoid landing-page patterns; this is an internal freight operations tool.</li>
-<li>Keep Manual Quote layout as stacked/top-to-bottom form and results, not side-by-side.</li>
-<li>Use real synced platform/warehouse defaults; never restore <code>SHOPIFY_AU</code>, <code>MEL_WH</code>, or <code>DEMO-CHAIR</code> as defaults.</li>
-</ul>
-
-<h2 id="safe-operating-rules">Safe Operating Rules</h2>
-
-<ul>
-<li>Use <code>rg</code> / <code>rg --files</code> for search.</li>
-<li>Use <code>apply_patch</code> for manual file edits.</li>
-<li>Prefer dry runs before destructive data commands.</li>
-<li>Do not delete real synced WMS/ERP/LSP/PostageCalculator data unless the user explicitly asks.</li>
-<li>Do not overwrite user-created platform/carrier/warehouse configuration without checking the existing rows first.</li>
-<li>Chinese source data must remain displayable; preserve UTF-8 and do not strip non-ASCII source values.</li>
-<li>If changing quote logic, verify breakdown and trace fields still explain:</li>
-<li>warehouse, platform, carrier, service/channel</li>
-<li>rate card and calculator file</li>
-<li>zone/rule match</li>
-<li>actual, cubic, and chargeable weight</li>
-<li>surcharge triggers</li>
-<li>not-available reasons</li>
-</ul>
-
-<h2 id="commands">Commands</h2>
-
-<p>Backend run:</p>
-
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\backend
-&amp; ..\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8010</code></pre>
-
-<p>Frontend run:</p>
-
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\frontend
-npm run dev -- --host 127.0.0.1 --port 5173</code></pre>
-
-<p>Backend checks:</p>
-
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery
-.\.venv\Scripts\python.exe backend\manage.py check
-.\.venv\Scripts\python.exe -m pytest backend\freight\tests -q</code></pre>
-
-<p>Frontend checks:</p>
-
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\frontend
-npm test -- --run
-npm run build</code></pre>
-
-<p>Useful import/sync commands:</p>
-
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\backend
-&amp; ..\.venv\Scripts\python.exe manage.py sync_sku_from_wms --dry-run --limit 10
-&amp; ..\.venv\Scripts\python.exe manage.py sync_warehouses_from_wms --dry-run
-&amp; ..\.venv\Scripts\python.exe manage.py sync_platforms_from_erp --dry-run
-&amp; ..\.venv\Scripts\python.exe manage.py sync_agents_from_lsp --dry-run
-&amp; ..\.venv\Scripts\python.exe manage.py sync_orders_from_erp --shipments-only --dry-run --limit 100
-&amp; ..\.venv\Scripts\python.exe manage.py sync_reconciliation_snapshots --dry-run --limit 100
-&amp; ..\.venv\Scripts\python.exe manage.py sync_reconciliation_snapshots --invoice-only --dry-run --source-config HUNTER --limit 10
-&amp; ..\.venv\Scripts\python.exe manage.py sync_reconciliation_snapshots --erp-from-invoices-only --source-config HUNTER
-&amp; ..\.venv\Scripts\python.exe manage.py build_freight_audit_matrix --batch-id 221 --mode CONSIGNMENT --limit 5000 --order-batch-size 5000
-&amp; ..\.venv\Scripts\python.exe manage.py build_freight_audit_matrix --batch-id 221 --source-config HUNTER --carrier-keyword pc_hunter_mel_2023 --mode CONSIGNMENT --limit 5000 --order-batch-size 5000
-&amp; ..\.venv\Scripts\python.exe manage.py import_carriers_from_lsp --dry-run
-&amp; ..\.venv\Scripts\python.exe manage.py sync_lsp_rate_tables --dry-run
-&amp; ..\.venv\Scripts\python.exe manage.py import_lsp_rates_to_template --dry-run
-&amp; ..\.venv\Scripts\python.exe manage.py import_postagecalculator_rates --dry-run
-&amp; ..\.venv\Scripts\python.exe manage.py purge_demo_data --dry-run</code></pre>
-
-<h2 id="last-known-real-manual-quote-smoke-test">Last Known Real Manual Quote Smoke Test</h2>
-
-<p>Using platform <code>PI2022080502320043121506</code>, warehouse <code>BG01</code>, destination <code>VIC / SOUTH MELBOURNE / 3205</code>, one line with qty <code>1</code>, <code>12 kg</code>, <code>80 x 60 x 45 cm</code>:</p>
-
-<ul>
-<li>Allied B2C 2025 Melbourne: total about <code>$28.96</code></li>
-<li>Allied GRO 2023 Melbourne: total about <code>$36.30</code></li>
-<li>Hunter Melbourne 2023: total about <code>$46.59</code></li>
-</ul>
-
-<p>These values are a smoke test for the current imported PostageCalculator SP rates, not contractual production rates.</p>
 
 <!-- CONTENT_END -->
 
       <footer class="doc-footer">
         <span>Generated by <a href="#">md2html</a></span>
-        <span>Source: AGENTS.md</span>
+        <span>Source: docs/security.md</span>
       </footer>
     </main>
   </div>

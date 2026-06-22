@@ -5,13 +5,14 @@ import io
 from datetime import datetime
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.management import call_command
 from django.db import transaction
-from django.db.models import Avg, Case, Count, F, IntegerField, Min, OuterRef, Q, Subquery, When
+from django.db.models import Avg, Case, Count, F, IntegerField, Min, OuterRef, Q, Subquery, Sum, When
 from django.http import FileResponse, HttpResponse
 from django.utils import timezone
 from rest_framework import decorators, mixins, permissions as drf_permissions, response, status, viewsets
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from .authentication import (
     PERMISSION_CATALOG,
@@ -31,6 +32,7 @@ from .models import (
     Carrier,
     CarrierService,
     ErpShipmentSnapshot,
+    FreightAuditResult,
     FreightAuditRow,
     HistoricalOrder,
     HistoricalOrderItem,
@@ -101,12 +103,55 @@ from .serializers import (
     WarehousePlatformSerializer,
     WarehouseSerializer,
 )
+from .tasks import (
+    build_freight_audit_matrix_task,
+    sync_invoices_from_sqlserver_task,
+    sync_lsp_api_quotes_task,
+    sync_lsp_quote_logs_task,
+    sync_orders_from_erp_task,
+    sync_sku_from_wms_task,
+)
 
 
 def require_permission(request, permission: str) -> None:
     profile = getattr(request.user, "freight_profile", None)
     if not profile or not has_permission(profile, permission):
         raise PermissionDenied(f"Permission required: {permission}")
+
+
+def csv_limits() -> tuple[int, int]:
+    return int(settings.MAX_CSV_UPLOAD_MB), int(settings.MAX_CSV_IMPORT_ROWS)
+
+
+def read_limited_csv(upload, *, required_columns: list[str] | None = None, allow_empty: bool = False) -> list[dict]:
+    max_mb, max_rows = csv_limits()
+    size = getattr(upload, "size", 0) or 0
+    if size > max_mb * 1024 * 1024:
+        raise ValidationError({"detail": f"CSV file exceeds the configured {max_mb} MB upload limit."})
+
+    text = upload.read().decode("utf-8-sig")
+    if hasattr(upload, "seek"):
+        upload.seek(0)
+
+    reader = csv.DictReader(io.StringIO(text))
+    fieldnames = reader.fieldnames or []
+    if not fieldnames:
+        raise ValidationError({"detail": "CSV file is empty or missing a header row."})
+
+    missing = [field for field in (required_columns or []) if field not in fieldnames]
+    if missing:
+        raise ValidationError({"detail": f"CSV missing required column(s): {', '.join(missing)}."})
+
+    rows = list(reader)
+    if not rows and not allow_empty:
+        raise ValidationError({"detail": "CSV file has no data rows."})
+    if len(rows) > max_rows:
+        raise ValidationError({"detail": f"CSV row count {len(rows)} exceeds the configured {max_rows} row limit."})
+    return rows
+
+
+def async_task_response(task, job_type: str) -> response.Response:
+    return response.Response({"task_id": task.id, "status": "PENDING", "job_type": job_type}, status=status.HTTP_202_ACCEPTED)
 
 
 class AuditMixin:
@@ -454,6 +499,7 @@ class SKUViewSet(AuditMixin, viewsets.ModelViewSet):
         "single_master": "sku.view",
         "combo_master": "sku.view",
         "sync_from_wms": "sku.sync",
+        "sync_from_wms_async": "sku.sync",
         "lookup": "sku.view",
     }
     queryset = SKU.objects.all().order_by("sku")
@@ -566,6 +612,15 @@ class SKUViewSet(AuditMixin, viewsets.ModelViewSet):
         call_command("sync_sku_from_wms", **kwargs)
         job = ImportJob.objects.filter(job_type=ImportJob.JobType.SKU_SYNC).latest("id")
         return response.Response({"import_job": ImportJobSerializer(job).data, "output": stdout.getvalue()})
+
+    @decorators.action(detail=False, methods=["post"], url_path="sync-from-wms-async")
+    def sync_from_wms_async(self, request):
+        kwargs = {"full": bool(request.data.get("full", False))}
+        limit = request.data.get("limit")
+        if limit not in (None, ""):
+            kwargs["limit"] = int(limit)
+        task = sync_sku_from_wms_task.delay(**kwargs)
+        return async_task_response(task, ImportJob.JobType.SKU_SYNC)
 
     @decorators.action(detail=False, methods=["get"], url_path="lookup")
     def lookup(self, request):
@@ -855,7 +910,11 @@ class ApiCallLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 class HistoricalOrderViewSet(AuditMixin, viewsets.ModelViewSet):
     permission_namespace = "order"
-    permission_action_map = {"sync_from_erp": "order.import", "order_lookup": ["quote.manual", "order.view"]}
+    permission_action_map = {
+        "sync_from_erp": "order.import",
+        "sync_from_erp_async": "order.import",
+        "order_lookup": ["quote.manual", "order.view"],
+    }
     queryset = HistoricalOrder.objects.all()
     serializer_class = HistoricalOrderSerializer
     filterset_fields = [
@@ -939,6 +998,22 @@ class HistoricalOrderViewSet(AuditMixin, viewsets.ModelViewSet):
         call_command("sync_orders_from_erp", **kwargs)
         job = ImportJob.objects.filter(job_type=ImportJob.JobType.ORDER).latest("id")
         return response.Response({"import_job": ImportJobSerializer(job).data, "output": stdout.getvalue()})
+
+    @decorators.action(detail=False, methods=["post"], url_path="sync-from-erp-async")
+    def sync_from_erp_async(self, request):
+        kwargs = {}
+        for key in ("limit", "batch_size", "since"):
+            value = request.data.get(key)
+            if value not in (None, ""):
+                kwargs[key] = int(value) if key in {"limit", "batch_size"} else value
+        if request.data.get("full"):
+            kwargs["full"] = True
+        if request.data.get("owner_only"):
+            kwargs["owner_only"] = True
+        if request.data.get("manual_only"):
+            kwargs["manual_only"] = True
+        task = sync_orders_from_erp_task.delay(**kwargs)
+        return async_task_response(task, ImportJob.JobType.ORDER)
 
     @decorators.action(detail=False, methods=["get"], url_path="order-lookup")
     def order_lookup(self, request):
@@ -1718,7 +1793,7 @@ class HistoricalOrderViewSet(AuditMixin, viewsets.ModelViewSet):
 
 class LspApiQuoteSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     permission_namespace = "order"
-    permission_action_map = {"sync_from_lsp": "order.import"}
+    permission_action_map = {"sync_from_lsp": "order.import", "sync_from_lsp_async": "order.import"}
     queryset = LspApiQuoteSnapshot.objects.all()
     serializer_class = LspApiQuoteSnapshotSerializer
     filterset_fields = [
@@ -1804,9 +1879,22 @@ class LspApiQuoteSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         job = ImportJob.objects.filter(job_type=ImportJob.JobType.LSP_API_QUOTE_SYNC).latest("id")
         return response.Response({"import_job": ImportJobSerializer(job).data, "output": stdout.getvalue()})
 
+    @decorators.action(detail=False, methods=["post"], url_path="sync-from-lsp-async")
+    def sync_from_lsp_async(self, request):
+        kwargs = {}
+        for key in ("limit", "batch_size", "since"):
+            value = request.data.get(key)
+            if value not in (None, ""):
+                kwargs[key] = int(value) if key in {"limit", "batch_size"} else value
+        if request.data.get("full"):
+            kwargs["full"] = True
+        task = sync_lsp_api_quotes_task.delay(**kwargs)
+        return async_task_response(task, ImportJob.JobType.LSP_API_QUOTE_SYNC)
+
 
 class LspQuoteTaskLogItemViewSet(viewsets.ReadOnlyModelViewSet):
     permission_namespace = "order"
+    permission_action_map = {"sync_from_lsp": "order.import", "sync_from_lsp_async": "order.import"}
     queryset = LspQuoteTaskLogItem.objects.select_related("snapshot").all().order_by(
         F("log_created_at").desc(nulls_last=True),
         "source_external_id",
@@ -1852,6 +1940,18 @@ class LspQuoteTaskLogItemViewSet(viewsets.ReadOnlyModelViewSet):
         call_command("sync_lsp_quote_logs", **kwargs)
         job = ImportJob.objects.filter(job_type=ImportJob.JobType.LSP_QUOTE_LOG_SYNC).latest("id")
         return response.Response({"import_job": ImportJobSerializer(job).data, "output": stdout.getvalue()})
+
+    @decorators.action(detail=False, methods=["post"], url_path="sync-from-lsp-async")
+    def sync_from_lsp_async(self, request):
+        kwargs = {}
+        for key in ("limit", "batch_size", "since"):
+            value = request.data.get(key)
+            if value not in (None, ""):
+                kwargs[key] = int(value) if key in {"limit", "batch_size"} else value
+        if request.data.get("full"):
+            kwargs["full"] = True
+        task = sync_lsp_quote_logs_task.delay(**kwargs)
+        return async_task_response(task, ImportJob.JobType.LSP_QUOTE_LOG_SYNC)
 
 
 class ImportJobViewSet(mixins.RetrieveModelMixin, mixins.ListModelMixin, mixins.CreateModelMixin, viewsets.GenericViewSet):
@@ -1917,7 +2017,10 @@ class QuoteTraceLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 class FreightAuditRowViewSet(viewsets.ReadOnlyModelViewSet):
     permission_namespace = "quote.audit"
-    permission_action_map = {"build_from_reconciliation": "quote.audit.build"}
+    permission_action_map = {
+        "build_from_reconciliation": "quote.audit.build",
+        "build_from_reconciliation_async": "quote.audit.build",
+    }
     queryset = (
         FreightAuditRow.objects.select_related("quote_run", "invoice_reconciliation_item", "erp_shipment_snapshot")
         .prefetch_related("results__quote_channel", "results__quote_candidate", "results__carrier", "results__carrier_service")
@@ -1928,6 +2031,113 @@ class FreightAuditRowViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ["calculation_mode", "status", "platform_code", "warehouse_code"]
     search_fields = ["order_no", "tracking_no", "platform_name", "postcode", "suburb"]
     ordering_fields = ["created_at", "order_date", "order_no", "tracking_no", "erp_estimated_freight", "invoice_actual_freight"]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        carrier_key = (self.request.query_params.get("carrier_key") or "").strip()
+        quote_channel_code = (self.request.query_params.get("quote_channel_code") or "").strip()
+        if carrier_key:
+            queryset = queryset.filter(results__carrier_key=carrier_key)
+        if quote_channel_code:
+            queryset = queryset.filter(results__quote_channel__code=quote_channel_code)
+        return queryset.distinct()
+
+    @decorators.action(detail=False, methods=["get"], url_path="carrier-summary")
+    def carrier_summary(self, request):
+        calculation_mode = (request.query_params.get("calculation_mode") or "").strip()
+        result_queryset = FreightAuditResult.objects.filter(
+            quote_channel__enabled=True,
+            quote_channel__carrier__active=True,
+        )
+        if calculation_mode:
+            result_queryset = result_queryset.filter(row__calculation_mode=calculation_mode)
+
+        result_summary = {
+            row["quote_channel_id"]: row
+            for row in result_queryset.values("quote_channel_id", "carrier_key").annotate(
+                result_count=Count("id"),
+                audit_rows=Count("row", distinct=True),
+                available_rows=Count("row", filter=Q(availability="AVAILABLE"), distinct=True),
+                invoice_rows=Count("row", filter=Q(row__invoice_actual_freight__isnull=False), distinct=True),
+                available_invoice_rows=Count(
+                    "row",
+                    filter=Q(availability="AVAILABLE", row__invoice_actual_freight__isnull=False),
+                    distinct=True,
+                ),
+                system_estimated_total=Sum("total_inc_gst", filter=Q(availability="AVAILABLE")),
+                invoice_actual_total=Sum(
+                    "row__invoice_actual_freight",
+                    filter=Q(availability="AVAILABLE", row__invoice_actual_freight__isnull=False),
+                ),
+                erp_estimated_total=Sum(
+                    "row__erp_estimated_freight",
+                    filter=Q(availability="AVAILABLE", row__erp_estimated_freight__isnull=False),
+                ),
+                system_variance_to_invoice_total=Sum(
+                    "variance_to_invoice",
+                    filter=Q(availability="AVAILABLE", row__invoice_actual_freight__isnull=False),
+                ),
+            )
+        }
+
+        channels = (
+            QuoteChannel.objects.select_related("agent", "carrier", "service", "rate_card")
+            .filter(enabled=True, carrier__active=True)
+            .order_by("agent__name", "carrier__name", "service__name", "code")
+        )
+        gst_multiplier = Decimal("1.10")
+        payload = []
+        for channel in channels:
+            summary = result_summary.get(channel.id, {})
+            system_total = summary.get("system_estimated_total")
+            invoice_total = summary.get("invoice_actual_total")
+            erp_total = summary.get("erp_estimated_total")
+            erp_total_inc_gst = erp_total * gst_multiplier if erp_total is not None else None
+            system_minus_invoice = (
+                system_total - invoice_total
+                if system_total is not None and invoice_total is not None and summary.get("available_invoice_rows", 0) > 0
+                else None
+            )
+            erp_minus_invoice = (
+                erp_total_inc_gst - invoice_total
+                if erp_total_inc_gst is not None and invoice_total is not None and summary.get("available_invoice_rows", 0) > 0
+                else None
+            )
+            rate_card = channel.rate_card
+            payload.append(
+                {
+                    "quote_channel_id": channel.id,
+                    "quote_channel_code": channel.code,
+                    "quote_channel_name": channel.name,
+                    "agent_code": channel.agent.code if channel.agent_id else "",
+                    "agent_name": channel.agent.name if channel.agent_id else "",
+                    "carrier_id": channel.carrier_id,
+                    "carrier_key": summary.get("carrier_key") or channel.carrier.code,
+                    "carrier_code": channel.carrier.code,
+                    "carrier_name": channel.carrier.name,
+                    "service_id": channel.service_id,
+                    "service_code": channel.service.code if channel.service_id else "",
+                    "service_name": channel.service.name if channel.service_id else "",
+                    "provider_type": channel.provider_type,
+                    "calculator_key": channel.calculator_key,
+                    "rate_card_id": channel.rate_card_id,
+                    "rate_card_name": rate_card.name if rate_card else "",
+                    "rate_card_version": rate_card.version if rate_card else "",
+                    "rate_card_status": rate_card.effective_status if rate_card else "",
+                    "result_count": summary.get("result_count", 0),
+                    "audit_rows": summary.get("audit_rows", 0),
+                    "available_rows": summary.get("available_rows", 0),
+                    "invoice_rows": summary.get("invoice_rows", 0),
+                    "available_invoice_rows": summary.get("available_invoice_rows", 0),
+                    "system_estimated_total": system_total,
+                    "invoice_actual_total": invoice_total,
+                    "erp_estimated_total_inc_gst": erp_total_inc_gst,
+                    "system_minus_invoice_total": system_minus_invoice,
+                    "erp_minus_invoice_total": erp_minus_invoice,
+                    "system_variance_to_invoice_total": summary.get("system_variance_to_invoice_total"),
+                }
+            )
+        return response.Response(payload)
 
     @decorators.action(detail=False, methods=["post"], url_path="build-from-reconciliation")
     def build_from_reconciliation(self, request):
@@ -1945,6 +2155,9 @@ class FreightAuditRowViewSet(viewsets.ReadOnlyModelViewSet):
             value = request.data.get(request_key)
             if value not in (None, ""):
                 kwargs[command_key] = value
+        carrier_keywords = request.data.get("carrier_keyword")
+        if carrier_keywords:
+            kwargs["carrier_keyword"] = carrier_keywords if isinstance(carrier_keywords, list) else [carrier_keywords]
         if request.data.get("include_existing"):
             kwargs["include_existing"] = True
         if request.data.get("clear_mode"):
@@ -1959,6 +2172,36 @@ class FreightAuditRowViewSet(viewsets.ReadOnlyModelViewSet):
         except Exception as exc:  # noqa: BLE001
             return response.Response({"detail": str(exc), "output": stdout.getvalue()}, status=status.HTTP_400_BAD_REQUEST)
         return response.Response({"output": stdout.getvalue()})
+
+    @decorators.action(detail=False, methods=["post"], url_path="build-from-reconciliation-async")
+    def build_from_reconciliation_async(self, request):
+        kwargs = {}
+        option_map = {
+            "batch_id": "batch_id",
+            "source_config": "source_config",
+            "mode": "mode",
+            "limit": "limit",
+            "batch_size": "batch_size",
+            "order_batch_size": "order_batch_size",
+        }
+        for request_key, command_key in option_map.items():
+            value = request.data.get(request_key)
+            if value not in (None, ""):
+                kwargs[command_key] = value
+        carrier_keywords = request.data.get("carrier_keyword")
+        if carrier_keywords:
+            kwargs["carrier_keyword"] = carrier_keywords if isinstance(carrier_keywords, list) else [carrier_keywords]
+        if request.data.get("include_existing"):
+            kwargs["include_existing"] = True
+        if request.data.get("clear_mode"):
+            kwargs["clear_mode"] = True
+        if request.data.get("use_actual_platform_warehouse"):
+            kwargs["use_actual_platform_warehouse"] = True
+        owner_ids = request.data.get("owner_id")
+        if owner_ids:
+            kwargs["owner_id"] = owner_ids if isinstance(owner_ids, list) else [owner_ids]
+        task = build_freight_audit_matrix_task.delay(**kwargs)
+        return async_task_response(task, "FREIGHT_AUDIT_MATRIX")
 
 
 class UserProfileViewSet(AuditMixin, viewsets.ModelViewSet):
@@ -1990,6 +2233,7 @@ class InvoiceReconciliationBatchViewSet(
         "disputes": "invoice.reconcile",
         "export": "invoice.export",
         "sync_from_sqlserver": "invoice.import",
+        "sync_from_sqlserver_async": "invoice.import",
     }
     queryset = InvoiceReconciliationBatch.objects.select_related("carrier", "carrier_service", "invoice_source").all().order_by("-created_at")
     serializer_class = InvoiceReconciliationBatchSerializer
@@ -2152,6 +2396,28 @@ class InvoiceReconciliationBatchViewSet(
                 "output": stdout.getvalue(),
             }
         )
+
+    @decorators.action(detail=False, methods=["post"], url_path="sync-from-sqlserver-async")
+    def sync_from_sqlserver_async(self, request):
+        kwargs = {}
+        option_map = {
+            "server": "server",
+            "port": "port",
+            "database": "database",
+            "user": "user",
+            "password": "password",
+            "limit": "limit",
+            "batch_size": "batch_size",
+            "source_keyword": "source_keyword",
+        }
+        for request_key, command_key in option_map.items():
+            value = request.data.get(request_key)
+            if value not in (None, ""):
+                kwargs[command_key] = value
+        if request.data.get("dry_run"):
+            kwargs["dry_run"] = True
+        task = sync_invoices_from_sqlserver_task.delay(**kwargs)
+        return async_task_response(task, ImportJob.JobType.INVOICE_SYNC)
 
 
 class InvoiceReconciliationItemViewSet(viewsets.ReadOnlyModelViewSet):
@@ -2337,10 +2603,10 @@ def parse_optional_date(value: str | None):
 
 
 def import_standard_rate_csv(upload, card: RateCard) -> dict:
-    text = upload.read().decode("utf-8-sig")
-    reader = csv.DictReader(io.StringIO(text))
+    rows = read_limited_csv(upload, required_columns=["record_type"])
     total = success = errors = 0
-    for row in reader:
+    error_details = []
+    for row_number, row in enumerate(rows, start=2):
         total += 1
         try:
             record_type = (row.get("record_type") or "").strip().lower()
@@ -2389,16 +2655,13 @@ def import_standard_rate_csv(upload, card: RateCard) -> dict:
             success += 1
         except Exception as exc:  # noqa: BLE001
             errors += 1
-            row["error"] = str(exc)
-    return {"total_rows": total, "success_rows": success, "error_rows": errors}
+            error_details.append({"row_number": row_number, "field": "record_type", "message": str(exc)})
+    return {"total_rows": total, "success_rows": success, "error_rows": errors, "errors": error_details}
 
 
 @transaction.atomic
 def import_invoice_reconciliation_csv(upload, user) -> InvoiceReconciliationBatch:
-    text = upload.read().decode("utf-8-sig")
-    if hasattr(upload, "seek"):
-        upload.seek(0)
-    rows = list(csv.DictReader(io.StringIO(text)))
+    rows = read_limited_csv(upload)
     first_carrier_code = (rows[0].get("carrier_code") or rows[0].get("carrier") or "").upper() if rows else ""
     carrier = Carrier.objects.filter(code=first_carrier_code).first()
     first_service_code = (rows[0].get("service_code") or rows[0].get("service") or "").strip() if rows else ""
@@ -2417,125 +2680,135 @@ def import_invoice_reconciliation_csv(upload, user) -> InvoiceReconciliationBatc
         uploaded_by=user,
     )
     matched = exceptions = 0
-    for row in rows:
-        carrier_code = (row.get("carrier_code") or row.get("carrier") or first_carrier_code).upper()
-        row_carrier = Carrier.objects.filter(code=carrier_code).first() or carrier
-        service_code = (row.get("service_code") or row.get("service") or first_service_code).strip()
-        row_service = (
-            CarrierService.objects.filter(carrier=row_carrier, code__iexact=service_code).first()
-            if row_carrier and service_code
-            else carrier_service
-        )
-        order_no = row.get("order_no", "").strip()
-        consignment_no = row.get("consignment_no", "").strip()
-        actual = Decimal(row.get("actual_freight") or row.get("invoice_amount") or row.get("amount") or "0")
-        has_order_filter = False
-        order_filter = Q()
-        if order_no:
-            order_filter |= Q(order_no=order_no)
-            has_order_filter = True
-        if consignment_no:
-            order_filter |= Q(consignment_no=consignment_no)
-            has_order_filter = True
-        order = HistoricalOrder.objects.filter(order_filter).order_by("-created_at").first() if has_order_filter else None
-        if order is None and consignment_no:
-            shipment_qs = HistoricalOrderShipment.objects.select_related("order").filter(tracking_no=consignment_no)
+    error_details = []
+    for row_number, row in enumerate(rows, start=2):
+        try:
+            carrier_code = (row.get("carrier_code") or row.get("carrier") or first_carrier_code).upper()
+            row_carrier = Carrier.objects.filter(code=carrier_code).first() or carrier
+            service_code = (row.get("service_code") or row.get("service") or first_service_code).strip()
+            row_service = (
+                CarrierService.objects.filter(carrier=row_carrier, code__iexact=service_code).first()
+                if row_carrier and service_code
+                else carrier_service
+            )
+            order_no = row.get("order_no", "").strip()
+            consignment_no = row.get("consignment_no", "").strip()
+            actual = Decimal(row.get("actual_freight") or row.get("invoice_amount") or row.get("amount") or "0")
+            has_order_filter = False
+            order_filter = Q()
+            if order_no:
+                order_filter |= Q(order_no=order_no)
+                has_order_filter = True
+            if consignment_no:
+                order_filter |= Q(consignment_no=consignment_no)
+                has_order_filter = True
+            order = HistoricalOrder.objects.filter(order_filter).order_by("-created_at").first() if has_order_filter else None
+            if order is None and consignment_no:
+                shipment_qs = HistoricalOrderShipment.objects.select_related("order").filter(tracking_no=consignment_no)
+                if row_carrier:
+                    carrier_text = row_carrier.name or row_carrier.code
+                    carrier_match = shipment_qs.filter(
+                        Q(carrier_name__icontains=carrier_text)
+                        | Q(carrier_channel__icontains=carrier_text)
+                        | Q(service_provider__icontains=carrier_text)
+                    )
+                    if carrier_match.exists():
+                        shipment_qs = carrier_match
+                shipment = shipment_qs.order_by("-order__source_updated_at", "-order__created_at").first()
+                order = shipment.order if shipment else None
+            candidate_qs = QuoteCandidate.objects.filter(
+                availability=QuoteCandidate.Availability.AVAILABLE,
+                quote_run__historical_order=order,
+            )
             if row_carrier:
-                carrier_text = row_carrier.name or row_carrier.code
-                carrier_match = shipment_qs.filter(
-                    Q(carrier_name__icontains=carrier_text)
-                    | Q(carrier_channel__icontains=carrier_text)
-                    | Q(service_provider__icontains=carrier_text)
-                )
-                if carrier_match.exists():
-                    shipment_qs = carrier_match
-            shipment = shipment_qs.order_by("-order__source_updated_at", "-order__created_at").first()
-            order = shipment.order if shipment else None
-        candidate_qs = QuoteCandidate.objects.filter(
-            availability=QuoteCandidate.Availability.AVAILABLE,
-            quote_run__historical_order=order,
-        )
-        if row_carrier:
-            candidate_qs = candidate_qs.filter(carrier=row_carrier)
-        if row_service:
-            service_candidate_qs = candidate_qs.filter(service=row_service)
-            if service_candidate_qs.exists():
-                candidate_qs = service_candidate_qs
-        candidate = candidate_qs.order_by("-quote_run__created_at", "total_inc_gst").first()
-        estimated = candidate.total_inc_gst if candidate else None
-        variance_amount = None
-        variance_percent = None
-        match_status = InvoiceReconciliationItem.MatchStatus.UNMATCHED
-        variance_type = InvoiceReconciliationItem.VarianceType.UNMATCHED
-        dispute = False
-        reason = "No matching quote candidate"
-        if candidate and estimated is not None and estimated != 0:
-            matched += 1
-            variance_amount = actual - estimated
-            variance_percent = (variance_amount / estimated) * Decimal("100")
-            abs_amount = abs(variance_amount)
-            abs_percent = abs(variance_percent)
-            if abs_amount <= Decimal("2.00") or abs_percent <= Decimal("5.00"):
-                match_status = InvoiceReconciliationItem.MatchStatus.MATCHED
-                variance_type = InvoiceReconciliationItem.VarianceType.OK
-                reason = "Within tolerance"
+                candidate_qs = candidate_qs.filter(carrier=row_carrier)
+            if row_service:
+                service_candidate_qs = candidate_qs.filter(service=row_service)
+                if service_candidate_qs.exists():
+                    candidate_qs = service_candidate_qs
+            candidate = candidate_qs.order_by("-quote_run__created_at", "total_inc_gst").first()
+            estimated = candidate.total_inc_gst if candidate else None
+            variance_amount = None
+            variance_percent = None
+            match_status = InvoiceReconciliationItem.MatchStatus.UNMATCHED
+            variance_type = InvoiceReconciliationItem.VarianceType.UNMATCHED
+            dispute = False
+            reason = "No matching quote candidate"
+            if candidate and estimated is not None and estimated != 0:
+                matched += 1
+                variance_amount = actual - estimated
+                variance_percent = (variance_amount / estimated) * Decimal("100")
+                abs_amount = abs(variance_amount)
+                abs_percent = abs(variance_percent)
+                if abs_amount <= Decimal("2.00") or abs_percent <= Decimal("5.00"):
+                    match_status = InvoiceReconciliationItem.MatchStatus.MATCHED
+                    variance_type = InvoiceReconciliationItem.VarianceType.OK
+                    reason = "Within tolerance"
+                else:
+                    match_status = InvoiceReconciliationItem.MatchStatus.EXCEPTION
+                    variance_type = (
+                        InvoiceReconciliationItem.VarianceType.OVERCHARGE
+                        if variance_amount > 0
+                        else InvoiceReconciliationItem.VarianceType.UNDERCHARGE
+                    )
+                    dispute = variance_amount > 0
+                    reason = "Variance outside tolerance"
+                    exceptions += 1
             else:
-                match_status = InvoiceReconciliationItem.MatchStatus.EXCEPTION
-                variance_type = (
-                    InvoiceReconciliationItem.VarianceType.OVERCHARGE
-                    if variance_amount > 0
-                    else InvoiceReconciliationItem.VarianceType.UNDERCHARGE
-                )
-                dispute = variance_amount > 0
-                reason = "Variance outside tolerance"
                 exceptions += 1
-        else:
+            InvoiceReconciliationItem.objects.create(
+                batch=batch,
+                order=order,
+                quote_candidate=candidate,
+                carrier=row_carrier,
+                carrier_service=row_service,
+                consignment_no=consignment_no,
+                order_no=order_no or (order.order_no if order else ""),
+                invoice_no=row.get("invoice_no", ""),
+                invoice_date=parse_optional_date(row.get("invoice_date")),
+                estimated_freight=estimated,
+                actual_freight=actual,
+                variance_amount=variance_amount,
+                variance_percent=variance_percent,
+                match_status=match_status,
+                variance_type=variance_type,
+                dispute_recommended=dispute,
+                reason=reason,
+                raw_payload=row,
+            )
+        except Exception as exc:  # noqa: BLE001
             exceptions += 1
-        InvoiceReconciliationItem.objects.create(
-            batch=batch,
-            order=order,
-            quote_candidate=candidate,
-            carrier=row_carrier,
-            carrier_service=row_service,
-            consignment_no=consignment_no,
-            order_no=order_no or (order.order_no if order else ""),
-            invoice_no=row.get("invoice_no", ""),
-            invoice_date=parse_optional_date(row.get("invoice_date")),
-            estimated_freight=estimated,
-            actual_freight=actual,
-            variance_amount=variance_amount,
-            variance_percent=variance_percent,
-            match_status=match_status,
-            variance_type=variance_type,
-            dispute_recommended=dispute,
-            reason=reason,
-            raw_payload=row,
-        )
-    batch.status = InvoiceReconciliationBatch.Status.COMPLETED
+            error_details.append({"row_number": row_number, "field": "", "message": str(exc)})
+    batch.status = InvoiceReconciliationBatch.Status.COMPLETED if not error_details else InvoiceReconciliationBatch.Status.FAILED
     batch.matched_rows = matched
     batch.exception_rows = exceptions
-    batch.report_json = {"dispute_count": batch.items.filter(dispute_recommended=True).count()}
+    batch.report_json = {"dispute_count": batch.items.filter(dispute_recommended=True).count(), "errors": error_details}
     batch.save(update_fields=["status", "matched_rows", "exception_rows", "report_json", "updated_at"])
     return batch
 
 
 @transaction.atomic
 def import_historical_order_csv(upload, user) -> ImportJob:
-    text = upload.read().decode("utf-8-sig")
-    if hasattr(upload, "seek"):
-        upload.seek(0)
-    rows = list(csv.DictReader(io.StringIO(text)))
+    rows = read_limited_csv(upload, required_columns=["order_no"])
     grouped: dict[str, list[dict]] = {}
-    for row in rows:
+    for row_number, row in enumerate(rows, start=2):
+        row["_csv_row_number"] = row_number
         grouped.setdefault(row.get("order_no", ""), []).append(row)
     order_ids = []
     errors = 0
+    error_details = []
     for order_no, order_rows in grouped.items():
         try:
             with transaction.atomic():
                 first = order_rows[0]
                 platform = Platform.objects.filter(code=first.get("platform_code", "")).first()
                 warehouse = Warehouse.objects.filter(code=first.get("warehouse_code", "")).first()
+                if not order_no:
+                    raise ValueError("Missing order_no")
+                if first.get("platform_code") and not platform:
+                    raise ValueError(f"Unknown platform_code {first.get('platform_code')}")
+                if first.get("warehouse_code") and not warehouse:
+                    raise ValueError(f"Unknown warehouse_code {first.get('warehouse_code')}")
                 order = HistoricalOrder.objects.create(
                     order_no=order_no,
                     consignment_no=first.get("consignment_no", ""),
@@ -2560,8 +2833,9 @@ def import_historical_order_csv(upload, user) -> ImportJob:
                         raw_payload=row,
                     )
                 order_ids.append(order.id)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             errors += 1
+            error_details.append({"row_number": order_rows[0].get("_csv_row_number", 0), "field": "", "message": str(exc)})
     return ImportJob.objects.create(
         job_type=ImportJob.JobType.ORDER,
         status=ImportJob.Status.COMPLETED if errors == 0 else ImportJob.Status.FAILED,
@@ -2570,6 +2844,6 @@ def import_historical_order_csv(upload, user) -> ImportJob:
         success_rows=len(order_ids),
         error_rows=errors,
         progress=100,
-        report_json={"order_ids": order_ids},
+        report_json={"order_ids": order_ids, "errors": error_details},
         created_by=user,
     )
