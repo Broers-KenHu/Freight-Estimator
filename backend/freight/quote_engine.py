@@ -14,7 +14,6 @@ from .calculators.base import CalculatorResult, ChargeLine, Destination, QuoteCo
 from .calculators.registry import ChannelRegistry
 from .models import (
     AdjustmentRule,
-    CarrierService,
     HistoricalOrder,
     Platform,
     PlatformCarrier,

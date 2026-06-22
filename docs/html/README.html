@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
-  <title>CourieDelivery / AU Freight Estimator</title>
+  <title>Freight Intelligence / Freight Estimator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -936,7 +936,7 @@
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg>
         </button>
         <span class="brand-dot" aria-hidden="true"></span>
-        <span>System Design</span>
+        <span>Notes</span>
       </div>
       <div class="topbar-actions">
         <button class="icon-btn" onclick="window.print()" title="Print / Save PDF" aria-label="Print / Save PDF">
@@ -961,28 +961,27 @@
         </button>
       </div>
       <nav class="toc-nav" id="toc-nav">
-        <a href="#stack" class="lvl-2">Stack</a>
-<a href="#implemented-scope" class="lvl-2">Implemented Scope</a>
-<a href="#run-locally" class="lvl-2">Run Locally</a>
+        <a href="#technology-stack" class="lvl-2">Technology Stack</a>
+<a href="#repository-layout" class="lvl-2">Repository Layout</a>
+<a href="#environment-files" class="lvl-2">Environment Files</a>
+<a href="#backend-local-setup" class="lvl-2">Backend Local Setup</a>
+<a href="#frontend-local-setup" class="lvl-2">Frontend Local Setup</a>
+<a href="#settings-profiles" class="lvl-2">Settings Profiles</a>
+<a href="#database-configuration" class="lvl-2">Database Configuration</a>
 <a href="#test-commands" class="lvl-2">Test Commands</a>
-<a href="#project-documents" class="lvl-2">Project Documents</a>
-<a href="#normalized-rate-csv" class="lvl-2">Normalized Rate CSV</a>
-<a href="#historical-order-csv" class="lvl-2">Historical Order CSV</a>
-<a href="#sku-sync" class="lvl-2">SKU Sync</a>
-<a href="#carrier-import-from-lsp" class="lvl-2">Carrier Import From LSP</a>
-<a href="#lsp-rate-table-snapshot" class="lvl-2">LSP Rate Table Snapshot</a>
-<a href="#invoice-reconciliation-csv" class="lvl-2">Invoice Reconciliation CSV</a>
-<a href="#legacy-sql-server-import" class="lvl-2">Legacy SQL Server Import</a>
-<a href="#postagecalculator-sp-rate-import" class="lvl-2">PostageCalculator SP Rate Import</a>
-<a href="#calculator-plugin-contract" class="lvl-2">Calculator Plugin Contract</a>
+<a href="#common-management-commands" class="lvl-2">Common Management Commands</a>
+<a href="#key-functional-areas" class="lvl-2">Key Functional Areas</a>
+<a href="#documentation" class="lvl-2">Documentation</a>
+<a href="#security-notes" class="lvl-2">Security Notes</a>
+<a href="#troubleshooting" class="lvl-2">Troubleshooting</a>
       </nav>
     </aside>
 
     <main class="content" id="main">
       <header class="doc-header">
-        <span class="doc-eyebrow">SYSTEM DESIGN</span>
-        <h1 class="doc-title">CourieDelivery / AU Freight Estimator</h1>
-        <p class="doc-subtitle">Local MVP for multi carrier Australian freight estimation based on AU Freight Estimator Design CN v1 3 Merged.docx.</p>
+        <span class="doc-eyebrow">NOTES</span>
+        <h1 class="doc-title">Freight Intelligence / Freight Estimator</h1>
+        <p class="doc-subtitle">Internal Australian freight estimation, carrier rate management, historical freight audit, and invoice reconciliation system.</p>
         <div class="doc-meta">
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-file"/></svg>
@@ -994,306 +993,254 @@
           </span>
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clock"/></svg>
-            ~6 min read
+            ~4 min read
           </span>
         </div>
       </header>
 
       <!-- CONTENT_START -->
 
-<p>Local MVP for multi-carrier Australian freight estimation based on <code>AU_Freight_Estimator_Design_CN_v1_3_Merged.docx</code>.</p>
+<p>Internal Australian freight estimation, carrier rate management, historical freight audit, and invoice reconciliation system.</p>
 
-<h2 id="stack">Stack</h2>
+<p>The application keeps operational quoting fast by syncing ERP/WMS/LSP/InvoiceReader source data into local PostgreSQL snapshot/template tables, then calculating freight from the system database instead of reading remote systems during UI requests.</p>
+
+<h2 id="technology-stack">Technology Stack</h2>
 
 <ul>
-<li>Backend: Django 5, Django REST Framework, PostgreSQL, optional SQL Server legacy importer.</li>
+<li>Backend: Django 5, Django REST Framework, django-filter, drf-spectacular.</li>
 <li>Frontend: React, TypeScript, Vite, Ant Design, TanStack Query, MSAL-ready auth.</li>
-<li>Database: <code>CourieDelivery</code> on PostgreSQL, with local <code>.env</code> configuration.</li>
-<li>Calculators: lazy-loaded channel plugins under <code>backend/freight/calculators</code>.</li>
+<li>Data stores: PostgreSQL for the application, optional SQLite for local development/tests, SQL Server importers for legacy/reference data.</li>
+<li>Calculators: lazy-loaded carrier plugins under <code>backend/freight/calculators</code>.</li>
+<li>Tests: pytest/pytest-django for backend, Vitest and Playwright for frontend.</li>
 </ul>
 
-<h2 id="implemented-scope">Implemented Scope</h2>
+<h2 id="repository-layout">Repository Layout</h2>
 
-<ul>
-<li>Master data CRUD: platforms, carriers, services, platform-carrier links, warehouses, warehouse platform/carrier capability, SKU.</li>
-<li>SKU sync: calculation-related SKU weight/dimensions are synced from <code>data_raw.wms.bas_sku</code> into CourieDelivery, with combo SKU components synced from <code>data_raw.erp.hpoms_product_combo</code>.</li>
-<li>Pricing data: rate cards, rate zones/rules, surcharge rules, adjustment rules.</li>
-<li>Rate card lifecycle: effective date range, active flag, priority, uploaded/approved metadata.</li>
-<li>Quote channels: enable/disable, lazy calculator loading, per-channel test.</li>
-<li>Manual quote API and Ant Design page with two line-entry modes: manual dimensions, or SKU/Combo SKU lookup with auto-filled dimensions and combo component expansion.</li>
-<li>Quote Runs history page with result breakdown and trace inspection.</li>
-<li>Historical order CSV import and batch quote run.</li>
-<li>Invoice reconciliation: carrier invoice CSV upload, estimate-vs-actual matching, variance flags and dispute recommendations.</li>
-<li>Rate card upload endpoint for normalized CSV plus activate/close actions.</li>
-<li>Microsoft Entra-ready authentication with local dev fallback.</li>
-<li>SQL Server importers for legacy <code>PostageCalculator</code> order samples and stored-procedure rate tables.</li>
-<li>Unit/regression tests for quote engine, API, frontend helpers and app shell.</li>
-</ul>
+<pre><code class="language-text">backend/       Django API, quote engine, calculators, import commands, tests
+frontend/      React/Vite/Ant Design application
+docs/          Architecture, calculator, reconciliation, security and deployment docs
+docs/html/     HTML-rendered documentation index
+samples/       Sample CSV templates
+scripts/       Local helper scripts
+reports/       Markdown analysis reports</code></pre>
 
-<h2 id="run-locally">Run Locally</h2>
+<h2 id="environment-files">Environment Files</h2>
 
-<p>Backend:</p>
+<p>Copy examples before starting local development:</p>
 
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\start_backend_8010.ps1</code></pre>
+<pre><code class="language-powershell">copy backend\.env.example backend\.env
+copy frontend\.env.example frontend\.env</code></pre>
 
-<p>Frontend:</p>
+<p>Linux/macOS:</p>
 
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\frontend
+<pre><code class="language-bash">cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env</code></pre>
+
+<p>Do not commit real <code>.env</code> files, database passwords, API credentials, tokens, or downloaded production data.</p>
+
+<h2 id="backend-local-setup">Backend Local Setup</h2>
+
+<p>Windows PowerShell:</p>
+
+<pre><code class="language-powershell">cd backend
+python -m venv ..\.venv
+..\.venv\Scripts\pip install -r requirements.txt
+copy .env.example .env
+..\.venv\Scripts\python manage.py migrate
+..\.venv\Scripts\python manage.py runserver 127.0.0.1:8010</code></pre>
+
+<p>Linux/macOS:</p>
+
+<pre><code class="language-bash">cd backend
+python3 -m venv ../.venv
+../.venv/bin/pip install -r requirements.txt
+cp .env.example .env
+../.venv/bin/python manage.py migrate
+../.venv/bin/python manage.py runserver 127.0.0.1:8010</code></pre>
+
+<p>The default local settings module is <code>config.settings.local</code>. It allows SQLite fallback and local dev authentication.</p>
+
+<h2 id="frontend-local-setup">Frontend Local Setup</h2>
+
+<pre><code class="language-bash">cd frontend
+npm install
+cp .env.example .env
 npm run dev -- --host 127.0.0.1 --port 5173</code></pre>
 
 <p>Open <code>http://127.0.0.1:5173</code>.</p>
 
+<p>Windows PowerShell equivalent:</p>
+
+<pre><code class="language-powershell">cd frontend
+npm install
+copy .env.example .env
+npm run dev -- --host 127.0.0.1 --port 5173</code></pre>
+
+<h2 id="settings-profiles">Settings Profiles</h2>
+
+<p>The backend now uses explicit settings profiles:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Profile</th>
+<th>Module</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td>Local</td>
+<td><code>config.settings.local</code></td>
+<td>Developer machine defaults, SQLite fallback, dev admin fallback allowed</td>
+</tr>
+<tr>
+<td>Test</td>
+<td><code>config.settings.test</code></td>
+<td>In-memory SQLite, fast password hasher, dev auth enabled for tests</td>
+</tr>
+<tr>
+<td>Production</td>
+<td><code>config.settings.production</code></td>
+<td>Strict environment validation, no dev fallback, no unverified MSAL tokens</td>
+</tr>
+</tbody></table></div>
+
+<p>Production requires:</p>
+
+<ul>
+<li><code>DJANGO_SECRET_KEY</code></li>
+<li><code>DATABASE_URL</code></li>
+<li><code>DJANGO_ALLOWED_HOSTS</code></li>
+<li><code>MSAL_TENANT_ID</code></li>
+<li><code>MSAL_AUDIENCE</code> or <code>MSAL_AUDIENCES</code></li>
+</ul>
+
+<p>Example production command:</p>
+
+<pre><code class="language-bash">DJANGO_SETTINGS_MODULE=config.settings.production python manage.py check</code></pre>
+
+<h2 id="database-configuration">Database Configuration</h2>
+
+<p>Local development can use SQLite:</p>
+
+<pre><code class="language-env">DATABASE_URL=sqlite:///db.sqlite3</code></pre>
+
+<p>PostgreSQL example:</p>
+
+<pre><code class="language-env">DATABASE_URL=postgres://user:password@postgres-host:5432/CourieDelivery</code></pre>
+
+<p>Useful PostgreSQL tuning variables are documented in <code>backend/.env.example</code>, including connect timeout, statement timeout, lock timeout, connection lifetime, and server-side cursor controls.</p>
+
 <h2 id="test-commands">Test Commands</h2>
 
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\backend
-&amp; ..\.venv\Scripts\pytest.exe
+<p>Backend:</p>
 
-cd C:\Users\KenHu\.vscode\CourieDelivery\frontend
+<pre><code class="language-bash">cd backend
+ruff check .
+pytest
+python manage.py check
+python manage.py makemigrations --check --dry-run</code></pre>
+
+<p>Frontend:</p>
+
+<pre><code class="language-bash">cd frontend
+npm run lint
 npm test
 npm run build</code></pre>
 
-<h2 id="project-documents">Project Documents</h2>
+<p>E2E:</p>
+
+<pre><code class="language-bash">cd frontend
+npm run test:e2e</code></pre>
+
+<h2 id="common-management-commands">Common Management Commands</h2>
+
+<p>SKU sync:</p>
+
+<pre><code class="language-bash">cd backend
+python manage.py sync_sku_from_wms --dry-run --limit 10
+python manage.py sync_sku_from_wms
+python manage.py sync_sku_from_wms --full</code></pre>
+
+<p>Warehouse/platform sync:</p>
+
+<pre><code class="language-bash">cd backend
+python manage.py sync_warehouses_from_wms
+python manage.py sync_platforms_from_erp</code></pre>
+
+<p>Carrier and agent sync:</p>
+
+<pre><code class="language-bash">cd backend
+python manage.py import_carriers_from_lsp --dry-run
+python manage.py import_carriers_from_lsp
+python manage.py sync_agents_from_lsp</code></pre>
+
+<p>Rate imports:</p>
+
+<pre><code class="language-bash">cd backend
+python manage.py import_postagecalculator_rates --dry-run
+python manage.py import_postagecalculator_rates --configure-defaults
+python manage.py import_dfe_rates
+python manage.py import_orange_connex_rates
+python manage.py import_ubi_ipec_rates --open-all-access</code></pre>
+
+<p>Invoice/order reconciliation:</p>
+
+<pre><code class="language-bash">cd backend
+python manage.py sync_orders_from_erp --limit 5000
+python manage.py sync_reconciliation_snapshots --limit 100
+python manage.py build_freight_audit_matrix --limit 100</code></pre>
+
+<p>Demo data cleanup:</p>
+
+<pre><code class="language-bash">cd backend
+python manage.py purge_demo_data --dry-run
+python manage.py purge_demo_data</code></pre>
+
+<h2 id="key-functional-areas">Key Functional Areas</h2>
 
 <ul>
-<li><code>docs/architecture.md</code>: architecture notes and quote flow.</li>
-<li><code>docs/freight_explainability_reconciliation.md</code>: Breakdown, Quote Trace, Invoice Reconciliation and Rate Card lifecycle documentation.</li>
+<li>Master data: platforms, agents, carriers, carrier services, warehouses, platform-carrier and warehouse-carrier availability.</li>
+<li>SKU master: single SKU and combo SKU synchronization, dimensions/weight snapshots, manual quote SKU lookup.</li>
+<li>Pricing: rate cards, rate zones, rate rules, surcharges, adjustment rules, quote channels.</li>
+<li>Manual quote: SKU/combo SKU, manual dimensions, and ERP/platform order quote modes.</li>
+<li>Quote explainability: quote result breakdown and quote trace logs.</li>
+<li>Freight Audit Matrix: compares ERP estimate, system estimates by carrier, historical LSP/API quotes, and invoice actuals.</li>
+<li>Invoice reconciliation: imports InvoiceReader charges, matches by tracking/order, and calculates variance.</li>
 </ul>
 
-<h2 id="normalized-rate-csv">Normalized Rate CSV</h2>
-
-<p>Upload from Rate Cards page or <code>POST /api/rate-cards/{id}/upload/</code>.</p>
-
-<p>Required <code>record_type</code> values:</p>
+<h2 id="documentation">Documentation</h2>
 
 <ul>
-<li><code>zone</code>: <code>state,suburb,postcode,origin_zone,dest_zone,deliverable</code></li>
-<li><code>rule</code>: <code>from_zone,to_zone,weight_min_kg,weight_max_kg,basic_charge,per_kg,minimum_charge,rule_type</code></li>
-<li><code>surcharge</code>: <code>code,rule_name,min_threshold,max_threshold,ratio,fee_amount,match_dimension</code></li>
+<li>HTML documentation index: <code>docs/html/index.html</code></li>
+<li>Architecture: <code>docs/architecture.md</code></li>
+<li>Carrier calculation logic: <code>docs/Freight_Carrier_Calculation_Logic_20260618.md</code></li>
+<li>Project overview for external review: <code>docs/Freight_Intelligence_Project_Overview_For_GPT.md</code></li>
+<li>Security and permissions: <code>docs/security_access_control.md</code></li>
+<li>InvoiceReader integration: <code>docs/invoice_reader_integration_design.md</code></li>
+<li>E2E test matrix: <code>docs/testing/e2e_p123_matrix.md</code></li>
 </ul>
 
-<p>See <code>samples/rate_card_standard.csv</code>.</p>
+<p>Regenerate HTML docs after Markdown changes:</p>
 
-<h2 id="historical-order-csv">Historical Order CSV</h2>
+<pre><code class="language-bash">python scripts/convert_md_to_html.py</code></pre>
 
-<p>Upload from Order Imports page. Columns:</p>
-
-<p><code>order_no,consignment_no,platform_code,warehouse_code,state,suburb,postcode,sku,qty,unit_weight_kg,length_cm,width_cm,height_cm,actual_carrier,actual_freight</code></p>
-
-<p>See <code>samples/historical_orders.csv</code>.</p>
-
-<h2 id="sku-sync">SKU Sync</h2>
-
-<p>SKU master data for freight calculation is synced into CourieDelivery from PostgreSQL <code>data_raw</code>, schema <code>wms</code>, table <code>bas_sku</code>.</p>
-
-<p>The operating model is: scheduled sync + manual sync + quote snapshot.</p>
-
-<p>Mapped fields:</p>
+<h2 id="security-notes">Security Notes</h2>
 
 <ul>
-<li><code>sku</code> -&gt; SKU code</li>
-<li><code>skuDescr1</code> / <code>skuDescr2</code> -&gt; description</li>
-<li><code>grossWeight</code> / <code>netWeight</code> -&gt; unit weight kg</li>
-<li><code>skuLength</code>, <code>skuWidth</code>, <code>skuHigh</code> -&gt; dimensions in cm</li>
-<li><code>activeFlag</code> -&gt; active status</li>
-<li><code>editTime</code> / <code>addTime</code> / <code>_airbyte_extracted_at</code> -&gt; source updated timestamp</li>
+<li>Never commit <code>.env</code>, passwords, API keys, tokens, local database files, logs, or source-system extracts.</li>
+<li>Production must use <code>config.settings.production</code>.</li>
+<li>Production disables <code>AUTH_ALLOW_DEV_USER</code> and <code>MSAL_ALLOW_UNVERIFIED_DEV_TOKENS</code>.</li>
+<li>SQL Server/API credentials must be provided through environment variables or secure deployment secrets.</li>
+<li>Use audit logs for administrative and pricing changes.</li>
 </ul>
 
-<p>Combo SKU source:</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
 
-<ul>
-<li>Database/schema: <code>data_raw.erp</code></li>
-<li>Parent table: <code>hpoms_product_combo</code></li>
-<li>Component table: <code>hpoms_product_combo_skus</code></li>
-<li>Active filter: parent <code>status = 1</code> and component <code>status = 1</code></li>
-<li>Combo type dictionary: <code>hpoms_dictionary</code> / <code>hpoms_dictionary_value</code>, where <code>product_combo.combo_type</code> maps to <code>1=single</code>, <code>2=combo</code>, <code>3=AB件</code>, <code>4=替代</code>, <code>5=child</code>, <code>6=kit</code>, <code>7=part</code>.</li>
-<li>Parent combo rule: only <code>combo</code>, <code>AB件</code>, <code>替代</code>, plus legacy rows with null <code>combo_type</code>, are marked as <code>SKU.is_combo = true</code>.</li>
-<li>Target table: <code>SKUComboComponent</code></li>
-<li>Parent SKU flag: <code>SKU.is_combo = true</code></li>
-</ul>
+<p>If backend imports fail because the remote ERP/WMS/InvoiceReader network is unavailable, retry when the internal network is reachable. Do not convert transient network failures into permanent business data errors.</p>
 
-<p>Manual commands:</p>
+<p>If frontend receives <code>Loading access...</code> for too long, confirm the backend is running on <code>127.0.0.1:8010</code> and <code>VITE_API_BASE_URL</code> points to <code>/api</code>.</p>
 
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\backend
-&amp; ..\.venv\Scripts\python.exe manage.py sync_sku_from_wms --dry-run --limit 10
-&amp; ..\.venv\Scripts\python.exe manage.py sync_sku_from_wms
-&amp; ..\.venv\Scripts\python.exe manage.py sync_sku_from_wms --full</code></pre>
-
-<p>Manual UI/API sync:</p>
-
-<ul>
-<li>Frontend: <code>Master Data</code> -&gt; <code>SKU Master</code> -&gt; <code>Sync WMS SKU</code></li>
-<li>API: <code>POST /api/skus/sync-from-wms/</code></li>
-</ul>
-
-<p>Scheduled task:</p>
-
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\register_sku_sync_task.ps1</code></pre>
-
-<p>The registered Windows task is <code>CourieDelivery SKU Sync</code>. It runs <code>scripts\sync_sku_from_wms.ps1</code> every day at 03:00 local Sydney time and writes logs to <code>logs\sku-sync-YYYYMMDD.log</code>.</p>
-
-<p>Quote snapshot behavior:</p>
-
-<ul>
-<li>Manual Quote enriches submitted items from local <code>SKU</code> when weight/dimensions are missing or zero.</li>
-<li>Manual Quote has two modes:</li>
-<li><code>SKU / Combo SKU</code>: click <code>Select SKU</code>, search and multi-select SKU/combo SKU from a modal list; selected rows are added to SKU Lines with weight/dimensions read-only, and users change quantity only.</li>
-<li><code>Manual dimensions</code>: enter quantity, weight and dimensions directly; SKU is optional.</li>
-<li>Combo SKU quotes expand the parent line into component SKU lines before rate calculation. The submitted parent line is preserved in <code>QuoteRun.input_snapshot_json.submitted_items</code>, while the calculated component lines are stored in <code>QuoteRun.input_snapshot_json.items</code>.</li>
-<li><code>QuoteRun.input_snapshot_json</code> stores the actual calculation weight/dimensions plus <code>sku_snapshot</code>.</li>
-<li>The snapshot includes SKU source system, source table, source updated timestamp, last synced timestamp and sync status.</li>
-</ul>
-
-<h2 id="carrier-import-from-lsp">Carrier Import From LSP</h2>
-
-<p>Carrier master data can be imported once from PostgreSQL <code>data_raw</code>, schema <code>lsp</code>.</p>
-
-<p>Source evidence:</p>
-
-<ul>
-<li><code>lsp_carrier</code>: carrier code/name/status, agent code and channel code.</li>
-<li><code>lsp_carrier_rate</code>: active carrier rate table rows.</li>
-<li><code>lsp_carrier_quote_platform_rate</code>: active platform-specific rate table rows.</li>
-<li><code>lsp_carrier_account</code>: active API account count only. Sensitive API credentials are not copied into CourieDelivery.</li>
-</ul>
-
-<p>Classification:</p>
-
-<ul>
-<li><code>API</code>: active LSP API account exists and no active rate rows were found.</li>
-<li><code>TABLE</code>: active rate rows or platform rate rows exist and no active API account was found.</li>
-<li><code>HYBRID</code>: both active API account and active rate rows exist.</li>
-</ul>
-
-<p>The import is intentionally manual and one-time by default, not scheduled:</p>
-
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\backend
-&amp; ..\.venv\Scripts\python.exe manage.py import_carriers_from_lsp --dry-run
-&amp; ..\.venv\Scripts\python.exe manage.py import_carriers_from_lsp</code></pre>
-
-<p>The Carriers page shows the imported evidence columns: LSP Agent, LSP Channel, Rate Rows, Platform Rates and API Accts.</p>
-
-<h2 id="lsp-rate-table-snapshot">LSP Rate Table Snapshot</h2>
-
-<p>LSP rate table rows are synced into two CourieDelivery tables:</p>
-
-<ul>
-<li><code>LspRateTableCurrent</code>: latest active rate table rows per source table, carrier and platform.</li>
-<li><code>LspRateTableArchive</code>: older versions, inactive rows, deleted rows and rows superseded by a later sync.</li>
-</ul>
-
-<p>Source tables:</p>
-
-<ul>
-<li><code>data_raw.lsp.lsp_carrier_rate</code>: generic carrier zone/weight rate rows.</li>
-<li><code>data_raw.lsp.lsp_carrier_quote_platform_rate</code>: platform/SKU/level-specific quote rate rows.</li>
-</ul>
-
-<p>Current selection rule:</p>
-
-<ul>
-<li>Group rows by source table + carrier + platform.</li>
-<li>For rows with a numeric <code>version</code>, only the latest active version is current.</li>
-<li>Rows with older active versions are archived with <code>archive_reason = older_version</code>.</li>
-<li>Inactive/deleted LSP rows are archived.</li>
-<li>If a source table has no version value, active rows are treated as the current table for that carrier/platform group.</li>
-</ul>
-
-<p>Manual command:</p>
-
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\backend
-&amp; ..\.venv\Scripts\python.exe manage.py sync_lsp_rate_tables --dry-run
-&amp; ..\.venv\Scripts\python.exe manage.py sync_lsp_rate_tables</code></pre>
-
-<p>Frontend read-only pages:</p>
-
-<ul>
-<li><code>Pricing</code> -&gt; <code>LSP Current Rates</code></li>
-<li><code>Pricing</code> -&gt; <code>LSP Rate Archive</code></li>
-</ul>
-
-<p>The current LSP snapshot can then be imported into the normal CourieDelivery rate template:</p>
-
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\backend
-&amp; ..\.venv\Scripts\python.exe manage.py import_lsp_rates_to_template --dry-run
-&amp; ..\.venv\Scripts\python.exe manage.py import_lsp_rates_to_template</code></pre>
-
-<p>Template mapping:</p>
-
-<ul>
-<li>one LSP rate table group -&gt; one <code>RateCard</code></li>
-<li>one LSP rate row -&gt; one <code>RateRule</code></li>
-<li>latest active <code>lsp_carrier_zone</code> rows -&gt; <code>RateZone</code></li>
-<li>uniform LSP fuel/extra/package fees -&gt; <code>SurchargeRule</code></li>
-<li>LSP-specific fields not available as first-class template columns, such as SKU/platform/dimension fields, are preserved in <code>RateRule.raw_payload</code></li>
-</ul>
-
-<p><code>lsp_carrier_quote_platform_rate</code> rows are SKU/platform specific. They are imported into the template for traceability, but marked with <code>metadata_json.requires_custom_calculator = true</code> because the generic table calculator does not yet evaluate SKU-specific rate rows.</p>
-
-<h2 id="invoice-reconciliation-csv">Invoice Reconciliation CSV</h2>
-
-<p>Upload from Invoice Reconciliation page or <code>POST /api/invoice-reconciliation-batches/</code>.</p>
-
-<p>Required columns:</p>
-
-<p><code>carrier_code,order_no,consignment_no,invoice_no,invoice_date,actual_freight</code></p>
-
-<p>The importer matches by order number or consignment number, compares the best estimated quote to the invoice freight, and marks overcharge/undercharge exceptions for dispute review.</p>
-
-<p>See <code>samples/invoice_reconciliation.csv</code>.</p>
-
-<h2 id="legacy-sql-server-import">Legacy SQL Server Import</h2>
-
-<p>The command reads a compact sample from <code>dbo.Shipping_order_within_3month</code> and maps it into <code>HistoricalOrder</code> / <code>HistoricalOrderItem</code>.</p>
-
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\backend
-&amp; ..\.venv\Scripts\python.exe manage.py import_legacy_sqlserver --limit 100 --dry-run
-&amp; ..\.venv\Scripts\python.exe manage.py import_legacy_sqlserver --limit 100</code></pre>
-
-<h2 id="postagecalculator-sp-rate-import">PostageCalculator SP Rate Import</h2>
-
-<p>The command imports the rate tables and surcharge reference tables used by the real SQL Server stored procedures into CourieDelivery&#x27;s normalized rate template.</p>
-
-<p>Imported stored-procedure families:</p>
-
-<ul>
-<li><code>sp_Hunter_MEL_2023_Rate_Calculation</code></li>
-<li><code>sp_Hunter_Sydney_2025_Rate_Calculation</code></li>
-<li><code>sp_AlliedGRO2023_order_Rate_Calculation</code></li>
-<li><code>sp_AlliedGRO2023_Sydney_Rate_Calculation</code></li>
-<li><code>sp_AlliedB2C2025_order_Rate_Calculation</code></li>
-</ul>
-
-<p>Manual command:</p>
-
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\backend
-&amp; ..\.venv\Scripts\python.exe manage.py import_postagecalculator_rates --dry-run
-&amp; ..\.venv\Scripts\python.exe manage.py import_postagecalculator_rates --configure-defaults</code></pre>
-
-<p>The importer creates active <code>RateCard</code>, <code>RateZone</code>, <code>RateRule</code>, <code>SurchargeRule</code> and <code>QuoteChannel</code> rows using <code>quote_source = PostageCalculator</code>. With <code>--configure-defaults</code>, it also enables the Melbourne SP channels for the synced Shopify platform and BG01 warehouse so Manual Quote can return real results immediately.</p>
-
-<p>Local demo seed data can be removed without deleting synced WMS/ERP/LSP/PostageCalculator data:</p>
-
-<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery\backend
-&amp; ..\.venv\Scripts\python.exe manage.py purge_demo_data --dry-run
-&amp; ..\.venv\Scripts\python.exe manage.py purge_demo_data</code></pre>
-
-<h2 id="calculator-plugin-contract">Calculator Plugin Contract</h2>
-
-<p><code>QuoteEngine</code> only queries enabled <code>QuoteChannel</code> rows first. It then lazy-loads the configured <code>calculator_key</code>, so disabled channels are not imported or executed. New channels should add one calculator file plus tests, then register a <code>QuoteChannel</code> row.</p>
-
-<p>Implemented calculators:</p>
-
-<ul>
-<li><code>HunterMel2023Calculator</code></li>
-<li><code>HunterSydney2025Calculator</code></li>
-<li><code>AlliedGro2023MelbourneCalculator</code></li>
-<li><code>AlliedGro2023SydneyCalculator</code></li>
-<li><code>AlliedB2C2025MelbourneCalculator</code></li>
-<li><code>AlliedB2C2025SydneyCalculator</code></li>
-<li><code>MockApiCalculator</code> exists for isolated tests only; there is no active mock quote channel after <code>purge_demo_data</code>.</li>
-</ul>
+<p>If Microsoft Entra login is not configured locally, use the local account flow with <code>AUTH_ALLOW_DEV_USER=True</code> in local settings.</p>
 
 <!-- CONTENT_END -->
 

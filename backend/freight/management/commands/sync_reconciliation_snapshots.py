@@ -13,14 +13,12 @@ import psycopg
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connections, transaction
-from django.db.models import Q
 from django.utils import timezone
 from psycopg.rows import dict_row
 
 from freight.management.commands.sync_invoices_from_sqlserver import (
     Command as InvoiceReaderCommand,
     HEADER_TABLE,
-    INVOICE_SOURCE_CONFIGS,
     SOURCE_DATABASE as INVOICE_DATABASE,
     SOURCE_SCHEMA as INVOICE_SCHEMA,
     clean,
@@ -40,8 +38,6 @@ from freight.models import (
     InvoiceReconciliationBatch,
     InvoiceReconciliationItem,
     InvoiceSource,
-    Platform,
-    QuoteCandidate,
 )
 from freight.quote_engine import json_safe
 

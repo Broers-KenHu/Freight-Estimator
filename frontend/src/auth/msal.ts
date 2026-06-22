@@ -3,6 +3,7 @@ import { InteractionRequiredAuthError, PublicClientApplication, type AccountInfo
 const msalClientId = ((import.meta.env.VITE_MSAL_CLIENT_ID as string | undefined) || '').trim()
 const msalTenantId = ((import.meta.env.VITE_MSAL_TENANT_ID as string | undefined) || '').trim()
 const msalScope = ((import.meta.env.VITE_MSAL_SCOPE as string | undefined) || '').trim()
+const msalRedirectUri = ((import.meta.env.VITE_MSAL_REDIRECT_URI as string | undefined) || '').trim()
 
 export const msalEnabled = Boolean(msalClientId && msalTenantId && msalScope)
 
@@ -10,7 +11,7 @@ const config: Configuration = {
   auth: {
     clientId: msalClientId || 'dev-client-id',
     authority: `https://login.microsoftonline.com/${msalTenantId || 'common'}`,
-    redirectUri: window.location.origin,
+    redirectUri: msalRedirectUri || window.location.origin,
   },
   cache: {
     cacheLocation: 'localStorage',
