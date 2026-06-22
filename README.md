@@ -88,6 +88,37 @@ copy .env.example .env
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
+## Docker Compose Local Setup
+
+For a cross-platform development stack with PostgreSQL, Redis, Django, and Vite:
+
+```bash
+docker compose up --build
+```
+
+Open:
+
+- Frontend: `http://127.0.0.1:5173`
+- Backend API: `http://127.0.0.1:8010/api`
+
+The compose stack uses local-only credentials and runs:
+
+- PostgreSQL on `5432`
+- Redis on `6379`
+- Django on `8010`
+- Vite on `5173`
+
+Useful commands:
+
+```bash
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py seed_demo_data
+docker compose exec backend python manage.py check
+docker compose down
+```
+
+If port `5432`, `6379`, `8010`, or `5173` is already used on your machine, change the left side of the matching `ports` entry in `docker-compose.yml`.
+
 ## Settings Profiles
 
 The backend now uses explicit settings profiles:
