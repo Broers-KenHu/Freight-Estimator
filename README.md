@@ -235,6 +235,15 @@ python manage.py sync_reconciliation_snapshots --limit 100
 python manage.py build_freight_audit_matrix --limit 100
 ```
 
+Celery worker for async task execution:
+
+```bash
+cd backend
+celery -A config worker -l info
+```
+
+The synchronous management commands remain available even when Celery/Redis is not running.
+
 Demo data cleanup:
 
 ```bash
