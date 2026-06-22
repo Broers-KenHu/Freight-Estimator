@@ -2,7 +2,7 @@ import { EyeOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Card, Descriptions, Drawer, Input, Space, Table, Tabs, Tag, Typography } from 'antd'
 import { useEffect, useState } from 'react'
-import { listResource } from '../api/client'
+import { api, listResource } from '../api/client'
 import type { QuoteCandidate, QuoteRun } from '../types'
 import { nonZeroChargeLines } from '../utils/charges'
 
@@ -21,6 +21,12 @@ export function QuoteRuns() {
       return listResource<QuoteRun>(`/quote-runs/?${params.toString()}`)
     },
   })
+  const { data: selectedRunDetail, isFetching: isDetailFetching } = useQuery({
+    queryKey: ['quote-run-detail', selectedRun?.id],
+    queryFn: async () => (await api.get<QuoteRun>(`/quote-runs/${selectedRun?.id}/`)).data,
+    enabled: Boolean(selectedRun?.id),
+  })
+  const activeRun = selectedRunDetail || selectedRun
 
   useEffect(() => {
     const handle = window.setTimeout(() => setSearch(searchText.trim()), 350)
@@ -53,7 +59,7 @@ export function QuoteRuns() {
           { title: 'ID', dataIndex: 'id', width: 80 },
           { title: 'Type', dataIndex: 'run_type', width: 130 },
           { title: 'Status', dataIndex: 'status', width: 130, render: (value) => <Tag color={value === 'COMPLETED' ? 'green' : 'red'}>{value}</Tag> },
-          { title: 'Candidates', render: (_, record) => record.candidates?.length || 0, width: 110 },
+          { title: 'Candidates', render: (_, record) => record.candidate_count ?? record.candidates?.length ?? 0, width: 110 },
           { title: 'Created', dataIndex: 'created_at', width: 210 },
           {
             title: '',
@@ -66,20 +72,21 @@ export function QuoteRuns() {
           },
         ]}
       />
-      <Drawer size="large" open={Boolean(selectedRun)} onClose={() => setSelectedRun(null)} title={selectedRun ? `QuoteRun #${selectedRun.id}` : ''}>
-        {selectedRun && (
+      <Drawer size="large" open={Boolean(selectedRun)} onClose={() => setSelectedRun(null)} title={activeRun ? `QuoteRun #${activeRun.id}` : ''}>
+        {activeRun && (
           <Space direction="vertical" size="large" className="full-width">
             <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="Run type">{selectedRun.run_type}</Descriptions.Item>
-              <Descriptions.Item label="Status">{selectedRun.status}</Descriptions.Item>
+              <Descriptions.Item label="Run type">{activeRun.run_type}</Descriptions.Item>
+              <Descriptions.Item label="Status">{activeRun.status}</Descriptions.Item>
               <Descriptions.Item label="Input hash" span={2}>
-                {selectedRun.input_hash}
+                {activeRun.input_hash}
               </Descriptions.Item>
             </Descriptions>
             <Table<QuoteCandidate>
               rowKey="id"
               size="small"
-              dataSource={selectedRun.candidates}
+              loading={isDetailFetching}
+              dataSource={activeRun.candidates || []}
               pagination={false}
               columns={[
                 { title: '#', dataIndex: 'rank', width: 56 },
@@ -105,7 +112,7 @@ export function QuoteRuns() {
                   label: 'Run Trace',
                   children: (
                     <Space direction="vertical" className="full-width">
-                      {(selectedRun.trace_logs || []).map((trace) => (
+                      {(activeRun.trace_logs || []).map((trace) => (
                         <Card key={trace.id} size="small" title={`${trace.event_type} - ${trace.step}`}>
                           <Typography.Paragraph>{trace.message}</Typography.Paragraph>
                           <pre className="debug-json">{JSON.stringify(trace.details_json, null, 2)}</pre>

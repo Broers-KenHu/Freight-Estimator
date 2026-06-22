@@ -86,6 +86,7 @@ from .serializers import (
     PlatformSerializer,
     QuoteCandidateSerializer,
     QuoteChannelSerializer,
+    QuoteRunListSerializer,
     QuoteRunSerializer,
     QuoteTraceLogSerializer,
     RateCardCompareSerializer,
@@ -1882,10 +1883,20 @@ class ImportJobViewSet(mixins.RetrieveModelMixin, mixins.ListModelMixin, mixins.
 
 class QuoteRunViewSet(viewsets.ReadOnlyModelViewSet):
     permission_namespace = "quote.history"
-    queryset = QuoteRun.objects.prefetch_related("candidates__charge_lines").select_related("platform", "warehouse").all().order_by("-created_at")
-    serializer_class = QuoteRunSerializer
+    queryset = QuoteRun.objects.all()
     filterset_fields = ["run_type", "status", "platform", "warehouse", "historical_order"]
     search_fields = ["source", "input_hash", "error_message", "platform__code", "platform__name", "warehouse__code", "warehouse__name"]
+
+    def get_queryset(self):
+        queryset = QuoteRun.objects.select_related("platform", "warehouse").all().order_by("-created_at")
+        if self.action == "list":
+            return queryset.annotate(candidate_count=Count("candidates"))
+        return queryset.prefetch_related("candidates__charge_lines", "candidates__trace_logs", "trace_logs")
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return QuoteRunListSerializer
+        return QuoteRunSerializer
 
 
 class QuoteCandidateViewSet(viewsets.ReadOnlyModelViewSet):

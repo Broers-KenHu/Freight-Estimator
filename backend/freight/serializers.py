@@ -680,6 +680,32 @@ class QuoteRunSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class QuoteRunListSerializer(serializers.ModelSerializer):
+    platform_code = serializers.CharField(source="platform.code", read_only=True)
+    platform_name = serializers.CharField(source="platform.name", read_only=True)
+    warehouse_code = serializers.CharField(source="warehouse.code", read_only=True)
+    warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)
+    candidate_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = QuoteRun
+        fields = [
+            "id",
+            "run_type",
+            "source",
+            "status",
+            "platform_code",
+            "platform_name",
+            "warehouse_code",
+            "warehouse_name",
+            "input_hash",
+            "error_message",
+            "candidate_count",
+            "created_at",
+            "updated_at",
+        ]
+
+
 class ApiCallLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = ApiCallLog

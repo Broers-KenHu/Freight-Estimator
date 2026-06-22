@@ -206,8 +206,9 @@ export type QuoteRun = {
   status: string
   input_hash: string
   created_at: string
-  candidates: QuoteCandidate[]
-  trace_logs: QuoteTraceLog[]
+  candidate_count?: number
+  candidates?: QuoteCandidate[]
+  trace_logs?: QuoteTraceLog[]
 }
 
 export type QuoteChannel = {

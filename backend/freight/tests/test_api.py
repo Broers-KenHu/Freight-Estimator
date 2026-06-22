@@ -108,6 +108,32 @@ def test_manual_quote_endpoint_accepts_all_platform_and_warehouse(api):
 
 
 @pytest.mark.django_db
+def test_quote_run_list_is_lightweight_and_detail_includes_trace(api):
+    quote_response = api.post(
+        "/api/quotes/manual",
+        {
+            "platform_code": "SHOPIFY_AU",
+            "warehouse_code": "MEL_WH",
+            "destination": {"state": "VIC", "suburb": "SOUTH MELBOURNE", "postcode": "3205"},
+            "items": [{"sku": "DEMO-CHAIR", "qty": "1"}],
+        },
+        format="json",
+    )
+    run_id = quote_response.data["id"]
+
+    list_response = api.get("/api/quote-runs/")
+    detail_response = api.get(f"/api/quote-runs/{run_id}/")
+
+    listed = next(row for row in list_response.data["results"] if row["id"] == run_id)
+    assert list_response.status_code == 200
+    assert listed["candidate_count"] > 0
+    assert "candidates" not in listed
+    assert detail_response.status_code == 200
+    assert detail_response.data["candidates"]
+    assert detail_response.data["trace_logs"]
+
+
+@pytest.mark.django_db
 def test_manual_quote_preserves_order_sku_tracking_metadata(api):
     response = api.post(
         "/api/quotes/manual",
