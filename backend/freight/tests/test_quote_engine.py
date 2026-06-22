@@ -65,6 +65,55 @@ def test_disabled_channel_is_not_imported_or_executed(demo_data, payload):
 
 
 @pytest.mark.django_db
+def test_calculator_configuration_error_is_structured(demo_data, payload):
+    base_channel = QuoteChannel.objects.get(code="hunter_mel_2023")
+    bad = QuoteChannel.objects.create(
+        code="bad_calculator_path",
+        name="Bad Calculator Path",
+        carrier=base_channel.carrier,
+        service=base_channel.service,
+        provider_type=QuoteChannel.ProviderType.TABLE,
+        calculator_key="freight.calculators.missing.DoesNotExist",
+        enabled=True,
+        priority=0,
+    )
+
+    run = QuoteEngine().quote_manual(payload)
+    candidate = run.candidates.get(channel=bad)
+    trace = candidate.trace_logs.get(step="calculator_result")
+
+    assert candidate.availability == QuoteCandidate.Availability.NOT_AVAILABLE
+    assert candidate.not_available_reason == "calculator_configuration_error"
+    assert candidate.debug_breakdown["error_code"] == "calculator_configuration_error"
+    assert candidate.debug_breakdown["exception_class"] == "ModuleNotFoundError"
+    assert candidate.debug_breakdown["channel_code"] == bad.code
+    assert candidate.debug_breakdown["calculator_key"] == bad.calculator_key
+    assert trace.details_json["not_available_reason"] == "calculator_configuration_error"
+    assert trace.details_json["debug_breakdown"]["channel_code"] == bad.code
+
+
+@pytest.mark.django_db
+def test_engine_error_is_structured(monkeypatch, demo_data, payload):
+    engine = QuoteEngine()
+
+    def fail_run(*args, **kwargs):
+        raise RuntimeError("forced engine failure")
+
+    monkeypatch.setattr(engine, "_quote_into_run", fail_run)
+
+    run = engine.quote_manual(payload)
+    candidate = run.candidates.get()
+    trace = candidate.trace_logs.get(step="eligibility")
+
+    assert run.status == "FAILED"
+    assert candidate.not_available_reason == "engine_error"
+    assert candidate.raw_response_json["error_code"] == "engine_error"
+    assert candidate.raw_response_json["exception_class"] == "RuntimeError"
+    assert candidate.raw_response_json["platform_code"] == payload["platform_code"]
+    assert trace.details_json["error_code"] == "engine_error"
+
+
+@pytest.mark.django_db
 def test_adjustment_rule_can_block_a_suburb(demo_data, payload):
     channel = QuoteChannel.objects.get(code="hunter_mel_2023")
     AdjustmentRule.objects.create(

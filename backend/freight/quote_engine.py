@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -11,6 +12,7 @@ from django.utils import timezone
 
 from .calculators.base import CalculatorResult, Destination, QuoteContext, QuoteItem, D, norm
 from .calculators.registry import ChannelRegistry
+from .exceptions import safe_error_details
 from .models import (
     HistoricalOrder,
     Platform,
@@ -31,6 +33,9 @@ from .services.rate_card_selector import RateCardSelector
 
 if TYPE_CHECKING:
     from .models import RateCard, SKU, SKUComboComponent
+
+
+logger = logging.getLogger(__name__)
 
 
 def json_safe(value: Any) -> Any:
@@ -70,13 +75,16 @@ class QuoteEngine:
             input_snapshot_json=json_safe(enriched_payload),
             created_by=user if getattr(user, "is_authenticated", False) else None,
         )
+        logger.info("Quote run started", extra={"quote_run_id": run.id, "run_type": run.run_type, "source": run.source})
         try:
             self._quote_into_run(run, context)
             run.status = QuoteRun.Status.COMPLETED
         except Exception as exc:  # noqa: BLE001
+            details = self._engine_error_details(exc, run, context)
+            logger.exception("Quote run failed", extra={"quote_run_id": run.id, "error_code": details["error_code"]})
             run.status = QuoteRun.Status.FAILED
             run.error_message = str(exc)
-            self._save_synthetic_candidate(run, "engine_error", str(exc))
+            self._save_synthetic_candidate(run, details["error_code"], str(exc), details)
         run.finished_at = timezone.now()
         run.save(update_fields=["status", "error_message", "finished_at", "updated_at"])
         self._rank_candidates(run)
@@ -138,13 +146,16 @@ class QuoteEngine:
             input_snapshot_json=json_safe(enriched_payload),
             created_by=user if getattr(user, "is_authenticated", False) else None,
         )
+        logger.info("Quote run started", extra={"quote_run_id": run.id, "run_type": run.run_type, "source": run.source})
         try:
             self._quote_selected_channels_into_run(run, context, channels)
             run.status = QuoteRun.Status.COMPLETED
         except Exception as exc:  # noqa: BLE001
+            details = self._engine_error_details(exc, run, context)
+            logger.exception("Quote run failed", extra={"quote_run_id": run.id, "error_code": details["error_code"]})
             run.status = QuoteRun.Status.FAILED
             run.error_message = str(exc)
-            self._save_synthetic_candidate(run, "engine_error", str(exc))
+            self._save_synthetic_candidate(run, details["error_code"], str(exc), details)
         run.finished_at = timezone.now()
         run.save(update_fields=["status", "error_message", "finished_at", "updated_at"])
         self._rank_candidates(run)
@@ -234,12 +245,66 @@ class QuoteEngine:
             self._attach_default_rate_card(channel, context)
             try:
                 calculator = self.registry.load(channel)
-                result = calculator.quote(context)
             except Exception as exc:  # noqa: BLE001
-                result = CalculatorResult.not_available(channel.name, "calculator_error", {"error": str(exc)})
+                details = self._calculator_error_details(exc, channel, context, "calculator_configuration_error")
+                logger.exception(
+                    "Calculator load failed",
+                    extra={"channel_code": channel.code, "calculator_key": channel.calculator_key, "error_code": details["error_code"]},
+                )
+                result = CalculatorResult.not_available(channel.name, details["error_code"], details)
+            else:
+                try:
+                    result = calculator.quote(context)
+                except Exception as exc:  # noqa: BLE001
+                    details = self._calculator_error_details(exc, channel, context, "calculator_execution_error")
+                    logger.exception(
+                        "Calculator execution failed",
+                        extra={
+                            "channel_code": channel.code,
+                            "calculator_key": channel.calculator_key,
+                            "error_code": details["error_code"],
+                        },
+                    )
+                    result = CalculatorResult.not_available(channel.name, details["error_code"], details)
             self._apply_adjustments(result, context, channel)
             candidate = self._save_result(run, channel, result)
             self._save_trace(run, candidate, channel, context, result)
+
+    def _engine_error_details(self, exc: Exception, run: QuoteRun, context: QuoteContext) -> dict[str, Any]:
+        return safe_error_details(
+            exc,
+            "engine_error",
+            quote_run_id=run.id,
+            run_type=run.run_type,
+            source=run.source,
+            platform_code=context.platform_code,
+            warehouse_code=context.warehouse_code,
+            destination=context.destination.__dict__,
+        )
+
+    def _calculator_error_details(
+        self,
+        exc: Exception,
+        channel: QuoteChannel,
+        context: QuoteContext,
+        fallback_code: str,
+    ) -> dict[str, Any]:
+        return safe_error_details(
+            exc,
+            fallback_code,
+            channel_code=channel.code,
+            channel_id=channel.id,
+            provider_type=channel.provider_type,
+            calculator_key=channel.calculator_key,
+            carrier_code=channel.carrier.code,
+            carrier_name=channel.carrier.name,
+            service_code=channel.service.code if channel.service else "",
+            rate_card_id=channel.rate_card_id,
+            rate_card_name=channel.rate_card.name if channel.rate_card else "",
+            platform_code=context.platform_code,
+            warehouse_code=context.warehouse_code,
+            destination=context.destination.__dict__,
+        )
 
     def _eligible_channels(self, context: QuoteContext) -> list[QuoteChannel] | str:
         return self.channel_eligibility.eligible_channels(context)
@@ -308,14 +373,21 @@ class QuoteEngine:
             )
         return candidate
 
-    def _save_synthetic_candidate(self, run: QuoteRun, reason: str, message: str) -> QuoteCandidate:
+    def _save_synthetic_candidate(
+        self,
+        run: QuoteRun,
+        reason: str,
+        message: str,
+        details_json: dict[str, Any] | None = None,
+    ) -> QuoteCandidate:
+        details = details_json or {"reason": reason, "message": message}
         candidate = QuoteCandidate.objects.create(
             quote_run=run,
             provider_type="SYSTEM",
             provider_name="Eligibility",
             availability=QuoteCandidate.Availability.NOT_AVAILABLE,
             not_available_reason=reason,
-            raw_response_json={"message": message},
+            raw_response_json=json_safe(details if details_json else {"message": message}),
         )
         QuoteTraceLog.objects.create(
             quote_run=run,
@@ -323,7 +395,7 @@ class QuoteEngine:
             event_type=QuoteTraceLog.EventType.NOT_AVAILABLE,
             step="eligibility",
             message=message,
-            details_json={"reason": reason},
+            details_json=json_safe(details),
         )
         return candidate
 
