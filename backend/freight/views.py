@@ -2521,33 +2521,34 @@ def import_historical_order_csv(upload, user) -> ImportJob:
     errors = 0
     for order_no, order_rows in grouped.items():
         try:
-            first = order_rows[0]
-            platform = Platform.objects.filter(code=first.get("platform_code", "")).first()
-            warehouse = Warehouse.objects.filter(code=first.get("warehouse_code", "")).first()
-            order = HistoricalOrder.objects.create(
-                order_no=order_no,
-                consignment_no=first.get("consignment_no", ""),
-                platform=platform,
-                warehouse=warehouse,
-                suburb=(first.get("suburb") or "").upper(),
-                postcode=first.get("postcode", ""),
-                state=(first.get("state") or "").upper(),
-                actual_carrier=first.get("actual_carrier", ""),
-                actual_freight=Decimal(first["actual_freight"]) if first.get("actual_freight") else None,
-                raw_payload={"source": "csv"},
-            )
-            for row in order_rows:
-                HistoricalOrderItem.objects.create(
-                    order=order,
-                    sku=row.get("sku", ""),
-                    qty=Decimal(row.get("qty") or "1"),
-                    unit_weight_kg=Decimal(row.get("unit_weight_kg") or "0"),
-                    length_cm=Decimal(row.get("length_cm") or "0"),
-                    width_cm=Decimal(row.get("width_cm") or "0"),
-                    height_cm=Decimal(row.get("height_cm") or "0"),
-                    raw_payload=row,
+            with transaction.atomic():
+                first = order_rows[0]
+                platform = Platform.objects.filter(code=first.get("platform_code", "")).first()
+                warehouse = Warehouse.objects.filter(code=first.get("warehouse_code", "")).first()
+                order = HistoricalOrder.objects.create(
+                    order_no=order_no,
+                    consignment_no=first.get("consignment_no", ""),
+                    platform=platform,
+                    warehouse=warehouse,
+                    suburb=(first.get("suburb") or "").upper(),
+                    postcode=first.get("postcode", ""),
+                    state=(first.get("state") or "").upper(),
+                    actual_carrier=first.get("actual_carrier", ""),
+                    actual_freight=Decimal(first["actual_freight"]) if first.get("actual_freight") else None,
+                    raw_payload={"source": "csv"},
                 )
-            order_ids.append(order.id)
+                for row in order_rows:
+                    HistoricalOrderItem.objects.create(
+                        order=order,
+                        sku=row.get("sku", ""),
+                        qty=Decimal(row.get("qty") or "1"),
+                        unit_weight_kg=Decimal(row.get("unit_weight_kg") or "0"),
+                        length_cm=Decimal(row.get("length_cm") or "0"),
+                        width_cm=Decimal(row.get("width_cm") or "0"),
+                        height_cm=Decimal(row.get("height_cm") or "0"),
+                        raw_payload=row,
+                    )
+                order_ids.append(order.id)
         except Exception:  # noqa: BLE001
             errors += 1
     return ImportJob.objects.create(
