@@ -1,32 +1,18 @@
 import {
-  ApiOutlined,
-  ApartmentOutlined,
-  AppstoreOutlined,
-  AuditOutlined,
-  BarChartOutlined,
-  CalculatorOutlined,
-  CarOutlined,
-  ClusterOutlined,
-  DatabaseOutlined,
-  DeploymentUnitOutlined,
-  DollarOutlined,
   EyeOutlined,
-  FileSearchOutlined,
-  HistoryOutlined,
-  HomeOutlined,
   LogoutOutlined,
-  SettingOutlined,
   SyncOutlined,
-  TagsOutlined,
 } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Avatar, Button, ConfigProvider, Layout, Menu, Space, Tag, Typography, message, theme, type MenuProps } from 'antd'
+import { Avatar, Button, ConfigProvider, Layout, Menu, Space, Tag, Typography, message, theme } from 'antd'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import './styles.css'
 import { api, listResource } from './api/client'
 import { clearAccessToken, getAccessToken } from './auth/session'
-import { ResourceTable, StatusTag, type FieldConfig } from './components/ResourceTable'
+import { ResourceTable, StatusTag } from './components/ResourceTable'
 import { PlatformDetailDrawer } from './components/PlatformDetailDrawer'
+import { boolRender, carrierNameRender, flag, num, selectField, text } from './config/fieldFactories'
+import { buildVisibleMenuItems, type MenuKey } from './config/menuItems'
 import { AccessManagement } from './pages/AccessManagement'
 import { Dashboard } from './pages/Dashboard'
 import { FreightAuditMatrix } from './pages/FreightAuditMatrix'
@@ -43,49 +29,7 @@ import { SKUMaster } from './pages/SKUMaster'
 import type { Carrier, CarrierService, Platform, RateCard, UserProfile, Warehouse } from './types'
 
 const { Header, Sider, Content } = Layout
-type MenuItem = NonNullable<MenuProps['items']>[number]
 const ACCESS_REQUEST_TIMEOUT_MS = 8000
-
-type MenuKey =
-  | 'dashboard'
-  | 'manualQuote'
-  | 'quoteRuns'
-  | 'platforms'
-  | 'agents'
-  | 'carriers'
-  | 'carrierServices'
-  | 'platformCarriers'
-  | 'warehouses'
-  | 'warehousePlatforms'
-  | 'warehouseCarriers'
-  | 'skus'
-  | 'rateCards'
-  | 'rateZones'
-  | 'rateRules'
-  | 'surcharges'
-  | 'adjustments'
-  | 'quoteChannels'
-  | 'invoiceReconciliation'
-  | 'freightAudit'
-  | 'historical'
-  | 'lspApiQuotes'
-  | 'users'
-  | 'audit'
-
-const boolRender = (value: boolean) => <StatusTag value={value} />
-const text = (name: string, label: string, required = false) => ({ name, label, required })
-const num = (name: string, label: string, required = false) => ({ name, label, kind: 'number' as const, required })
-const flag = (name: string, label: string) => ({ name, label, kind: 'boolean' as const })
-const carrierNameRender = (value: unknown, record: Record<string, unknown>) => value || record.carrier_code || '-'
-const selectField = (name: string, label: string, options: { label: string; value: number | string }[], required = false, allowClear = !required): FieldConfig => ({
-  name,
-  label,
-  kind: 'select',
-  options,
-  required,
-  allowClear,
-})
-const menuItems = (items: Array<MenuItem | false | null | undefined>) => items.filter(Boolean) as MenuItem[]
 
 function MasterSyncButton({ endpoint, label, invalidateKey }: { endpoint: string; label: string; invalidateKey: string }) {
   const [messageApi, contextHolder] = message.useMessage()
@@ -511,57 +455,7 @@ function App() {
   })
   const can = useCallback((permission: string) => Boolean(user?.permissions?.includes('*') || user?.permissions?.includes(permission)), [user?.permissions])
   const canAny = useCallback((permissions: string[]) => permissions.some(can), [can])
-  const visibleMenuItems = useMemo(
-    () =>
-      menuItems([
-        can('dashboard.view') && { key: 'dashboard', icon: <BarChartOutlined />, label: 'Dashboard' },
-        can('quote.manual') && { key: 'manualQuote', icon: <CalculatorOutlined />, label: 'Manual Quote' },
-        can('quote.history.view') && { key: 'quoteRuns', icon: <HistoryOutlined />, label: 'Quote Runs' },
-        canAny(['master.view', 'sku.view']) && {
-          key: 'master',
-          icon: <DatabaseOutlined />,
-          label: 'Master Data',
-          children: menuItems([
-            can('master.view') && { key: 'platforms', icon: <AppstoreOutlined />, label: 'Platforms' },
-            can('master.view') && { key: 'agents', icon: <ApiOutlined />, label: 'Agents' },
-            can('master.view') && { key: 'carriers', icon: <CarOutlined />, label: 'Carriers' },
-            can('master.view') && { key: 'carrierServices', icon: <TagsOutlined />, label: 'Carrier Services' },
-            can('master.view') && { key: 'platformCarriers', icon: <ClusterOutlined />, label: 'Platform-Carriers' },
-            can('master.view') && { key: 'warehouses', icon: <HomeOutlined />, label: 'Warehouses' },
-            can('master.view') && { key: 'warehousePlatforms', icon: <ApartmentOutlined />, label: 'Warehouse Platforms' },
-            can('master.view') && { key: 'warehouseCarriers', icon: <DeploymentUnitOutlined />, label: 'Warehouse Carriers' },
-            can('sku.view') && { key: 'skus', icon: <TagsOutlined />, label: 'SKU Master' },
-          ]),
-        },
-        can('pricing.view') && {
-          key: 'pricing',
-          icon: <DollarOutlined />,
-          label: 'Pricing',
-          children: [
-            { key: 'rateCards', label: 'Rate Cards' },
-            { key: 'rateZones', label: 'Rate Zones' },
-            { key: 'rateRules', label: 'Rate Rules' },
-            { key: 'surcharges', label: 'Surcharges' },
-            { key: 'adjustments', label: 'Adjustment Rules' },
-          ],
-        },
-        can('order.view') && { key: 'historical', icon: <HistoryOutlined />, label: 'Order Imports' },
-        can('order.view') && { key: 'lspApiQuotes', icon: <ApiOutlined />, label: 'LSP API Quotes' },
-        can('invoice.view') && { key: 'invoiceReconciliation', icon: <FileSearchOutlined />, label: 'Invoice Reconciliation' },
-        can('quote.audit.view') && { key: 'freightAudit', icon: <CalculatorOutlined />, label: 'Freight Audit Matrix' },
-        can('integration.view') && { key: 'quoteChannels', icon: <ApiOutlined />, label: 'Quote Channels' },
-        canAny(['user.view', 'audit.view']) && {
-          key: 'admin',
-          icon: <SettingOutlined />,
-          label: 'Admin',
-          children: menuItems([
-            can('user.view') && { key: 'users', label: 'Users & Roles' },
-            can('audit.view') && { key: 'audit', icon: <AuditOutlined />, label: 'Audit Logs' },
-          ]),
-        },
-      ]),
-    [can, canAny],
-  )
+  const visibleMenuItems = useMemo(() => buildVisibleMenuItems(can, canAny), [can, canAny])
 
   useEffect(() => {
     if (isError) clearAccessToken()
