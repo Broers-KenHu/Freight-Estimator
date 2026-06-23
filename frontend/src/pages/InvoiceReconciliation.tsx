@@ -9,20 +9,19 @@ const money = (value?: string | null) => (value === null || value === undefined 
 const erpEstimateMoney = (value?: string | null) => {
   if (value === null || value === undefined) return '-'
   const numeric = Number(value)
-  return Number.isFinite(numeric) ? `$${(numeric * 1.1).toFixed(2)}` : '-'
+  return Number.isFinite(numeric) ? `$${numeric.toFixed(2)}` : '-'
 }
 const erpVarianceMoney = (_value: string | null, record: InvoiceReconciliationItem) => {
   const actual = Number(record.actual_freight)
-  const estimate = Number(record.estimated_freight)
+  const estimate = Number(record.estimated_freight_inc_gst ?? record.estimated_freight)
   if (!Number.isFinite(actual) || !Number.isFinite(estimate)) return '-'
-  return `$${(actual - estimate * 1.1).toFixed(2)}`
+  return `$${(actual - estimate).toFixed(2)}`
 }
 const erpVariancePercent = (_value: string | null, record: InvoiceReconciliationItem) => {
   const actual = Number(record.actual_freight)
-  const estimate = Number(record.estimated_freight)
+  const estimate = Number(record.estimated_freight_inc_gst ?? record.estimated_freight)
   if (!Number.isFinite(actual) || !Number.isFinite(estimate) || estimate === 0) return '-'
-  const estimateIncGst = estimate * 1.1
-  return `${(((actual - estimateIncGst) / estimateIncGst) * 100).toFixed(1)}%`
+  return `${(((actual - estimate) / estimate) * 100).toFixed(1)}%`
 }
 const percent = (value?: string | null) => (value === null || value === undefined ? '-' : `${Number(value).toFixed(1)}%`)
 const compactText = (value?: string | null) => value || '-'
@@ -62,6 +61,7 @@ export function InvoiceReconciliation() {
 
   const uploadProps: UploadProps = {
     name: 'file',
+    accept: '.csv,.xlsx',
     showUploadList: false,
     customRequest: async ({ file, onSuccess, onError }) => {
       const form = new FormData()
@@ -137,7 +137,14 @@ export function InvoiceReconciliation() {
     { title: 'Source', dataIndex: 'invoice_source_name', width: 170, ellipsis: true, render: compactText },
     { title: 'Carrier', dataIndex: 'carrier_name', width: 140, ellipsis: true, render: (value: string, record: InvoiceReconciliationItem) => value || record.carrier_code || '-' },
     { title: 'Service', dataIndex: 'carrier_service_name', width: 150, ellipsis: true, render: (value: string, record: InvoiceReconciliationItem) => value || record.carrier_service_code || '-' },
-    { title: 'ERP Est. inc GST', dataIndex: 'estimated_freight', width: 112, align: 'right' as const, className: 'money-cell', render: erpEstimateMoney },
+    {
+      title: 'ERP Est. inc GST',
+      dataIndex: 'estimated_freight_inc_gst',
+      width: 112,
+      align: 'right' as const,
+      className: 'money-cell',
+      render: erpEstimateMoney,
+    },
     { title: 'System Est.', dataIndex: 'system_estimated_freight', width: 92, align: 'right' as const, className: 'money-cell', render: money },
     { title: 'Actual', dataIndex: 'actual_freight', width: 86, align: 'right' as const, className: 'money-cell', render: money },
     { title: 'ERP Diff', dataIndex: 'variance_amount', width: 86, align: 'right' as const, className: 'money-cell', render: erpVarianceMoney },
@@ -184,7 +191,7 @@ export function InvoiceReconciliation() {
           </Button>
           <Upload {...uploadProps}>
             <Button type="primary" icon={<UploadOutlined />}>
-              Upload Invoice CSV
+              Upload Invoice CSV/XLSX
             </Button>
           </Upload>
         </Space>

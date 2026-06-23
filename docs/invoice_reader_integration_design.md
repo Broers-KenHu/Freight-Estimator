@@ -45,7 +45,9 @@ The importer groups source lines by:
 
 The grouped row becomes one `InvoiceReconciliationItem`. This avoids comparing the same estimate multiple times when a carrier splits base freight, fuel, oversize, return, or adjustment charges into separate invoice rows.
 
-All imported `actual_freight` values are normalized to inc GST because quote candidates store `total_inc_gst`.
+All imported `actual_freight` values are normalized to inc GST because quote candidates store `total_inc_gst`. ERP estimates from owner-order fields are stored in their original ex-GST basis, while API serializers, exports, and reconciliation variance calculations use an inc-GST comparison value.
+
+Manual invoice upload supports CSV and XLSX. Direct PDF upload is intentionally not parsed in CourieDelivery yet; PDF invoice data should be parsed by InvoiceReader first and then synced from its operational tables.
 
 ## Source Mapping
 
@@ -72,10 +74,11 @@ For each grouped invoice row:
 - If multiple ERP shipment rows share the same tracking number, use carrier/channel/service text from `data_raw.erp.hpoms_owner_order_shipment_detail` and the invoice source to choose the best candidate.
 - Use the matched ERP shipment snapshot to populate ERP order number, owner order number, third-party/rd3 order number, platform order number, platform, carrier/channel/service, warehouse, and saved shipping estimate.
 - ERP snapshot estimates currently come from `hpoms_owner_order.postage_shipping_estimated_amount`, falling back to `hpoms_owner_order.shipping_estimated_amount`. Avoid per-row lateral lookups to `hpoms_order_shipping_estimated_detail` during large invoice reconciliation imports unless that table has suitable indexes.
-- Compare `InvoiceChargeSnapshot.actual_freight` against `ErpShipmentSnapshot.estimated_freight`.
+- Compare `InvoiceChargeSnapshot.actual_freight` against `ErpShipmentSnapshot.estimated_freight * 1.10` because ERP freight estimates are imported ex GST.
 - Optional system-estimate backfill compares `InvoiceChargeSnapshot.actual_freight` against CourieDelivery's current quote engine result:
-  - `estimated_freight` = ERP Est.
-  - `system_estimated_freight` = System Est. from current rate cards/calculators.
+  - `estimated_freight` = ERP Est. in source basis.
+  - `estimated_freight_inc_gst` = normalized ERP/System estimate for display and variance comparison.
+  - `system_estimated_freight` = System Est. from current rate cards/calculators, already inc GST.
   - `system_variance_amount` = actual invoice freight minus System Est.
 - Mark rows outside tolerance as reconciliation exceptions and recommend disputes only for overcharges.
 - When invoice rows match by shipment tracking, write `ErpShipmentSnapshot.erp_order_no` back to `InvoiceReconciliationItem.order_no` so the UI can display the ERP order and the saved estimate.

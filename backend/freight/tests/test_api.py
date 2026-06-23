@@ -1,5 +1,6 @@
 import pytest
 import jwt
+from io import BytesIO
 from decimal import Decimal
 from types import SimpleNamespace
 from django.core.management import call_command
@@ -233,6 +234,31 @@ def test_invoice_reconciliation_matches_order_by_shipment_tracking(api):
 
 
 @pytest.mark.django_db
+def test_invoice_reconciliation_upload_accepts_xlsx(api):
+    from openpyxl import Workbook
+
+    order = HistoricalOrder.objects.get(order_no="DEMO-1001")
+    QuoteEngine().quote_historical_order(order)
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["carrier_code", "order_no", "consignment_no", "invoice_no", "invoice_date", "actual_freight"])
+    sheet.append(["HUNTER", "DEMO-1001", "CON-DEMO-1001", "INV-XLSX-1", "2026-05-22", "112.50"])
+    payload = BytesIO()
+    workbook.save(payload)
+    upload = SimpleUploadedFile(
+        "invoice.xlsx",
+        payload.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+    response = api.post("/api/invoice-reconciliation-batches/", {"file": upload}, format="multipart")
+
+    assert response.status_code == 201
+    assert response.data["total_rows"] == 1
+    assert response.data["items"][0]["invoice_no"] == "INV-XLSX-1"
+
+
+@pytest.mark.django_db
 def test_sku_sync_endpoint_returns_latest_job(api, monkeypatch):
     def fake_call_command(*args, **kwargs):
         ImportJob.objects.create(
@@ -408,6 +434,23 @@ def test_order_lookup_includes_matched_lsp_quote(api):
     assert result["lsp_quote"]["selected_price"] == "18.5"
     assert result["lsp_quote"]["predicted_carrier_name"] == "Hunter Express"
     assert [option["shipping_cost"] for option in result["lsp_quote"]["options"]] == ["18.5", "22.75"]
+
+
+@pytest.mark.django_db
+def test_rematch_lsp_api_quotes_matches_existing_snapshot_by_tracking(api):
+    order = HistoricalOrder.objects.get(order_no="DEMO-1001")
+    HistoricalOrderShipment.objects.create(order=order, tracking_no="TRK-REMATCH-LSP-1")
+    snapshot = LspApiQuoteSnapshot.objects.create(
+        source_system="data_raw.lsp.lsp_openapi_quote_task",
+        source_external_id="OPENAPI-REMATCH-1",
+        booking_tracking_no="TRK-REMATCH-LSP-1",
+    )
+
+    call_command("rematch_lsp_api_quotes", limit=10, verbosity=0)
+
+    snapshot.refresh_from_db()
+    assert snapshot.historical_order == order
+    assert snapshot.erp_order_no == order.order_no
 
 
 @pytest.mark.django_db

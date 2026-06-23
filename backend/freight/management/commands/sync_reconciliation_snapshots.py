@@ -46,6 +46,7 @@ SOURCE_TZ = ZoneInfo("Australia/Sydney")
 ERP_SHIPMENT_SYSTEM = f"{SOURCE_DATABASE}.{SOURCE_SCHEMA}.hpoms_owner_order_shipment_detail"
 INVOICE_CHARGE_SYSTEM_PREFIX = f"{INVOICE_DATABASE}.{INVOICE_SCHEMA}.invoice_charge_snapshot"
 RECONCILIATION_SYSTEM = "invoiceReader.tracking_reconciliation"
+GST_MULTIPLIER = Decimal("1.10")
 
 
 def parse_date(value: Any):
@@ -671,12 +672,13 @@ class Command(BaseCommand):
         if erp_snapshot and estimate is None:
             reason = f"{match_reason}; ERP shipment has no shipping estimate"
         elif erp_snapshot and estimate is not None and estimate != 0:
-            variance_amount = actual - estimate
-            variance_percent = (variance_amount / estimate) * Decimal("100")
+            comparison_estimate = estimate * GST_MULTIPLIER
+            variance_amount = actual - comparison_estimate
+            variance_percent = (variance_amount / comparison_estimate) * Decimal("100") if comparison_estimate else None
             if abs(variance_amount) <= Decimal("2.00") or abs(variance_percent) <= Decimal("5.00"):
                 match_status = InvoiceReconciliationItem.MatchStatus.MATCHED
                 variance_type = InvoiceReconciliationItem.VarianceType.OK
-                reason = f"{match_reason}; within tolerance"
+                reason = f"{match_reason}; ERP estimate inc GST within tolerance"
             else:
                 match_status = InvoiceReconciliationItem.MatchStatus.EXCEPTION
                 variance_type = (
@@ -685,7 +687,7 @@ class Command(BaseCommand):
                     else InvoiceReconciliationItem.VarianceType.UNDERCHARGE
                 )
                 dispute = variance_amount > 0
-                reason = f"{match_reason}; variance outside tolerance"
+                reason = f"{match_reason}; ERP estimate inc GST variance outside tolerance"
 
         order = erp_snapshot.order if erp_snapshot else None
         return InvoiceReconciliationItem(
@@ -724,6 +726,8 @@ class Command(BaseCommand):
                         "carrier_channel": erp_snapshot.carrier_channel if erp_snapshot else "",
                         "estimate_source": erp_snapshot.estimate_source if erp_snapshot else "",
                     },
+                    "estimate_basis": "ERP_EX_GST",
+                    "comparison_estimated_freight_inc_gst": str(estimate * GST_MULTIPLIER) if estimate is not None else "",
                     "invoice": {
                         "source_key": charge.source_key,
                         "source_label": charge.source_label,

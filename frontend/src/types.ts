@@ -243,6 +243,8 @@ export type InvoiceReconciliationItem = {
   invoice_source_name?: string
   quote_provider?: string
   estimated_freight: string | null
+  estimated_freight_inc_gst?: string | null
+  estimated_freight_basis?: string
   system_estimated_freight?: string | null
   actual_freight: string
   variance_amount: string | null

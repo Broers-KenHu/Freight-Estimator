@@ -728,10 +728,35 @@ class InvoiceReconciliationItemSerializer(serializers.ModelSerializer):
     invoice_source_code = serializers.CharField(source="invoice_source.code", read_only=True)
     invoice_source_name = serializers.CharField(source="invoice_source.name", read_only=True)
     quote_provider = serializers.CharField(source="quote_candidate.provider_name", read_only=True)
+    estimated_freight_inc_gst = serializers.SerializerMethodField()
+    estimated_freight_basis = serializers.SerializerMethodField()
 
     class Meta:
         model = InvoiceReconciliationItem
         fields = "__all__"
+
+    def get_estimated_freight_inc_gst(self, obj: InvoiceReconciliationItem):
+        if obj.estimated_freight is None:
+            return None
+        payload = obj.raw_payload or {}
+        explicit = payload.get("comparison_estimated_freight_inc_gst")
+        if explicit not in (None, ""):
+            return explicit
+        if obj.quote_candidate_id:
+            return obj.estimated_freight
+        if obj.erp_shipment_snapshot_id or obj.invoice_charge_snapshot_id or str(obj.source_system or "").startswith("invoiceReader."):
+            return obj.estimated_freight * Decimal("1.10")
+        return obj.estimated_freight
+
+    def get_estimated_freight_basis(self, obj: InvoiceReconciliationItem) -> str:
+        payload = obj.raw_payload or {}
+        if payload.get("estimate_basis"):
+            return str(payload["estimate_basis"])
+        if obj.quote_candidate_id:
+            return "SYSTEM_INC_GST"
+        if obj.erp_shipment_snapshot_id or obj.invoice_charge_snapshot_id or str(obj.source_system or "").startswith("invoiceReader."):
+            return "ERP_EX_GST"
+        return "UNKNOWN"
 
 
 class InvoiceReconciliationBatchSerializer(serializers.ModelSerializer):

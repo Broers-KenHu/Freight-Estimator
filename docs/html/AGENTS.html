@@ -992,7 +992,7 @@
           </span>
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clock"/></svg>
-            ~18 min read
+            ~19 min read
           </span>
         </div>
       </header>
@@ -1154,17 +1154,18 @@
 <li>Sync command: <code>manage.py sync_invoices_from_sqlserver</code>.</li>
 <li>Default command mode is documented mapping, not heuristic scanning. Legacy heuristic import is only available with <code>--auto-discover</code> for diagnostics.</li>
 <li>Imported actual freight is normalized to inc GST because quote candidates use <code>total_inc_gst</code>.</li>
+<li>Manual invoice upload supports CSV and XLSX. Direct PDF upload is intentionally rejected for now; PDF invoice data should flow through InvoiceReader parsed tables, then <code>sync_reconciliation_snapshots</code> / <code>sync_invoices_from_sqlserver</code>.</li>
 <li>Reconciliation snapshot model: <code>InvoiceChargeSnapshot</code>; it stores InvoiceReader source, invoice no/date, tracking no, actual charge, carrier/service/account, and raw mapping metadata.</li>
 <li>Invoice rows are grouped before import by invoice source, freight account, invoice number, order reference, and consignment/tracking number, so one carrier invoice with multiple fee/surcharge rows does not compare the same estimate repeatedly.</li>
 <li>Matching order for the preferred path: <code>InvoiceChargeSnapshot.tracking_no</code> to <code>ErpShipmentSnapshot.tracking_no</code>, then carrier/channel/service scoring if multiple ERP rows share the same tracking. Do not rely on <code>fact_invoice_order_normalized</code>.</li>
 <li>Once matched by shipment tracking, <code>InvoiceReconciliationItem.order_no</code> should be filled from <code>ErpShipmentSnapshot.erp_order_no</code> so the UI can show the ERP order number and saved estimate.</li>
-<li><code>InvoiceReconciliationItem.estimated_freight</code> is ERP Est. from ERP owner order fields. <code>system_estimated_freight</code> is CourieDelivery System Est. calculated by the current quote engine/rate cards.</li>
+<li><code>InvoiceReconciliationItem.estimated_freight</code> stores the original estimate basis. For InvoiceReader/ERP snapshot rows it is ERP Est. ex GST from ERP owner order fields; serializer also exposes <code>estimated_freight_inc_gst</code> and <code>estimated_freight_basis</code>. <code>system_estimated_freight</code> is CourieDelivery System Est. calculated by the current quote engine/rate cards and is already inc GST.</li>
 <li>System estimate backfill command: <code>manage.py backfill_reconciliation_system_estimates --batch-id 221 --source-config HUNTER --limit 100</code>. Use <code>--order-desc</code> to fill the newest Review rows first. This command reads ERP address/SKU lines for matched invoice tracking rows, runs the current quote engine, and stores <code>system_estimated_freight</code>, <code>system_variance_amount</code>, and <code>system_variance_percent</code>.</li>
 <li>Freight Audit Matrix is the preferred module for cross-carrier historical recalculation. Models: <code>FreightAuditRow</code> and <code>FreightAuditResult</code>. API: <code>/api/freight-audit-rows/</code>. Frontend page: <code>frontend\src\pages\FreightAuditMatrix.tsx</code>.</li>
 <li>Freight Audit Matrix command: <code>manage.py build_freight_audit_matrix --batch-id 221 --mode CONSIGNMENT --limit 5000 --order-batch-size 5000</code>. Add <code>--source-config HUNTER</code> only when intentionally limiting invoice source rows. Add <code>--carrier-keyword pc_hunter_mel_2023</code> or another channel/carrier keyword when reviewing one calculator/channel at a time. <code>--limit</code> is distinct ERP owner-order count, not invoice row count. Remove <code>--limit</code> to process every matching owner order, but this can be very slow because every order runs enabled quote channels and stores traceable quote runs/results.</li>
 <li>Freight Audit Matrix API now has <code>/api/freight-audit-rows/carrier-summary/</code> for the current estimate-enabled carrier/channel list and supports <code>carrier_key</code> / <code>quote_channel_code</code> filters on <code>/api/freight-audit-rows/</code>.</li>
 <li>ERP estimate scope is currently <code>ORDER</code>: <code>ErpShipmentSnapshot.estimated_freight</code> comes from <code>hpoms_owner_order.postage_shipping_estimated_amount</code> / <code>shipping_estimated_amount</code>. Do not compare a single tracking quote directly to ERP Est. In <code>CONSIGNMENT</code> mode the command quotes each tracking/consignment separately, then aggregates totals per carrier/channel back to one owner-order row before calculating variance to ERP Est.</li>
-<li>ERP freight estimate values imported from ERP are ex GST. UI must display ERP Est as inc GST (<code>ERP Est * 1.10</code>). Internal calculator totals are already <code>total_inc_gst</code>; only show that inc-GST total on outer lists/cards. Ex-GST Base/Surcharge/Fuel/GST belongs in breakdown/detail tables.</li>
+<li>ERP freight estimate values imported from ERP are ex GST. UI/export should use backend <code>estimated_freight_inc_gst</code> instead of multiplying blindly because CSV uploads may store system quote estimates that are already inc GST. Internal calculator totals are already <code>total_inc_gst</code>; only show that inc-GST total on outer lists/cards. Ex-GST Base/Surcharge/Fuel/GST belongs in breakdown/detail tables.</li>
 <li>Matrix modes: <code>CONSIGNMENT</code> creates one row per owner order and aggregates all tracking-level quote totals; <code>ORDER</code> calculates all order SKU lines together; <code>ITEM</code> creates one audit row per source SKU line for single-item freight checks and does not compare to ERP order-level estimate.</li>
 <li>Freight Audit Matrix detail UI groups aggregated carrier breakdowns by <code>tracking</code> inside each carrier card, sorted by tracking. Do not collapse multi-tracking charge lines back into one flat table.</li>
 <li>Freight Audit Matrix intentionally calls <code>QuoteEngine.quote_selected_channels</code>, bypassing platform/warehouse carrier eligibility so enabled real calculators can be compared side by side for the same historical order. API channels will appear once their <code>QuoteChannel</code> and calculator/API integration are configured.</li>
@@ -1177,6 +1178,9 @@
 <li>Source mappings are declared in <code>backend\freight\management\commands\sync_invoices_from_sqlserver.py</code> via <code>INVOICE_SOURCE_CONFIGS</code>.</li>
 <li>Mapped sources include Allied, EIZ, eSolution Direct Freight, Hunter, Shippit, Sunyee, Orange Connex, UBI Toll, UBI Toll P3, UBI eParcel, UBI Fastway, and UBI Misc Adjustments.</li>
 <li>UBI Misc Adjustments is marked <code>REVIEW</code>; the workbook documents some tables in overview but not in the verified reconciliation map.</li>
+<li>LSP API quote matching:</li>
+<li><code>manage.py rematch_lsp_api_quotes</code> rematches already-imported <code>LspApiQuoteSnapshot</code> rows to local <code>HistoricalOrder</code> rows using <code>source_order_id</code>, booking tracking, ERP/platform/external order numbers, and normalized LSP shipment/reference candidates. Use this after new ERP order/shipment data is synced.</li>
+<li>Current unmatched LSP API snapshots often have <code>source_order_id</code>, ERP order, external order, and platform order blank; many only carry <code>lsp_order_code</code> / <code>lsp_shipment_code</code>, and <code>lsp_booking_order.tracking_number</code> often does not equal ERP shipment tracking. To lift match coverage materially, inspect LSP source relationships and enrich snapshot fields during <code>sync_lsp_api_quotes</code>, not only local rematch.</li>
 </ul>
 
 <h2 id="rates-and-calculators">Rates And Calculators</h2>

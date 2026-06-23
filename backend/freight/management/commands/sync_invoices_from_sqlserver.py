@@ -33,6 +33,7 @@ SOURCE_SCHEMA = "dbo"
 HEADER_TABLE = "invoice_header_local_freight"
 DETAIL_TABLE_PREFIX = "invoice_detail"
 SOURCE_SYSTEM = f"{SOURCE_DATABASE}.{SOURCE_SCHEMA}.{DETAIL_TABLE_PREFIX}%"
+GST_MULTIPLIER = Decimal("1.10")
 
 HEADER_COLUMN_CANDIDATES = {
     "id": ["id", "invoice_header_id", "header_id", "invoice_id", "doc_id"],
@@ -2140,9 +2141,11 @@ class Command(BaseCommand):
     ) -> dict[str, Any]:
         estimated = candidate.total_inc_gst if candidate else None
         estimate_reason = "Matched quote candidate"
+        estimate_basis = "SYSTEM_INC_GST" if candidate else ""
         if estimated is None and order:
             estimated = order.source_estimated_freight or order.postage_shipping_estimated_amount
             estimate_reason = "Matched saved ERP estimate" if estimated is not None else "No saved or calculated estimate"
+            estimate_basis = "ERP_EX_GST" if estimated is not None else ""
 
         actual = normalized["actual_freight"] or Decimal("0")
         variance_amount = None
@@ -2152,14 +2155,15 @@ class Command(BaseCommand):
         dispute = False
         reason = "No matching imported order" if not order else estimate_reason
         if estimated is not None and estimated != 0:
-            variance_amount = actual - estimated
-            variance_percent = (variance_amount / estimated) * Decimal("100")
+            comparison_estimate = estimated * GST_MULTIPLIER if estimate_basis == "ERP_EX_GST" else estimated
+            variance_amount = actual - comparison_estimate
+            variance_percent = (variance_amount / comparison_estimate) * Decimal("100")
             abs_amount = abs(variance_amount)
             abs_percent = abs(variance_percent)
             if abs_amount <= Decimal("2.00") or abs_percent <= Decimal("5.00"):
                 match_status = InvoiceReconciliationItem.MatchStatus.MATCHED
                 variance_type = InvoiceReconciliationItem.VarianceType.OK
-                reason = f"{estimate_reason}; within tolerance"
+                reason = f"{estimate_reason}; inc GST within tolerance"
             else:
                 match_status = InvoiceReconciliationItem.MatchStatus.EXCEPTION
                 variance_type = (
@@ -2168,7 +2172,14 @@ class Command(BaseCommand):
                     else InvoiceReconciliationItem.VarianceType.UNDERCHARGE
                 )
                 dispute = variance_amount > 0
-                reason = f"{estimate_reason}; variance outside tolerance"
+                reason = f"{estimate_reason}; inc GST variance outside tolerance"
+
+        raw_payload = dict(normalized.get("source_payload") or {})
+        if estimated is not None:
+            raw_payload["estimate_basis"] = estimate_basis or "UNKNOWN"
+            raw_payload["comparison_estimated_freight_inc_gst"] = str(
+                estimated * GST_MULTIPLIER if estimate_basis == "ERP_EX_GST" else estimated
+            )
 
         return {
             "batch": batch,
@@ -2189,7 +2200,7 @@ class Command(BaseCommand):
             "variance_type": variance_type,
             "dispute_recommended": dispute,
             "reason": reason[:255],
-            "raw_payload": normalized["source_payload"],
+            "raw_payload": raw_payload,
         }
 
     @transaction.atomic
@@ -2400,9 +2411,11 @@ class Command(BaseCommand):
         candidate = self._find_candidate(order, invoice_source.carrier, invoice_source.carrier_service) if order else None
         estimated = candidate.total_inc_gst if candidate else None
         estimate_reason = "Matched quote candidate"
+        estimate_basis = "SYSTEM_INC_GST" if candidate else ""
         if estimated is None and order:
             estimated = order.source_estimated_freight or order.postage_shipping_estimated_amount
             estimate_reason = "Matched saved ERP estimate" if estimated is not None else "No saved or calculated estimate"
+            estimate_basis = "ERP_EX_GST" if estimated is not None else ""
 
         actual = normalized["actual_freight"] or Decimal("0")
         variance_amount = None
@@ -2412,14 +2425,15 @@ class Command(BaseCommand):
         dispute = False
         reason = "No matching imported order" if not order else estimate_reason
         if estimated is not None and estimated != 0:
-            variance_amount = actual - estimated
-            variance_percent = (variance_amount / estimated) * Decimal("100")
+            comparison_estimate = estimated * GST_MULTIPLIER if estimate_basis == "ERP_EX_GST" else estimated
+            variance_amount = actual - comparison_estimate
+            variance_percent = (variance_amount / comparison_estimate) * Decimal("100")
             abs_amount = abs(variance_amount)
             abs_percent = abs(variance_percent)
             if abs_amount <= Decimal("2.00") or abs_percent <= Decimal("5.00"):
                 match_status = InvoiceReconciliationItem.MatchStatus.MATCHED
                 variance_type = InvoiceReconciliationItem.VarianceType.OK
-                reason = f"{estimate_reason}; within tolerance"
+                reason = f"{estimate_reason}; inc GST within tolerance"
             else:
                 match_status = InvoiceReconciliationItem.MatchStatus.EXCEPTION
                 variance_type = (
@@ -2428,7 +2442,14 @@ class Command(BaseCommand):
                     else InvoiceReconciliationItem.VarianceType.UNDERCHARGE
                 )
                 dispute = variance_amount > 0
-                reason = f"{estimate_reason}; variance outside tolerance"
+                reason = f"{estimate_reason}; inc GST variance outside tolerance"
+
+        raw_payload = dict(normalized.get("source_payload") or {})
+        if estimated is not None:
+            raw_payload["estimate_basis"] = estimate_basis or "UNKNOWN"
+            raw_payload["comparison_estimated_freight_inc_gst"] = str(
+                estimated * GST_MULTIPLIER if estimate_basis == "ERP_EX_GST" else estimated
+            )
 
         source_external_id = f"{invoice_source.code}:{short_hash(str(normalized['source_external_id']), 24)}"
         _, created = InvoiceReconciliationItem.objects.update_or_create(
@@ -2453,7 +2474,7 @@ class Command(BaseCommand):
                 "variance_type": variance_type,
                 "dispute_recommended": dispute,
                 "reason": reason[:255],
-                "raw_payload": normalized["source_payload"],
+                "raw_payload": raw_payload,
             },
         )
         return created

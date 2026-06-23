@@ -150,6 +150,76 @@ def read_limited_csv(upload, *, required_columns: list[str] | None = None, allow
     return rows
 
 
+def read_limited_tabular_upload(upload, *, required_columns: list[str] | None = None, allow_empty: bool = False) -> list[dict]:
+    filename = str(getattr(upload, "name", "") or "").lower()
+    if filename.endswith(".xlsx"):
+        max_mb, max_rows = csv_limits()
+        size = getattr(upload, "size", 0) or 0
+        if size > max_mb * 1024 * 1024:
+            raise ValidationError({"detail": f"Excel file exceeds the configured {max_mb} MB upload limit."})
+        try:
+            from openpyxl import load_workbook
+        except ImportError as exc:  # pragma: no cover - dependency is pinned in requirements.
+            raise ValidationError({"detail": "Excel upload support is not installed."}) from exc
+
+        workbook = load_workbook(upload, read_only=True, data_only=True)
+        worksheet = workbook.active
+        rows_iter = worksheet.iter_rows(values_only=True)
+        try:
+            header_values = next(rows_iter)
+        except StopIteration as exc:
+            raise ValidationError({"detail": "Excel file is empty or missing a header row."}) from exc
+        fieldnames = [str(value or "").strip() for value in header_values]
+        if hasattr(upload, "seek"):
+            upload.seek(0)
+        if not any(fieldnames):
+            raise ValidationError({"detail": "Excel file is empty or missing a header row."})
+        missing = [field for field in (required_columns or []) if field not in fieldnames]
+        if missing:
+            raise ValidationError({"detail": f"Excel missing required column(s): {', '.join(missing)}."})
+
+        rows = []
+        for row_values in rows_iter:
+            if len(rows) >= max_rows:
+                raise ValidationError({"detail": f"Excel row count exceeds the configured {max_rows} row limit."})
+            row = {
+                field: value if hasattr(value, "date") else str(value or "").strip()
+                for field, value in zip(fieldnames, row_values)
+                if field
+            }
+            if any(value not in ("", None) for value in row.values()):
+                rows.append(row)
+        if not rows and not allow_empty:
+            raise ValidationError({"detail": "Excel file has no data rows."})
+        return rows
+    if filename.endswith(".pdf"):
+        raise ValidationError({"detail": "Direct PDF invoice upload is not enabled yet. Sync parsed PDF invoices through InvoiceReader."})
+    return read_limited_csv(upload, required_columns=required_columns, allow_empty=allow_empty)
+
+
+def invoice_estimate_basis(item: InvoiceReconciliationItem) -> str:
+    payload = item.raw_payload or {}
+    if payload.get("estimate_basis"):
+        return str(payload["estimate_basis"])
+    if item.quote_candidate_id:
+        return "SYSTEM_INC_GST"
+    if item.erp_shipment_snapshot_id or item.invoice_charge_snapshot_id or str(item.source_system or "").startswith("invoiceReader."):
+        return "ERP_EX_GST"
+    return "UNKNOWN"
+
+
+def invoice_estimate_inc_gst(item: InvoiceReconciliationItem):
+    if item.estimated_freight is None:
+        return None
+    payload = item.raw_payload or {}
+    explicit = payload.get("comparison_estimated_freight_inc_gst")
+    if explicit not in (None, ""):
+        return explicit
+    if invoice_estimate_basis(item) == "ERP_EX_GST":
+        return item.estimated_freight * Decimal("1.10")
+    return item.estimated_freight
+
+
 def async_task_response(task, job_type: str) -> response.Response:
     return response.Response({"task_id": task.id, "status": "PENDING", "job_type": job_type}, status=status.HTTP_202_ACCEPTED)
 
@@ -2320,7 +2390,8 @@ class InvoiceReconciliationBatchViewSet(
             "Invoice Source",
             "Carrier",
             "Service",
-            "ERP Estimated Freight",
+            "ERP Estimated Freight inc GST",
+            "Estimate Basis",
             "System Estimated Freight",
             "Actual Freight",
             "ERP Variance Amount",
@@ -2344,7 +2415,8 @@ class InvoiceReconciliationBatchViewSet(
             item.invoice_source.name if item.invoice_source else "",
             item.carrier.name if item.carrier else "",
             item.carrier_service.name if item.carrier_service else "",
-            item.estimated_freight,
+            invoice_estimate_inc_gst(item),
+            invoice_estimate_basis(item),
             item.system_estimated_freight,
             item.actual_freight,
             item.variance_amount,
@@ -2661,7 +2733,7 @@ def import_standard_rate_csv(upload, card: RateCard) -> dict:
 
 @transaction.atomic
 def import_invoice_reconciliation_csv(upload, user) -> InvoiceReconciliationBatch:
-    rows = read_limited_csv(upload)
+    rows = read_limited_tabular_upload(upload)
     first_carrier_code = (rows[0].get("carrier_code") or rows[0].get("carrier") or "").upper() if rows else ""
     carrier = Carrier.objects.filter(code=first_carrier_code).first()
     first_service_code = (rows[0].get("service_code") or rows[0].get("service") or "").strip() if rows else ""
