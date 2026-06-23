@@ -277,7 +277,7 @@ python manage.py purge_demo_data
 - Operational security guide: `docs/security.md`
 - Testing guide: `docs/testing.md`
 - Architecture: `docs/architecture.md`
-- Carrier calculation logic: `docs/Freight_Carrier_Calculation_Logic_20260618.md`
+- Carrier calculation logic: `docs/Freight_Carrier_Calculation_Logic_20260623.md`
 - Project overview for external review: `docs/Freight_Intelligence_Project_Overview_For_GPT.md`
 - Security and permissions: `docs/security_access_control.md`
 - InvoiceReader integration: `docs/invoice_reader_integration_design.md`

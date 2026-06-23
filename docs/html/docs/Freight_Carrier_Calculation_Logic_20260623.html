@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light" style="--rec-label: 'Recommended'">
+<html lang="zh" data-theme="light" style="--rec-label: '推荐'">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
-  <title>ERP And LSP Operational Sync</title>
+  <title>Freight Carrier Calculation Logic 2026 06 23</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -901,7 +901,7 @@
 </head>
 <body>
   <!-- Skip link for keyboard users -->
-  <a href="#main" class="skip-link">Skip to content</a>
+  <a href="#main" class="skip-link">跳到正文</a>
 
   <!-- Scroll progress -->
   <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
@@ -932,17 +932,17 @@
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
-        <button class="icon-btn toc-mobile-trigger" id="toc-toggle" onclick="openToc()" aria-label="Contents" title="Contents">
+        <button class="icon-btn toc-mobile-trigger" id="toc-toggle" onclick="openToc()" aria-label="目录" title="目录">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg>
         </button>
         <span class="brand-dot" aria-hidden="true"></span>
-        <span>Notes</span>
+        <span>笔记</span>
       </div>
       <div class="topbar-actions">
-        <button class="icon-btn" onclick="window.print()" title="Print / Save PDF" aria-label="Print / Save PDF">
+        <button class="icon-btn" onclick="window.print()" title="打印 / 保存 PDF" aria-label="打印 / 保存 PDF">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-printer"/></svg>
         </button>
-        <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+        <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" title="切换主题" aria-label="切换主题">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use id="theme-icon-use" href="#i-moon"/></svg>
         </button>
       </div>
@@ -953,34 +953,64 @@
   <div class="toc-backdrop" onclick="closeToc()" aria-hidden="true"></div>
 
   <div class="layout">
-    <aside class="toc" id="toc" aria-label="Contents">
+    <aside class="toc" id="toc" aria-label="目录">
       <div class="toc-head">
-        <p class="toc-title">Contents</p>
-        <button class="toc-close" onclick="closeToc()" aria-label="Close">
+        <p class="toc-title">目录</p>
+        <button class="toc-close" onclick="closeToc()" aria-label="关闭">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
         </button>
       </div>
       <nav class="toc-nav" id="toc-nav">
-        <a href="#scope" class="lvl-2">Scope</a>
-<a href="#source-indexes" class="lvl-2">Source Indexes</a>
-<a href="#one-time-full-sync" class="lvl-2">One Time Full Sync</a>
-<a href="#incremental-sync" class="lvl-2">Incremental Sync</a>
-<a href="#current-local-automation" class="lvl-2">Current Local Automation</a>
-<a href="#data-policy" class="lvl-2">Data Policy</a>
-<a href="#lsp-quote-matching-note" class="lvl-2">LSP Quote Matching Note</a>
-<a href="#verification" class="lvl-2">Verification</a>
+        <a href="#1-当前启用估算通道" class="lvl-2">1. 当前启用估算通道</a>
+<a href="#2-通用计算入口" class="lvl-2">2. 通用计算入口</a>
+<a href="#3-channel-rate-card-选择规则" class="lvl-2">3. Channel / Rate Card 选择规则</a>
+<a href="#3-1-manual-quote" class="lvl-3">3.1 Manual Quote</a>
+<a href="#3-2-origin-过滤" class="lvl-3">3.2 Origin 过滤</a>
+<a href="#3-3-freight-audit-matrix" class="lvl-3">3.3 Freight Audit Matrix</a>
+<a href="#4-gst-和金额显示口径" class="lvl-2">4. GST 和金额显示口径</a>
+<a href="#5-hunter-road-freight" class="lvl-2">5. Hunter Road Freight</a>
+<a href="#5-1-zone-和-rate-rule" class="lvl-3">5.1 Zone 和 Rate Rule</a>
+<a href="#5-2-单货计算" class="lvl-3">5.2 单货计算</a>
+<a href="#5-3-多货计算" class="lvl-3">5.3 多货计算</a>
+<a href="#5-4-surcharge-fuel-gst" class="lvl-3">5.4 Surcharge / Fuel / GST</a>
+<a href="#6-allied-express-gro-2023" class="lvl-2">6. Allied Express GRO 2023</a>
+<a href="#6-1-zone-weight" class="lvl-3">6.1 Zone / Weight</a>
+<a href="#6-2-base" class="lvl-3">6.2 Base</a>
+<a href="#6-3-surcharge" class="lvl-3">6.3 Surcharge</a>
+<a href="#6-4-fuel-gst" class="lvl-3">6.4 Fuel / GST</a>
+<a href="#7-allied-express-b2c-2025" class="lvl-2">7. Allied Express B2C 2025</a>
+<a href="#7-1-单货-多货" class="lvl-3">7.1 单货 / 多货</a>
+<a href="#7-2-surcharge-fuel" class="lvl-3">7.2 Surcharge / Fuel</a>
+<a href="#8-direct-freight-express" class="lvl-2">8. Direct Freight Express</a>
+<a href="#8-1-profile-限制" class="lvl-3">8.1 Profile 限制</a>
+<a href="#8-2-zone" class="lvl-3">8.2 Zone</a>
+<a href="#8-3-单货-多货" class="lvl-3">8.3 单货 / 多货</a>
+<a href="#8-4-destination-surcharge-fuel-gst" class="lvl-3">8.4 Destination Surcharge / Fuel / GST</a>
+<a href="#9-orange-connex-efn" class="lvl-2">9. Orange Connex eFN</a>
+<a href="#9-1-profile-限制" class="lvl-3">9.1 Profile 限制</a>
+<a href="#9-2-zone" class="lvl-3">9.2 Zone</a>
+<a href="#9-3-单货-多货" class="lvl-3">9.3 单货 / 多货</a>
+<a href="#9-4-gst" class="lvl-3">9.4 GST</a>
+<a href="#10-ubi-agent-team-global-express-ipec" class="lvl-2">10. UBI Agent / Team Global Express IPEC</a>
+<a href="#10-1-zone" class="lvl-3">10.1 Zone</a>
+<a href="#10-2-单货-多货" class="lvl-3">10.2 单货 / 多货</a>
+<a href="#10-3-fuel-gst" class="lvl-3">10.3 Fuel / GST</a>
+<a href="#10-4-当前限制" class="lvl-3">10.4 当前限制</a>
+<a href="#11-breakdown-trace-audit" class="lvl-2">11. Breakdown / Trace / Audit</a>
+<a href="#12-当前未启用为内部估算的-agent-courier" class="lvl-2">12. 当前未启用为内部估算的 Agent / Courier</a>
+<a href="#13-快速核对清单" class="lvl-2">13. 快速核对清单</a>
       </nav>
     </aside>
 
     <main class="content" id="main">
       <header class="doc-header">
         <span class="doc-eyebrow">NOTES</span>
-        <h1 class="doc-title">ERP And LSP Operational Sync</h1>
-        <p class="doc-subtitle">This project now uses sync operational data as the main operational data sync entry point.</p>
+        <h1 class="doc-title">Freight Carrier Calculation Logic 2026 06 23</h1>
+        <p class="doc-subtitle">本文档整理 Freight Intelligence 当前已经启用的运费估算通道，并按 Agent / Courier / Service / QuoteChannel 说明单货、多货、surcharge、fuel、GST 和审计口径。内容来自当前数据库启用的 QuoteChannel、对应 RateCard，以及后端 calculator 源码。</p>
         <div class="doc-meta">
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-file"/></svg>
-            docs/erp_lsp_operational_sync.md
+            docs/Freight_Carrier_Calculation_Logic_20260623.md
           </span>
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-calendar"/></svg>
@@ -988,137 +1018,787 @@
           </span>
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clock"/></svg>
-            ~3 min read
+            ~3 分钟阅读
           </span>
         </div>
       </header>
 
       <!-- CONTENT_START -->
 
-<p>This project now uses <code>sync_operational_data</code> as the main operational data sync entry point.</p>
+<p>本文档整理 Freight Intelligence 当前已经启用的运费估算通道，并按 <code>Agent / Courier / Service / QuoteChannel</code> 说明单货、多货、surcharge、fuel、GST 和审计口径。内容来自当前数据库启用的 <code>QuoteChannel</code>、对应 <code>RateCard</code>，以及后端 calculator 源码。</p>
 
-<h2 id="scope">Scope</h2>
-
-<p>The command syncs the data needed by Freight Intelligence from ERP/LSP into the local CourieDelivery PostgreSQL database:</p>
+<p>相关代码位置：</p>
 
 <ul>
-<li>ERP platforms from <code>data_raw.erp.hpoms_platform_info</code>.</li>
-<li>WMS warehouses from <code>data_raw.wms.bsm_warehouse</code>.</li>
-<li>LSP carriers and services from <code>data_raw.lsp</code>.</li>
-<li>ERP owner/manual orders from <code>data_raw.erp</code>.</li>
-<li>LSP OpenAPI quote responses from <code>data_raw.lsp.lsp_openapi_quote_task</code>.</li>
-<li>LSP internal quote comparison logs from <code>data_raw.lsp.lsp_quote_task_job_log</code>.</li>
-<li>Non-ERP legacy <code>HistoricalOrder</code> rows are removed unless <code>--keep-legacy</code> is passed.</li>
-<li>All active platforms, warehouses, and carrier services are opened by creating/enabling:</li>
-<li><code>WarehousePlatform</code></li>
-<li><code>PlatformCarrier</code></li>
-<li><code>WarehouseCarrier</code></li>
-<li>Existing non-mock <code>QuoteChannel</code> records are enabled when their carrier is active.</li>
+<li>通用 calculator 结构：<code>backend/freight/calculators/base.py</code></li>
+<li>报价引擎：<code>backend/freight/quote_engine.py</code></li>
+<li>通道 eligibility：<code>backend/freight/services/channel_eligibility.py</code></li>
+<li>Rate card 选择：<code>backend/freight/services/rate_card_selector.py</code></li>
+<li>Freight Audit Matrix：<code>backend/freight/management/commands/build_freight_audit_matrix.py</code></li>
 </ul>
 
-<p>LSP rate table import is intentionally not included because this system should keep using the current CourieDelivery/PostageCalculator rate templates, not LSP rate tables.</p>
+<h2 id="1-当前启用估算通道">1. 当前启用估算通道</h2>
 
-<h2 id="source-indexes">Source Indexes</h2>
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Agent</th>
+<th>Courier</th>
+<th>Service</th>
+<th>QuoteChannel</th>
+<th>Provider</th>
+<th>Rate Card / Version</th>
+<th>Calculator</th>
+</tr></thead><tbody>
+<tr>
+<td>UBI</td>
+<td>Team Global Express</td>
+<td>UBI TGE IPEC Road</td>
+<td><code>ubi_tge_ipec_mel1</code></td>
+<td>TABLE</td>
+<td>UBI TGE IPEC Road MEL1 2026-04-20 / <code>UBI-IPEC-20260420-MEL1</code></td>
+<td><code>UbiTgeIpecCalculator</code></td>
+</tr>
+<tr>
+<td>UBI</td>
+<td>Team Global Express</td>
+<td>UBI TGE IPEC Road</td>
+<td><code>ubi_tge_ipec_syd1</code></td>
+<td>TABLE</td>
+<td>UBI TGE IPEC Road SYD1 2026-04-20 / <code>UBI-IPEC-20260420-SYD1</code></td>
+<td><code>UbiTgeIpecCalculator</code></td>
+</tr>
+<tr>
+<td>System / Local rate table</td>
+<td>Allied Express</td>
+<td>Allied B2C 2025 Melbourne</td>
+<td><code>pc_allied_b2c_2025_mel</code></td>
+<td>TABLE</td>
+<td>Allied B2C 2025 Melbourne PostageCalculator SP / <code>SP-ALLIED-B2C-MEL-2025</code></td>
+<td><code>AlliedB2C2025MelbourneCalculator</code></td>
+</tr>
+<tr>
+<td>System / Local rate table</td>
+<td>Allied Express</td>
+<td>Allied GRO 2023 Melbourne</td>
+<td><code>pc_allied_gro_2023_mel</code></td>
+<td>TABLE</td>
+<td>Allied GRO 2023 Melbourne PostageCalculator SP / <code>SP-ALLIED-GRO-MEL-2023</code></td>
+<td><code>AlliedGro2023MelbourneCalculator</code></td>
+</tr>
+<tr>
+<td>System / Local rate table</td>
+<td>Allied Express</td>
+<td>Allied GRO 2023 Sydney</td>
+<td><code>pc_allied_gro_2023_syd</code></td>
+<td>TABLE</td>
+<td>Allied GRO 2023 Sydney PostageCalculator SP / <code>SP-ALLIED-GRO-SYD-2023</code></td>
+<td><code>AlliedGro2023SydneyCalculator</code></td>
+</tr>
+<tr>
+<td>System / Local rate table</td>
+<td>Direct Freight Parcel</td>
+<td>DFE KILO EX MEL 2025</td>
+<td><code>dfe_ex_mel_2025</code></td>
+<td>TABLE</td>
+<td>DFE EX MEL Feb 2025 / <code>DFE-EX-MEL-FEB-2025</code></td>
+<td><code>DirectFreightExpress2025Calculator</code></td>
+</tr>
+<tr>
+<td>System / Local rate table</td>
+<td>Direct Freight Parcel</td>
+<td>DFE KILO EX SYD 2025</td>
+<td><code>dfe_ex_syd_2025</code></td>
+<td>TABLE</td>
+<td>DFE EX SYD Feb 2025 / <code>DFE-EX-SYD-FEB-2025</code></td>
+<td><code>DirectFreightExpress2025Calculator</code></td>
+</tr>
+<tr>
+<td>System / Local rate table</td>
+<td>Hunter Road Freight</td>
+<td>Hunter MEL 2023</td>
+<td><code>pc_hunter_mel_2023</code></td>
+<td>TABLE</td>
+<td>Hunter MEL 2023 PostageCalculator SP / <code>SP-HUNTER-MEL-2023</code></td>
+<td><code>HunterMel2023Calculator</code></td>
+</tr>
+<tr>
+<td>System / Local rate table</td>
+<td>Hunter Road Freight</td>
+<td>Hunter Sydney 2025</td>
+<td><code>pc_hunter_syd_2025</code></td>
+<td>TABLE</td>
+<td>Hunter SYD Broers 20240920 / <code>SP-HUNTER-SYD-2025</code></td>
+<td><code>HunterSydney2025Calculator</code></td>
+</tr>
+<tr>
+<td>System / Local rate table</td>
+<td>Orange Connex</td>
+<td>Orange Connex eFN MEL 2026</td>
+<td><code>orange_efn_mel_2026</code></td>
+<td>TABLE</td>
+<td>Orange Connex eFN MEL 2026 / <code>ORANGE-EFN-MEL-2026</code></td>
+<td><code>OrangeConnexEfn2026Calculator</code></td>
+</tr>
+<tr>
+<td>System / Local rate table</td>
+<td>Orange Connex</td>
+<td>Orange Connex eFN SYD 2026</td>
+<td><code>orange_efn_syd_2026</code></td>
+<td>TABLE</td>
+<td>Orange Connex eFN SYD 2026 / <code>ORANGE-EFN-SYD-2026</code></td>
+<td><code>OrangeConnexEfn2026Calculator</code></td>
+</tr>
+</tbody></table></div>
 
-<p>The ERP source tables in <code>data_raw.erp</code> can contain millions of Airbyte rows and may not have primary keys or indexes. Before a full ERP order import, run the non-destructive source-index command:</p>
-
-<pre><code class="language-powershell">.venv\Scripts\python.exe backend\manage.py ensure_data_raw_sync_indexes --only-missing</code></pre>
-
-<p>This creates only <code>fi_src_*</code> indexes on <code>data_raw.erp</code> tables used by sync:</p>
+<p>说明：</p>
 
 <ul>
-<li><code>hpoms_owner_order</code></li>
-<li><code>hpoms_owner_order_purchase_skus</code></li>
-<li><code>hpoms_owner_order_shipment_detail</code></li>
-<li><code>hpoms_orders</code></li>
-<li><code>hpoms_order_address</code></li>
-<li><code>hpoms_order_shipping_estimated_detail</code></li>
-<li><code>hpoms_scp_so_execute</code></li>
-<li><code>hpoms_manual_orders</code></li>
-<li><code>lsp.lsp_booking_order</code></li>
-<li><code>lsp.lsp_quote_task</code></li>
+<li><code>UBI</code> 是 Agent，不是 courier。UBI 维护的是 Team Global Express IPEC Road 的价卡。</li>
+<li>EIZ / SHIPPIT / Sunyee 等 API 或历史 LSP quote 数据可以进入审计和历史对比，但当前没有真实 API calculator 被纳入上述启用估算通道。</li>
+<li>Manual Quote 会按 platform / warehouse / carrier eligibility 过滤通道；Freight Audit Matrix 可以指定 <code>quote_channel_code</code> 或 <code>carrier_keyword</code> 横向复算历史订单。</li>
 </ul>
 
-<p>These indexes do not change source data. They are required so full import and 10-hour incremental import can resolve ERP order, platform order, warehouse, SKU, tracking, address, and ERP estimate fields without repeatedly scanning multi-million-row source tables. The <code>hpoms_scp_so_execute</code>, <code>lsp_booking_order</code>, and <code>lsp_quote_task</code> indexes support LSP historical quote matching back to ERP orders where LSP has booking/tracking data.</p>
+<h2 id="2-通用计算入口">2. 通用计算入口</h2>
 
-<h2 id="one-time-full-sync">One Time Full Sync</h2>
+<p>系统不会在 calculator 内直接读取 ERP/WMS 原表。报价前先把订单、SKU、combo SKU 和手工尺寸统一成 <code>QuoteItem</code>：</p>
 
-<p>Full sync is large. ERP <code>hpoms_owner_order</code> has millions of rows.</p>
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>字段</th>
+<th>含义</th>
+</tr></thead><tbody>
+<tr>
+<td><code>sku</code></td>
+<td>SKU 或手工输入标识</td>
+</tr>
+<tr>
+<td><code>qty</code></td>
+<td>数量</td>
+</tr>
+<tr>
+<td><code>unit_weight_kg</code></td>
+<td>单件实重 kg</td>
+</tr>
+<tr>
+<td><code>length_cm / width_cm / height_cm</code></td>
+<td>单件尺寸 cm</td>
+</tr>
+</tbody></table></div>
 
-<pre><code class="language-powershell">.venv\Scripts\python.exe backend\manage.py ensure_data_raw_sync_indexes --only-missing
-.venv\Scripts\python.exe backend\manage.py sync_operational_data --full --order-batch-size 5000 --lsp-batch-size 1000 --log-batch-size 3000</code></pre>
+<p>通用体积：</p>
 
-<p>For a safer split run:</p>
+<pre><code class="language-text">volume_m3 = length_cm * width_cm * height_cm / 1,000,000</code></pre>
 
-<pre><code class="language-powershell">.venv\Scripts\python.exe backend\manage.py ensure_data_raw_sync_indexes --only-missing
-.venv\Scripts\python.exe backend\manage.py sync_operational_data --full --skip-orders --lsp-batch-size 1000 --log-batch-size 3000
-.venv\Scripts\python.exe backend\manage.py sync_operational_data --full --skip-master --skip-lsp --skip-open-all --order-batch-size 10000</code></pre>
+<p>Combo SKU 在进入 calculator 前会通过同步来的 combo 组成快照展开或聚合为可计算的 item lines。Calculator 只看最终 item lines、qty、重量、尺寸和目的地。</p>
 
-<h2 id="incremental-sync">Incremental Sync</h2>
+<h2 id="3-channel-rate-card-选择规则">3. Channel / Rate Card 选择规则</h2>
 
-<p>The recurring incremental command is:</p>
+<h3 id="3-1-manual-quote">3.1 Manual Quote</h3>
 
-<pre><code class="language-powershell">.venv\Scripts\python.exe backend\manage.py ensure_data_raw_sync_indexes --only-missing
-.venv\Scripts\python.exe backend\manage.py sync_operational_data --incremental --order-batch-size 5000 --lsp-batch-size 1000 --log-batch-size 3000</code></pre>
+<p>Manual Quote 使用 <code>QuoteEngine.quote_manual</code>：</p>
 
-<p>It uses each underlying command&#x27;s local checkpoint:</p>
+<ol>
+<li>根据 <code>platform_code</code> 找启用平台，<code>ALL</code> 表示所有启用平台。</li>
+<li>根据 <code>warehouse_code</code> 找启用仓库，<code>ALL</code> 表示所有启用仓库。</li>
+<li>必须存在启用的 <code>WarehousePlatform</code>。</li>
+<li><code>PlatformCarrier</code> 和 <code>WarehouseCarrier</code> 的启用 service 取交集。</li>
+<li>只保留启用 <code>QuoteChannel</code>，并按仓库 origin 过滤 MEL / SYD。</li>
+<li>Rate card 必须 <code>ACTIVE + is_active</code>，且满足 <code>effective_from/effective_to</code>。</li>
+</ol>
+
+<h3 id="3-2-origin-过滤">3.2 Origin 过滤</h3>
+
+<p>仓库 state/code/name/region 中包含以下词时会被识别：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Origin</th>
+<th>识别词</th>
+</tr></thead><tbody>
+<tr>
+<td>MEL</td>
+<td><code>VIC</code>, <code>MEL</code>, <code>MELB</code>, <code>MELBOURNE</code></td>
+</tr>
+<tr>
+<td>SYD</td>
+<td><code>NSW</code>, <code>SYD</code>, <code>SYDN</code>, <code>SYDNEY</code></td>
+</tr>
+</tbody></table></div>
+
+<p>MEL 仓库只参与 MEL channel/rate card；SYD 仓库只参与 SYD channel/rate card。<code>ALL warehouse</code> 会允许多个 origin 都参与。</p>
+
+<h3 id="3-3-freight-audit-matrix">3.3 Freight Audit Matrix</h3>
+
+<p>Freight Audit Matrix 使用 <code>QuoteEngine.quote_selected_channels</code>。它会绕过 platform/warehouse carrier eligibility，用指定或启用的 calculator 对同一历史订单横向复算。</p>
+
+<p>常用命令：</p>
+
+<pre><code class="language-powershell">python manage.py build_freight_audit_matrix --batch-id 221 --mode CONSIGNMENT --limit 5000 --order-batch-size 5000
+python manage.py build_freight_audit_matrix --batch-id 221 --source-config HUNTER --carrier-keyword pc_hunter_mel_2023 --mode CONSIGNMENT --limit 5000</code></pre>
+
+<h2 id="4-gst-和金额显示口径">4. GST 和金额显示口径</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>价格字段</th>
+<th>来源</th>
+<th>显示口径</th>
+</tr></thead><tbody>
+<tr>
+<td>ERP Est</td>
+<td>ERP <code>postage_shipping_estimated_amount</code> / <code>shipping_estimated_amount</code></td>
+<td>ERP 原值按 ex GST 保存，前端外层显示为 <code>ERP Est * 1.10</code></td>
+</tr>
+<tr>
+<td>System Est</td>
+<td>当前 calculator/rate card 重新计算</td>
+<td>外层显示含 GST <code>total_inc_gst</code>；breakdown 显示 base/surcharge/fuel/GST</td>
+</tr>
+<tr>
+<td>Invoice Actual</td>
+<td>InvoiceReader 实收</td>
+<td>对账统一按含 GST 实收金额</td>
+</tr>
+</tbody></table></div>
+
+<p>外层列表不显示 base/fuel 等内部项，详情和 breakdown 才显示费用构成。</p>
+
+<h2 id="5-hunter-road-freight">5. Hunter Road Freight</h2>
+
+<p>启用服务：</p>
 
 <ul>
-<li>ERP orders: latest local <code>HistoricalOrder.source_updated_at</code>.</li>
-<li>LSP API quotes: latest local <code>LspApiQuoteSnapshot.source_updated_at</code>.</li>
-<li>LSP logs: latest local <code>LspQuoteTaskLogItem.log_updated_at</code>.</li>
+<li><code>pc_hunter_mel_2023</code> / Hunter MEL 2023</li>
+<li><code>pc_hunter_syd_2025</code> / Hunter Sydney 2025</li>
 </ul>
 
-<h2 id="current-local-automation">Current Local Automation</h2>
+<h3 id="5-1-zone-和-rate-rule">5.1 Zone 和 Rate Rule</h3>
 
-<p>Codex app automation:</p>
+<p>使用通用 <code>RateZone</code>：</p>
 
-<pre><code class="language-text">freight-intelligence-erp-lsp-incremental-sync</code></pre>
+<ol>
+<li><code>postcode + suburb + state</code> exact match</li>
+<li><code>postcode + state</code> fallback</li>
+<li>postcode range fallback</li>
+</ol>
 
-<p>Schedule:</p>
+<p>命中后用 <code>dest_zone + chargeable_weight</code> 找 <code>RateRule</code>。</p>
 
-<pre><code class="language-text">Every 10 hours</code></pre>
+<h3 id="5-2-单货计算">5.2 单货计算</h3>
 
-<p>The automation runs the incremental command above from:</p>
+<p>每个 item 先判断 oversize：</p>
 
-<pre><code class="language-text">C:\Users\KenHu\.vscode\CourieDelivery</code></pre>
+<pre><code class="language-text">oversize =
+  (length_cm &gt; 120 and width_cm &gt; 120)
+  or height_cm &gt; 180
+  or ((length_cm &gt; 120 or width_cm &gt; 120) and unit_weight_kg &gt; 59)</code></pre>
 
-<p>The automation currently verifies source indexes first, then runs the incremental operational sync.</p>
+<p>如果 oversize：</p>
 
-<h2 id="data-policy">Data Policy</h2>
+<pre><code class="language-text">cubic_factor = 333</code></pre>
+
+<p>否则：</p>
+
+<pre><code class="language-text">cubic_factor = 250</code></pre>
+
+<p>单 line：</p>
+
+<pre><code class="language-text">unit_cubic_kg = length_m * width_m * height_m * cubic_factor
+line_dead_kg = unit_weight_kg * qty
+line_cubic_kg = unit_cubic_kg * qty
+line_chargeable_kg = max(line_dead_kg, line_cubic_kg)
+chargeable_kg_for_rate = ceil(sum(line_chargeable_kg))</code></pre>
+
+<p>Base：</p>
+
+<pre><code class="language-text">base = max(minimum_charge, basic_charge + per_kg * chargeable_kg_for_rate)</code></pre>
+
+<h3 id="5-3-多货计算">5.3 多货计算</h3>
+
+<p>Hunter 是逐 line 先取较大值，再汇总：</p>
+
+<pre><code class="language-text">total_chargeable_kg = sum(max(line_dead_kg, line_cubic_kg) for each SKU line)
+chargeable_kg_for_rate = ceil(total_chargeable_kg)</code></pre>
+
+<p>这比“总实重 vs 总体积重取最大”更保守，因为不同 SKU 的实重优势和体积优势不会互相抵消。</p>
+
+<h3 id="5-4-surcharge-fuel-gst">5.4 Surcharge / Fuel / GST</h3>
+
+<p>当前启用 surcharge：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Code</th>
+<th>依据</th>
+<th>当前逻辑</th>
+</tr></thead><tbody>
+<tr>
+<td><code>RESI</code></td>
+<td>单件最大 charge kg</td>
+<td>residential fee</td>
+</tr>
+<tr>
+<td><code>LEN</code></td>
+<td>最长边 m</td>
+<td>length surcharge；GE_6 会标记 POA flag</td>
+</tr>
+<tr>
+<td><code>UPLF</code></td>
+<td>整票 chargeable kg</td>
+<td>uplift surcharge</td>
+</tr>
+<tr>
+<td><code>FS</code></td>
+<td>always</td>
+<td>普通 fuel levy，当前配置 21%</td>
+</tr>
+<tr>
+<td><code>FS_WA</code></td>
+<td>WA destination</td>
+<td>WA fuel levy，当前配置 28%</td>
+</tr>
+</tbody></table></div>
+
+<pre><code class="language-text">surcharge_total = RESI + LEN + UPLF
+fuel_basis = base + surcharge_total
+fuel = fuel_basis * selected_fuel_rate
+total_ex_gst = base + surcharge_total + fuel
+gst = total_ex_gst * 0.10
+total_inc_gst = total_ex_gst + gst</code></pre>
+
+<h2 id="6-allied-express-gro-2023">6. Allied Express GRO 2023</h2>
+
+<p>启用服务：</p>
 
 <ul>
-<li>Keep ERP/WMS/LSP live operational data only.</li>
-<li>Remove non-ERP legacy <code>HistoricalOrder</code> rows unless <code>--keep-legacy</code> is explicitly passed for troubleshooting.</li>
-<li>Do not keep demo/mock order data in operational screens.</li>
-<li>Keep LSP API quote responses and internal quote logs as historical comparison data.</li>
-<li>Do not import LSP rate tables into Pricing unless the user explicitly reverses the current design decision.</li>
+<li><code>pc_allied_gro_2023_mel</code></li>
+<li><code>pc_allied_gro_2023_syd</code></li>
 </ul>
 
-<h2 id="lsp-quote-matching-note">LSP Quote Matching Note</h2>
+<p>Sydney calculator 继承 Melbourne calculator，公式相同，差异来自 rate card、zone 和 rule 数据。</p>
 
-<p><code>sync_lsp_api_quotes</code> now tries two match paths:</p>
+<h3 id="6-1-zone-weight">6.1 Zone / Weight</h3>
+
+<pre><code class="language-text">dead_kg = round(sum(unit_weight_kg * qty))
+cubic_kg = round(sum(volume_m3 * 250 * qty))
+chargeable_kg = max(dead_kg, cubic_kg)</code></pre>
+
+<p>用 <code>dest_zone + chargeable_kg</code> 找 rate rule。</p>
+
+<h3 id="6-2-base">6.2 Base</h3>
+
+<pre><code class="language-text">linehaul = max(minimum_charge, basic_charge + per_kg * chargeable_kg)</code></pre>
+
+<p>如果 <code>RateZone.raw_payload.on_forward.matched = true</code>：</p>
+
+<pre><code class="language-text">on_forward_base = on_forward.basic + on_forward.per_kg * chargeable_kg
+base = linehaul + on_forward_base</code></pre>
+
+<p>否则 <code>on_forward_base = 0</code>。</p>
+
+<h3 id="6-3-surcharge">6.3 Surcharge</h3>
+
+<p>Allied GRO 会计算多类 legacy surcharge，但最终只取一个最高/选中项：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>类型</th>
+<th>依据</th>
+</tr></thead><tbody>
+<tr>
+<td>LSC</td>
+<td>item longest side</td>
+</tr>
+<tr>
+<td>WS</td>
+<td>item width/long side规则</td>
+</tr>
+<tr>
+<td>DHSL</td>
+<td>item longest side</td>
+</tr>
+<tr>
+<td>DHSW</td>
+<td>item unit weight</td>
+</tr>
+<tr>
+<td>Home Delivery HDD/HDC</td>
+<td>整票 dead/cubic</td>
+</tr>
+<tr>
+<td>Two Person Crew</td>
+<td>longest, middle, dead kg, cubic kg</td>
+</tr>
+</tbody></table></div>
+
+<pre><code class="language-text">item_surcharge = sum(max(LSC, WS, DHSL, DHSW) * qty for each item)
+home_delivery = HDD(dead) if dead &gt;= cubic else HDC(cubic)
+if on_forward matched:
+  home_delivery = home_delivery * 2
+chosen_surcharge = max(home_delivery, item_surcharge, two_person_crew)</code></pre>
+
+<h3 id="6-4-fuel-gst">6.4 Fuel / GST</h3>
+
+<p>Allied GRO 的 fuel 配置是 ratio，不是单独百分比加法。当前 <code>FS</code> 配置为 <code>1.2679</code>。</p>
+
+<pre><code class="language-text">subtotal = linehaul + on_forward_base + chosen_surcharge
+total_inc_gst = subtotal * 1.10 * fuel_ratio
+gst = subtotal * 0.10
+fuel_amount = subtotal * 1.10 * (fuel_ratio - 1)</code></pre>
+
+<p>注意：breakdown 中 fuel 已经按最终 ratio 展开，不需要再人工联动计算。</p>
+
+<h2 id="7-allied-express-b2c-2025">7. Allied Express B2C 2025</h2>
+
+<p>启用服务：</p>
 
 <ul>
-<li><code>lsp_openapi_quote_task.quote_id -&gt; lsp_quote_task.id -&gt; lsp_booking_order.order_code -&gt; tracking_number -&gt; local ERP shipment</code>.</li>
-<li>Legacy fallback: <code>lsp_quote_task.order_code -&gt; erp.hpoms_scp_so_execute.from_order_no -&gt; erp.hpoms_owner_order.rd3_order_id</code>.</li>
+<li><code>pc_allied_b2c_2025_mel</code></li>
 </ul>
 
-<p>As of the latest full sync, the imported <code>lsp_openapi_quote_task</code> rows do not overlap with <code>lsp_booking_order</code> or ERP shipment tracking, so <code>matched_orders</code> can legitimately be <code>0</code>. The LSP quote request/response/options are still stored and searchable as independent historical quote evidence.</p>
+<h3 id="7-1-单货-多货">7.1 单货 / 多货</h3>
 
-<p>For a production server, recreate the same command in the server scheduler, Windows Task Scheduler, cron, Celery Beat, or the deployment automation platform.</p>
+<p>Allied B2C 是逐件 base，但 OWS 按整票重量：</p>
 
-<h2 id="verification">Verification</h2>
+<pre><code class="language-text">single_cubic_kg = volume_m3 * 250
+chargeable_single = max(unit_weight_kg, single_cubic_kg)
+consignment_weight = sum(chargeable_single * qty)</code></pre>
 
-<p>Check local data state:</p>
+<p>先用 <code>consignment_weight</code> 找 rate rule。</p>
 
-<pre><code class="language-powershell">.venv\Scripts\python.exe backend\manage.py shell -c &quot;from freight.models import HistoricalOrder, PlatformCarrier, WarehouseCarrier, WarehousePlatform; print(HistoricalOrder.objects.exclude(source_system__in=[&#x27;data_raw.erp.hpoms_owner_order&#x27;,&#x27;data_raw.erp.hpoms_manual_orders&#x27;]).count()); print(WarehousePlatform.objects.filter(enabled=True).count(), PlatformCarrier.objects.filter(enabled=True).count(), WarehouseCarrier.objects.filter(enabled=True).count())&quot;</code></pre>
+<p>逐件 base：</p>
+
+<pre><code class="language-text">per_piece = max(basic_charge + per_kg * chargeable_single, minimum_charge)
+basic_total = sum(per_piece * qty)</code></pre>
+
+<h3 id="7-2-surcharge-fuel">7.2 Surcharge / Fuel</h3>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Code</th>
+<th>依据</th>
+<th>说明</th>
+</tr></thead><tbody>
+<tr>
+<td><code>OIS</code></td>
+<td>单件最长边，按每件 qty 累计</td>
+<td>oversized item surcharge</td>
+</tr>
+<tr>
+<td><code>OWS</code></td>
+<td>整票 chargeable weight</td>
+<td>overweight surcharge</td>
+</tr>
+<tr>
+<td><code>FS</code></td>
+<td>always</td>
+<td>当前配置 <code>0.27</code></td>
+</tr>
+</tbody></table></div>
+
+<pre><code class="language-text">ois_total = sum(OIS(longest_side) * qty)
+ows_total = OWS(round(consignment_weight))
+subtotal = basic_total + ois_total + ows_total
+total = subtotal * (1 + fuel_ratio)</code></pre>
+
+<p>当前 calculator 将 <code>total</code> 作为 <code>total_inc_gst</code>，<code>gst_amount = 0</code>，表示 imported B2C rate/fuel 口径已经按该价卡逻辑处理，不再额外加 GST。</p>
+
+<h2 id="8-direct-freight-express">8. Direct Freight Express</h2>
+
+<p>启用服务：</p>
+
+<ul>
+<li><code>dfe_ex_mel_2025</code></li>
+<li><code>dfe_ex_syd_2025</code></li>
+</ul>
+
+<h3 id="8-1-profile-限制">8.1 Profile 限制</h3>
+
+<p>DFE calculator 先检查包裹 profile，不满足时直接 <code>NOT_AVAILABLE</code>：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>限制</th>
+<th>not available reason</th>
+</tr></thead><tbody>
+<tr>
+<td>重量或尺寸缺失 / qty &lt;= 0</td>
+<td><code>missing_dimension_or_weight</code></td>
+</tr>
+<tr>
+<td>单件实重 &gt; 30 kg</td>
+<td><code>dfe_profile_item_over_30kg</code></td>
+</tr>
+<tr>
+<td>最长边 &gt; 120 cm</td>
+<td><code>dfe_profile_length_over_120cm</code></td>
+</tr>
+<tr>
+<td>最长边 &gt; 70 cm 且第二长边 &gt; 70 cm</td>
+<td><code>dfe_profile_two_sides_over_70cm</code></td>
+</tr>
+</tbody></table></div>
+
+<h3 id="8-2-zone">8.2 Zone</h3>
+
+<p>DFE 使用独立 zone lookup：</p>
+
+<ol>
+<li>postcode 会补齐 4 位，例如 <code>800</code> -&gt; <code>0800</code></li>
+<li>exact：<code>postcode + suburb + state</code></li>
+<li>fallback：如果 <code>postcode + state</code> 只对应一个唯一 zone，则使用该 zone</li>
+<li>多个 zone 时返回 <code>ambiguous_destination_zone</code></li>
+</ol>
+
+<h3 id="8-3-单货-多货">8.3 单货 / 多货</h3>
+
+<p>DFE 是整票合并后计算：</p>
+
+<pre><code class="language-text">actual_kg = sum(unit_weight_kg * qty)
+cubic_kg = sum(volume_m3 * cubic_factor * qty)
+chargeable_kg = ceil(max(actual_kg, cubic_kg))</code></pre>
+
+<p><code>cubic_factor</code> 来自 <code>RateCard.cubic_factor</code>，默认 250。</p>
+
+<p>Base：</p>
+
+<pre><code class="language-text">base = max(minimum_charge, basic_charge + per_kg * chargeable_kg)</code></pre>
+
+<h3 id="8-4-destination-surcharge-fuel-gst">8.4 Destination Surcharge / Fuel / GST</h3>
+
+<p>DFE 有大量 <code>DFE_DEST</code> surcharge，按 postcode/suburb 或 postcode 匹配：</p>
+
+<ol>
+<li>exact：<code>condition_json.postcode + condition_json.suburb</code></li>
+<li>fallback：如果同 postcode 的 surcharge 金额唯一，则使用该金额</li>
+<li>金额不唯一时不自动套用，避免错误收费</li>
+</ol>
+
+<p>Fuel：</p>
+
+<pre><code class="language-text">fuel_basis = base + destination_surcharge
+fuel = fuel_basis * FS
+total_ex_gst = base + destination_surcharge + fuel
+gst = total_ex_gst * 0.10
+total_inc_gst = total_ex_gst + gst</code></pre>
+
+<p>当前 DFE <code>FS</code> 配置来自 rate card，示例配置为 19.6%。</p>
+
+<h2 id="9-orange-connex-efn">9. Orange Connex eFN</h2>
+
+<p>启用服务：</p>
+
+<ul>
+<li><code>orange_efn_mel_2026</code></li>
+<li><code>orange_efn_syd_2026</code></li>
+</ul>
+
+<h3 id="9-1-profile-限制">9.1 Profile 限制</h3>
+
+<p>每件 article 必须满足：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>限制</th>
+<th>not available reason</th>
+</tr></thead><tbody>
+<tr>
+<td>重量/尺寸/qty 缺失或 &lt;= 0</td>
+<td><code>missing_dimension_or_weight</code></td>
+</tr>
+<tr>
+<td>单件实重 &gt; 25 kg</td>
+<td><code>orange_profile_item_over_25kg</code></td>
+</tr>
+<tr>
+<td>最长边 &gt; 105 cm</td>
+<td><code>orange_profile_length_over_105cm</code></td>
+</tr>
+<tr>
+<td>单件体积 &gt; 0.088 m3</td>
+<td><code>orange_profile_volume_over_0_088m3</code></td>
+</tr>
+</tbody></table></div>
+
+<h3 id="9-2-zone">9.2 Zone</h3>
+
+<p>Orange 使用 postcode/suburb/state：</p>
+
+<ol>
+<li>exact：<code>postcode + suburb + state</code></li>
+<li>fallback：如果 <code>postcode + state</code> 只有一个唯一 zone，则使用该 zone</li>
+<li>如果没有候选，则使用 <code>Rest of AU</code></li>
+<li>多个候选 zone 时返回 <code>ambiguous_destination_zone</code></li>
+</ol>
+
+<h3 id="9-3-单货-多货">9.3 单货 / 多货</h3>
+
+<p>Orange eFN 是逐 article 固定重量档：</p>
+
+<pre><code class="language-text">article_weight_grams = ceil(unit_weight_kg * 1000)
+band_weight_kg = article_weight_grams / 1000
+unit_price = RateRule(to_zone, band_weight_kg).basic_charge
+line_base = unit_price * qty
+base = sum(line_base)</code></pre>
+
+<p>如果目的 zone 找不到对应重量档，且 zone 不是 <code>Rest of AU</code>，会尝试 fallback 到 <code>Rest of AU</code>。</p>
+
+<h3 id="9-4-gst">9.4 GST</h3>
+
+<p>Orange 当前无 fuel/surcharge：</p>
+
+<pre><code class="language-text">total_ex_gst = base
+gst = base * 0.10
+total_inc_gst = base + gst</code></pre>
+
+<h2 id="10-ubi-agent-team-global-express-ipec">10. UBI Agent / Team Global Express IPEC</h2>
+
+<p>启用服务：</p>
+
+<ul>
+<li>Agent：UBI</li>
+<li>Courier：Team Global Express</li>
+<li>Service：UBI TGE IPEC Road</li>
+<li>Channels：<code>ubi_tge_ipec_mel1</code>, <code>ubi_tge_ipec_syd1</code></li>
+</ul>
+
+<h3 id="10-1-zone">10.1 Zone</h3>
+
+<p>IPEC 使用独立 zone lookup：</p>
+
+<ol>
+<li>postcode 补齐 4 位</li>
+<li>exact：<code>postcode + suburb + state</code></li>
+<li>fallback：<code>postcode + state</code> 只有一个唯一 zone 时使用</li>
+<li>多个候选 zone 时返回 <code>ambiguous_destination_zone</code></li>
+<li>如果有 override mapping，优先使用 override</li>
+</ol>
+
+<p>Rate rule 需要匹配：</p>
+
+<pre><code class="language-text">from_zone + to_zone + chargeable_kg</code></pre>
+
+<h3 id="10-2-单货-多货">10.2 单货 / 多货</h3>
+
+<p>UBI TGE IPEC 是整票合并后计算：</p>
+
+<pre><code class="language-text">actual_kg = sum(unit_weight_kg * qty)
+cubic_kg = sum(volume_m3 * cubic_factor * qty)
+chargeable_kg = ceil(max(actual_kg, cubic_kg))</code></pre>
+
+<p><code>cubic_factor</code> 来自 <code>RateCard.cubic_factor</code>，默认 250。</p>
+
+<p>Base：</p>
+
+<pre><code class="language-text">included_kg = RateRule.raw_payload.kg_included_in_basic
+rated_kg = max(0, chargeable_kg - included_kg)
+base = max(minimum_charge, basic_charge + per_kg * rated_kg)</code></pre>
+
+<h3 id="10-3-fuel-gst">10.3 Fuel / GST</h3>
+
+<p>当前 UBI IPEC fuel 是 <code>SurchargeRule</code> code <code>FS</code>，配置为 9.9%。</p>
+
+<pre><code class="language-text">fuel = base * FS
+total_ex_gst = base + fuel
+gst = total_ex_gst * rate_card.gst_rate
+total_inc_gst = total_ex_gst + gst</code></pre>
+
+<h3 id="10-4-当前限制">10.4 当前限制</h3>
+
+<ul>
+<li>已做的是 UBI TGE IPEC Road。</li>
+<li>UBI Fastway / Aramex / eParcel / Toll Priority 等如要作为系统估算通道，需要各自的 rate card importer、zone mapping 和 calculator 启用后才进入当前清单。</li>
+<li>UBI invoice 实收仍可进入 Invoice Reconciliation，但不代表已存在可复算的内部 calculator。</li>
+</ul>
+
+<h2 id="11-breakdown-trace-audit">11. Breakdown / Trace / Audit</h2>
+
+<p>每个可用报价会保存：</p>
+
+<ul>
+<li><code>QuoteRun</code></li>
+<li><code>QuoteCandidate</code></li>
+<li><code>QuoteChargeLine</code></li>
+<li><code>QuoteTraceLog</code></li>
+<li>Freight Audit 时额外保存 <code>FreightAuditRow</code> 和 <code>FreightAuditResult</code></li>
+</ul>
+
+<p>Breakdown 中只显示有金额或有实际触发意义的费用项；未触发或 0 的 OIS/surcharge 不应在前端详情里干扰用户。</p>
+
+<p>Freight Audit Matrix 建议工作流：</p>
+
+<ol>
+<li>先看顶部 estimate-enabled carrier list。</li>
+<li>点某个 channel 的 <code>Review</code>。</li>
+<li>下方只看该 channel 的历史订单、tracking、ERP Est、System Est、Invoice Actual。</li>
+<li>点行打开详情，逐 tracking 查看 base、surcharge、fuel、GST 和 item calculation。</li>
+</ol>
+
+<h2 id="12-当前未启用为内部估算的-agent-courier">12. 当前未启用为内部估算的 Agent / Courier</h2>
+
+<p>以下来源可以出现在订单、InvoiceReader、LSP API quote 或历史报价中，但当前不属于“内部 rate table calculator 已启用”的清单：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Agent / Source</th>
+<th>Courier</th>
+<th>当前状态</th>
+</tr></thead><tbody>
+<tr>
+<td>EIZ / Sunyee</td>
+<td>Australia Post, Allied, Aramex, Hunter, TNT 等</td>
+<td>主要作为 API/historical quote 或 invoice source；缺真实 API connector 或启用的 table calculator</td>
+</tr>
+<tr>
+<td>SHIPPIT</td>
+<td>Couriers Please, Smart Routing Bulky, Allied API 等</td>
+<td>可同步历史/API 数据；未作为内部 calculator 启用</td>
+</tr>
+<tr>
+<td>UBI</td>
+<td>Fastway/Aramex/eParcel/Toll Priority/其他 UBI invoice channel</td>
+<td>可进入 invoice reconciliation；内部估算需单独导入价卡和启用 calculator</td>
+</tr>
+<tr>
+<td>LSP rate table raw data</td>
+<td>多 carrier</td>
+<td>LSP 原始 rate data 已不作为当前系统估算主来源；系统估算以当前 RateCard/QuoteChannel 为准</td>
+</tr>
+</tbody></table></div>
+
+<h2 id="13-快速核对清单">13. 快速核对清单</h2>
+
+<p>开发或对账时，判断一个 courier 是否“已经能系统估算”，以这几个条件为准：</p>
+
+<ol>
+<li><code>Carrier.active = true</code></li>
+<li><code>CarrierService.active = true</code></li>
+<li>存在启用 <code>QuoteChannel.enabled = true</code></li>
+<li><code>QuoteChannel.provider_type = TABLE</code> 或已实现真实 API provider</li>
+<li><code>calculator_key</code> 能加载</li>
+<li>rate card 当前有效：<code>status=ACTIVE</code>, <code>is_active=true</code>, effective date 覆盖 quote date</li>
+<li>目的地 zone 能匹配</li>
+<li>SKU/手工输入有重量和尺寸</li>
+<li>对应 profile 限制没有触发 not available</li>
+</ol>
+
+<p>如果 Freight Audit 中看到 <code>NOT_AVAILABLE</code>，优先查看 detail 中的 <code>not_available_reason</code> 和 <code>debug_breakdown.stage</code>。</p>
 
 <!-- CONTENT_END -->
 
       <footer class="doc-footer">
         <span>Generated by <a href="#">md2html</a></span>
-        <span>Source: docs/erp_lsp_operational_sync.md</span>
+        <span>来源: docs/Freight_Carrier_Calculation_Logic_20260623.md</span>
       </footer>
     </main>
   </div>

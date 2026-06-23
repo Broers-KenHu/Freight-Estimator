@@ -172,7 +172,7 @@ Working notes for Codex agents continuing this project after context compaction.
 
 ## Rates And Calculators
 
-- Current calculation logic reference: `docs\Freight_Carrier_Calculation_Logic_20260618.md`. It explains all enabled carrier calculators, origin filtering, single-item vs multi-item calculation, order/tracking audit scope, GST display scope, and review points.
+- Current calculation logic reference: `docs\Freight_Carrier_Calculation_Logic_20260623.md`. It explains all enabled carrier calculators, origin filtering, single-item vs multi-item calculation, order/tracking audit scope, GST display scope, and review points.
 - LSP rate snapshot:
   - Current table model: `LspRateTableCurrent`
   - Archive table model: `LspRateTableArchive`
