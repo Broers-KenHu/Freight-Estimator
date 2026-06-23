@@ -61,6 +61,7 @@ Working notes for Codex agents continuing this project after context compaction.
   - WMS/ERP/InvoiceReader/PostageCalculator external systems are synced or imported into CourieDelivery snapshot/template tables.
   - Quote calculation always runs from CourieDelivery data, not directly from remote source tables in request-time UI flows.
   - Remote source reads should be inside management commands or explicit sync actions.
+  - Detailed ERP/LSP/WMS/InvoiceReader relationship and matching-field doc: `docs\ERP_LSP_WMS_Data_Relationships_20260623.md`.
 - ERP estimate scope is order-level unless proven otherwise from source DDL/data:
   - `ErpShipmentSnapshot.estimated_freight` currently comes from `hpoms_owner_order.postage_shipping_estimated_amount` then `shipping_estimated_amount`.
   - Never compare one tracking/consignment system estimate directly to ERP Est.

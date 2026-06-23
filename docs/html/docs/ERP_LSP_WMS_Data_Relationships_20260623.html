@@ -1,0 +1,2554 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="light" style="--rec-label: '推荐'">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>ERP / LSP / WMS 数据关系与匹配字段说明</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       TOKENS
+       ============================================================ */
+    :root {
+      --bg: #FAFAF7;
+      --surface: #FFFFFF;
+      --surface-2: #F5F5F0;
+      --surface-3: #EFEEE8;
+      --text: #1A1A1A;
+      --text-muted: #4A4A45;
+      --text-subtle: #6B6B66;
+      --accent: #D97757;
+      --accent-hover: #C56843;
+      --accent-soft: #FBEEE6;
+      --accent-border: #F0D5C4;
+      --accent-strong: #A85533;
+      --border: #E5E4DC;
+      --border-strong: #CDCDC4;
+      --code-bg: #F5F2EC;
+      --code-text: #2A2A2A;
+      --info: #2563EB;
+      --info-soft: #EFF6FF;
+      --info-border: #BFDBFE;
+      --warn: #B45309;
+      --warn-soft: #FFFBEB;
+      --warn-border: #FDE68A;
+      --danger: #B91C1C;
+      --danger-soft: #FEF2F2;
+      --danger-border: #FECACA;
+      --success: #047857;
+      --success-soft: #ECFDF5;
+      --success-border: #A7F3D0;
+      --decision: #6D28D9;
+      --decision-soft: #F5F3FF;
+      --decision-border: #DDD6FE;
+      --shadow-sm: 0 1px 2px rgba(20, 14, 8, 0.04);
+      --shadow: 0 1px 2px rgba(20, 14, 8, 0.04), 0 4px 12px rgba(20, 14, 8, 0.06);
+      --shadow-lg: 0 8px 24px rgba(20, 14, 8, 0.10);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans CJK JP', 'Noto Sans CJK KR', sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --z-progress: 200;
+      --z-topbar: 100;
+      --z-drawer: 300;
+      --z-backdrop: 250;
+    }
+
+    [data-theme="dark"] {
+      --bg: #1A1714;
+      --surface: #221E1A;
+      --surface-2: #2A2520;
+      --surface-3: #322C26;
+      --text: #F5F0E8;
+      --text-muted: #C8C0B6;
+      --text-subtle: #9A938A;
+      --accent: #E89572;
+      --accent-hover: #F2A87F;
+      --accent-soft: #3A2A22;
+      --accent-border: #5A3D2E;
+      --accent-strong: #F5B493;
+      --border: #2E2924;
+      --border-strong: #463F38;
+      --code-bg: #1E1B17;
+      --code-text: #E8E2D8;
+      --info: #93C5FD;
+      --info-soft: #1E2A3D;
+      --info-border: #2A4365;
+      --warn: #FBBF24;
+      --warn-soft: #332817;
+      --warn-border: #5C4520;
+      --danger: #FCA5A5;
+      --danger-soft: #3A1F1F;
+      --danger-border: #5C2A2A;
+      --success: #6EE7B7;
+      --success-soft: #1A3329;
+      --success-border: #1F5C45;
+      --decision: #C4B5FD;
+      --decision-soft: #2A1F40;
+      --decision-border: #4A3870;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.35);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    /* ============================================================
+       BASE
+       ============================================================ */
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    ::selection { background: var(--accent-soft); color: var(--accent-strong); }
+
+    /* Skip link */
+    .skip-link {
+      position: absolute;
+      top: -100px; left: 8px;
+      padding: 10px 16px;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+      z-index: 1000;
+      transition: top 0.15s;
+    }
+    .skip-link:focus { top: 8px; }
+
+    /* SVG sprite container (hidden) */
+    .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+    .icon { display: inline-block; flex-shrink: 0; vertical-align: middle; stroke: currentColor; fill: none; }
+
+    /* Scroll progress bar */
+    .scroll-progress {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      width: 0;
+      background: var(--accent);
+      z-index: var(--z-progress);
+      transition: width 0.05s linear;
+    }
+
+    /* ============================================================
+       TOPBAR
+       ============================================================ */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: var(--z-topbar);
+      background: rgba(250, 250, 247, 0.85);
+      backdrop-filter: saturate(180%) blur(12px);
+      -webkit-backdrop-filter: saturate(180%) blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    [data-theme="dark"] .topbar { background: rgba(26, 23, 20, 0.85); }
+    .topbar-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      color: var(--text);
+      font-size: 14px;
+    }
+    .brand-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+      animation: brand-pulse 2.8s ease-in-out infinite;
+    }
+    @keyframes brand-pulse {
+      0%, 100% { box-shadow: 0 0 0 4px var(--accent-soft); }
+      50%      { box-shadow: 0 0 0 7px transparent; }
+    }
+    .topbar-actions { display: flex; gap: 6px; align-items: center; }
+    .icon-btn {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+      padding: 0;
+    }
+    .icon-btn .icon { width: 18px; height: 18px; stroke-width: 2; }
+    .icon-btn[hidden] { display: none; }
+
+    /* ============================================================
+       LAYOUT
+       ============================================================ */
+    .layout {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 48px;
+      padding: 32px 24px 96px;
+    }
+    .content { min-width: 0; }
+
+    /* ============================================================
+       TOC (desktop + mobile drawer)
+       ============================================================ */
+    .toc {
+      position: sticky;
+      top: 80px;
+      align-self: start;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+    .toc::-webkit-scrollbar { width: 6px; }
+    .toc::-webkit-scrollbar-track { background: transparent; }
+    .toc::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+    .toc-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 12px 12px;
+    }
+    .toc-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-subtle);
+      margin: 0;
+    }
+    .toc-close { display: none; }
+    .toc-nav { display: flex; flex-direction: column; gap: 2px; }
+    .toc-nav a {
+      display: flex; align-items: center;
+      min-height: 36px;
+      padding: 8px 14px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13.5px;
+      border-left: 2px solid transparent;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+      line-height: 1.4;
+    }
+    .toc-nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      font-weight: 500;
+    }
+    .toc-nav a.lvl-3 { padding-left: 26px; font-size: 12.5px; }
+    .toc-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: var(--z-backdrop);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    /* ============================================================
+       DOC HEADER
+       ============================================================ */
+    .doc-header {
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .doc-eyebrow {
+      display: inline-flex; align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      border: 1px solid var(--accent-border);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      margin-bottom: 16px;
+    }
+    .doc-title {
+      font-size: clamp(28px, 3vw + 16px, 40px);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin: 0 0 12px;
+      color: var(--text);
+      text-wrap: balance;
+    }
+    .doc-subtitle {
+      font-size: clamp(15px, 0.6vw + 13px, 18px);
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin: 0 0 20px;
+      max-width: 75ch;
+      text-wrap: pretty;
+    }
+    .doc-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--text-subtle);
+    }
+    .doc-meta-item { display: inline-flex; align-items: center; gap: 6px; }
+    .doc-meta .icon { width: 14px; height: 14px; stroke-width: 2; }
+
+    /* ============================================================
+       CONTENT (typography)
+       ============================================================ */
+    .content h1, .content h2, .content h3, .content h4 {
+      color: var(--text);
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+      scroll-margin-top: 80px;
+      text-wrap: balance;
+    }
+    .content h2 {
+      font-size: 26px;
+      font-weight: 600;
+      margin: 56px 0 16px;
+      padding-top: 8px;
+      position: relative;
+    }
+    .content h3 {
+      font-size: 19px;
+      font-weight: 600;
+      margin: 36px 0 12px;
+      position: relative;
+    }
+    .content h4 {
+      font-size: 13px;
+      font-weight: 600;
+      margin: 24px 0 8px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .content > p,
+    .content > ul,
+    .content > ol,
+    .content > blockquote { max-width: 75ch; }
+    .content p { margin: 0 0 16px; text-wrap: pretty; overflow-wrap: anywhere; }
+    .content a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-border); }
+    .content ul, .content ol { padding-left: 24px; margin: 0 0 16px; }
+    .content li { margin: 4px 0; }
+    .content strong { color: var(--text); font-weight: 600; }
+    .content em { color: var(--text-muted); }
+    .content hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    /* Anchor links injected by JS on h2/h3 with id */
+    .anchor {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px;
+      margin-left: 6px;
+      color: var(--text-subtle);
+      opacity: 0;
+      transform: translateY(-1px);
+      transition: opacity 0.15s, color 0.15s;
+      border-bottom: none !important;
+      border-radius: var(--radius-sm);
+    }
+    .anchor .icon { width: 14px; height: 14px; stroke-width: 2; }
+
+    /* Images */
+    .content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin: 20px 0;
+      display: block;
+    }
+    .content figure { margin: 20px 0; }
+    .content figure img { margin: 0; }
+    .content figcaption {
+      font-size: 13px;
+      color: var(--text-subtle);
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    /* Task lists (- [ ] / - [x]) */
+    .content .task-list-item { list-style: none; margin-left: -22px; }
+    .content .task-list-item-checkbox {
+      margin-right: 8px;
+      vertical-align: -2px;
+      accent-color: var(--accent);
+    }
+
+    /* Footnotes */
+    .content .footnote-ref a,
+    .content sup a {
+      font-size: 0.75em;
+      vertical-align: super;
+      border-bottom: none;
+      padding: 0 2px;
+    }
+    .content .footnotes {
+      margin-top: 56px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* ============================================================
+       CODE
+       ============================================================ */
+    .content code {
+      font-family: var(--font-mono);
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.88em;
+      color: var(--code-text);
+      border: 1px solid var(--border);
+      overflow-wrap: anywhere;
+    }
+    .content pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-size: 13.5px;
+      line-height: 1.6;
+      margin: 16px 0;
+      position: relative;
+    }
+    .content pre code {
+      background: none; padding: 0; border: none;
+      color: var(--code-text);
+      font-size: inherit;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 32px; height: 32px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--text-subtle);
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+      padding: 0;
+    }
+    .copy-btn .icon { width: 14px; height: 14px; stroke-width: 2; }
+    .copy-btn.copied { color: var(--success); border-color: var(--success-border); opacity: 1; }
+
+    /* ============================================================
+       TIMELINE / STEPS
+       ============================================================ */
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 24px 0;
+      position: relative;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 19px;
+      top: 20px;
+      bottom: 20px;
+      width: 2px;
+      background: linear-gradient(180deg, var(--accent-border), var(--border));
+    }
+    .step {
+      display: grid;
+      grid-template-columns: 40px 1fr;
+      gap: 16px;
+      align-items: start;
+      padding: 16px 4px;
+      position: relative;
+      border-radius: var(--radius);
+      transition: background-color 0.15s;
+    }
+    .step-num {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      border: 2px solid var(--accent);
+      color: var(--accent);
+      border-radius: 50%;
+      font-weight: 600;
+      font-size: 14px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      z-index: 1;
+      transition: background-color 0.15s, color 0.15s, transform 0.15s;
+    }
+    .step.done .step-num { background: var(--accent); color: #fff; }
+    .step-body { padding-top: 6px; min-width: 0; }
+    .step-body h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .step-body p { margin: 0 0 8px; color: var(--text-muted); font-size: 14.5px; max-width: 75ch; }
+    .step-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* ============================================================
+       CALLOUTS
+       ============================================================ */
+    .callout {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 14px;
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      border: 1px solid;
+      margin: 20px 0;
+      font-size: 14.5px;
+      line-height: 1.6;
+      max-width: 75ch;
+    }
+    .callout-icon { width: 20px; height: 20px; margin-top: 2px; stroke-width: 2; }
+    .callout-body { min-width: 0; }
+    .callout-title { font-weight: 600; margin: 0 0 4px; font-size: 14px; }
+    .callout-body p:last-child { margin-bottom: 0; }
+    .callout-body code { background: rgba(0,0,0,0.04); }
+    [data-theme="dark"] .callout-body code { background: rgba(255,255,255,0.06); }
+
+    .callout-info     { background: var(--info-soft);     border-color: var(--info-border);     color: var(--text); }
+    .callout-info     .callout-title, .callout-info     .callout-icon { color: var(--info); }
+    .callout-warn     { background: var(--warn-soft);     border-color: var(--warn-border);     color: var(--text); }
+    .callout-warn     .callout-title, .callout-warn     .callout-icon { color: var(--warn); }
+    .callout-danger   { background: var(--danger-soft);   border-color: var(--danger-border);   color: var(--text); }
+    .callout-danger   .callout-title, .callout-danger   .callout-icon { color: var(--danger); }
+    .callout-success  { background: var(--success-soft);  border-color: var(--success-border);  color: var(--text); }
+    .callout-success  .callout-title, .callout-success  .callout-icon { color: var(--success); }
+    .callout-decision { background: var(--decision-soft); border-color: var(--decision-border); color: var(--text); }
+    .callout-decision .callout-title, .callout-decision .callout-icon { color: var(--decision); }
+    .callout-tip      { background: var(--accent-soft);   border-color: var(--accent-border);   color: var(--text); }
+    .callout-tip      .callout-title, .callout-tip      .callout-icon { color: var(--accent-strong); }
+
+    /* ============================================================
+       KEY-POINT HIGHLIGHT
+       ============================================================ */
+    .highlight {
+      background: linear-gradient(135deg, var(--accent-soft), var(--surface-2));
+      border-left: 4px solid var(--accent);
+      padding: 18px 22px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 24px 0;
+      font-size: 16px;
+      line-height: 1.65;
+      max-width: 75ch;
+    }
+    .highlight-label {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-strong);
+      margin-bottom: 6px;
+    }
+
+    /* ============================================================
+       MERMAID
+       ============================================================ */
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin: 24px 0;
+      box-shadow: var(--shadow-sm);
+      overflow-x: auto;
+    }
+    .diagram-caption {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+      font-size: 13px;
+      color: var(--text-subtle);
+      text-align: center;
+    }
+    .mermaid { text-align: center; min-height: 80px; }
+    .mermaid svg { max-width: 100%; height: auto; }
+    .mermaid:not([data-processed]) {
+      opacity: 0.4;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-subtle);
+      white-space: pre-wrap;
+      text-align: left;
+    }
+
+    /* ============================================================
+       PROS / CONS
+       ============================================================ */
+    .proscons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .proscons-col {
+      padding: 16px 20px;
+      border-radius: var(--radius);
+      border: 1px solid;
+    }
+    .proscons-col h4 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .proscons-col ul { margin: 0; padding-left: 18px; }
+    .proscons-col li { margin: 6px 0; }
+    .pros { background: var(--success-soft); border-color: var(--success-border); }
+    .pros h4 { color: var(--success); }
+    .cons { background: var(--danger-soft); border-color: var(--danger-border); }
+    .cons h4 { color: var(--danger); }
+
+    /* ============================================================
+       COMPARISON CARDS
+       ============================================================ */
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin: 24px 0;
+    }
+    .compare-card {
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.18s, box-shadow 0.18s;
+      position: relative;
+    }
+    .compare-card.recommended { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .compare-card.recommended::before {
+      content: var(--rec-label, "★ Recommended");
+      position: absolute; top: -10px; right: 14px;
+      background: var(--accent); color: #fff;
+      padding: 2px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+    }
+    .compare-card h4 { margin: 0 0 8px; font-size: 15px; color: var(--text); text-transform: none; letter-spacing: normal; }
+    .compare-card p { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+    /* ============================================================
+       COLLAPSIBLE
+       ============================================================ */
+    details.collapsible {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 16px 0;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    details.collapsible[open] { box-shadow: var(--shadow-sm); }
+    details.collapsible > summary {
+      cursor: pointer;
+      padding: 14px 18px;
+      font-weight: 500;
+      color: var(--text);
+      list-style: none;
+      display: flex; align-items: center; gap: 10px;
+      user-select: none;
+      transition: background 0.15s;
+      min-height: 44px;
+    }
+    details.collapsible > summary::-webkit-details-marker { display: none; }
+    details.collapsible > summary::before {
+      content: "›";
+      display: inline-block;
+      transition: transform 0.18s;
+      color: var(--accent);
+      font-size: 18px;
+      font-weight: 700;
+    }
+    details.collapsible[open] > summary::before { transform: rotate(90deg); }
+    .collapsible-body { padding: 4px 18px 18px; border-top: 1px solid var(--border); }
+    .collapsible-body > *:first-child { margin-top: 12px; }
+
+    /* ============================================================
+       TABLES (wrapped via .table-wrap or naturally responsive)
+       ============================================================ */
+    .table-wrap {
+      overflow-x: auto;
+      margin: 20px 0;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      max-width: 100%;
+    }
+    .content table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--surface);
+      margin: 0;
+    }
+    /* Standalone tables (not inside .table-wrap) keep visual border */
+    .content > table {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 20px 0;
+      display: block;
+      overflow-x: auto;
+    }
+    .content th {
+      background: var(--surface-2);
+      color: var(--text);
+      font-weight: 600;
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .content td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+    .content tr:last-child td { border-bottom: none; }
+
+    /* ============================================================
+       BLOCKQUOTE
+       ============================================================ */
+    .content blockquote {
+      margin: 20px 0;
+      padding: 4px 20px;
+      border-left: 3px solid var(--accent-border);
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* ============================================================
+       FOOTER
+       ============================================================ */
+    .doc-footer {
+      margin-top: 80px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-subtle);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .doc-footer a { color: var(--accent); text-decoration: none; }
+
+    /* ============================================================
+       FOCUS-VISIBLE (a11y)
+       ============================================================ */
+    *:focus { outline: none; }
+    *:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+      border-radius: var(--radius-sm);
+    }
+    .toc-nav a:focus-visible { outline-offset: -2px; }
+    .icon-btn:focus-visible { outline-offset: 2px; }
+    .anchor:focus-visible { opacity: 1; outline-offset: 2px; }
+    details.collapsible > summary:focus-visible { outline-offset: -2px; }
+
+    /* ============================================================
+       HOVER (only on hover-capable devices to avoid sticky-tap on mobile)
+       ============================================================ */
+    @media (hover: hover) {
+      .icon-btn:hover { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
+      .toc-nav a:hover { color: var(--accent); background: var(--accent-soft); }
+      .content a:hover { color: var(--accent-hover); border-bottom-color: var(--accent); }
+      .compare-card:hover { border-color: var(--accent-border); box-shadow: var(--shadow); }
+      .compare-card.recommended:hover { border-color: var(--accent); }
+      .content tr:hover td { background: var(--surface-2); }
+      details.collapsible > summary:hover { background: var(--surface-2); }
+      .step:hover { background: var(--surface-2); }
+      .step:hover .step-num { transform: scale(1.05); }
+      .anchor:hover { color: var(--accent); }
+      .content h2:hover .anchor,
+      .content h3:hover .anchor { opacity: 1; }
+      .copy-btn:hover { color: var(--accent); border-color: var(--accent-border); }
+      .content pre:hover .copy-btn { opacity: 1; }
+    }
+    /* On touch devices, copy-btn is always visible at low opacity */
+    @media (hover: none) {
+      .copy-btn { opacity: 0.6; }
+      .anchor { opacity: 0.4; }
+    }
+
+    /* ============================================================
+       MOBILE (≤900px) — TOC becomes off-canvas drawer
+       ============================================================ */
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 20px 16px 80px;
+      }
+      .topbar-inner { padding: 8px 12px; }
+      .doc-header { margin-bottom: 28px; padding-bottom: 20px; }
+
+      .toc-mobile-trigger { display: inline-flex !important; }
+
+      .toc {
+        position: fixed;
+        top: 0; left: 0;
+        width: min(300px, 82vw);
+        height: 100dvh;
+        max-height: 100dvh;
+        background: var(--surface);
+        z-index: var(--z-drawer);
+        padding: 16px 8px 24px 16px;
+        box-shadow: var(--shadow-lg);
+        transform: translateX(-105%);
+        transition: transform 0.25s ease;
+      }
+      .toc-head { padding: 4px 4px 12px 8px; }
+      .toc-close {
+        display: inline-flex !important;
+        width: 36px; height: 36px;
+        align-items: center; justify-content: center;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0;
+      }
+      .toc-close .icon { width: 18px; height: 18px; stroke-width: 2; }
+      body.toc-open .toc { transform: translateX(0); }
+      body.toc-open .toc-backdrop {
+        display: block;
+        opacity: 1;
+      }
+      .toc-backdrop {
+        display: block;
+        opacity: 0;
+        pointer-events: none;
+      }
+      body.toc-open .toc-backdrop { pointer-events: auto; }
+      body.toc-open { overflow: hidden; }
+    }
+    @media (min-width: 901px) {
+      .toc-mobile-trigger { display: none !important; }
+    }
+
+    /* ============================================================
+       REDUCED MOTION (a11y)
+       ============================================================ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      html { scroll-behavior: auto; }
+      .brand-dot { animation: none; box-shadow: 0 0 0 4px var(--accent-soft); }
+    }
+
+    /* ============================================================
+       PRINT
+       ============================================================ */
+    @media print {
+      .topbar, .toc, .toc-backdrop, .icon-btn, .copy-btn, .anchor, .scroll-progress { display: none !important; }
+      .layout { grid-template-columns: 1fr; padding: 0; max-width: 100%; }
+      body { background: #fff; color: #000; }
+      a { color: #000; }
+      .content pre, .callout, .compare-card, .step, .diagram { break-inside: avoid; }
+      .doc-footer { break-before: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Skip link for keyboard users -->
+  <a href="#main" class="skip-link">跳到正文</a>
+
+  <!-- Scroll progress -->
+  <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
+
+  <!-- SVG icon sprite (Lucide-style) -->
+  <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+    <symbol id="i-danger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></symbol>
+    <symbol id="i-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+    <symbol id="i-decision" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-tip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14a5 5 0 1 0-6.18 0 4 4 0 0 1 1.59 2h2.99a4 4 0 0 1 1.6-2Z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+  </svg>
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <button class="icon-btn toc-mobile-trigger" id="toc-toggle" onclick="openToc()" aria-label="目录" title="目录">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg>
+        </button>
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span>笔记</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" onclick="window.print()" title="打印 / 保存 PDF" aria-label="打印 / 保存 PDF">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-printer"/></svg>
+        </button>
+        <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" title="切换主题" aria-label="切换主题">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use id="theme-icon-use" href="#i-moon"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- TOC drawer backdrop (mobile) -->
+  <div class="toc-backdrop" onclick="closeToc()" aria-hidden="true"></div>
+
+  <div class="layout">
+    <aside class="toc" id="toc" aria-label="目录">
+      <div class="toc-head">
+        <p class="toc-title">目录</p>
+        <button class="toc-close" onclick="closeToc()" aria-label="关闭">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+        </button>
+      </div>
+      <nav class="toc-nav" id="toc-nav">
+        <a href="#总体原则" class="lvl-2">总体原则</a>
+<a href="#本地核心表关系" class="lvl-2">本地核心表关系</a>
+<a href="#wms-数据来源与匹配" class="lvl-2">WMS 数据来源与匹配</a>
+<a href="#sku-master" class="lvl-3">SKU Master</a>
+<a href="#combo-sku" class="lvl-3">Combo SKU</a>
+<a href="#warehouse-master" class="lvl-3">Warehouse Master</a>
+<a href="#erp-数据来源与匹配" class="lvl-2">ERP 数据来源与匹配</a>
+<a href="#platform-master" class="lvl-3">Platform Master</a>
+<a href="#erp-owner-order" class="lvl-3">ERP Owner Order</a>
+<a href="#erp-sales-sku-lines" class="lvl-3">ERP Sales SKU Lines</a>
+<a href="#erp-shipment-tracking" class="lvl-3">ERP Shipment / Tracking</a>
+<a href="#erp-manual-orders" class="lvl-3">ERP Manual Orders</a>
+<a href="#manual-quote-的订单查询字段" class="lvl-3">Manual Quote 的订单查询字段</a>
+<a href="#lsp-数据来源与匹配" class="lvl-2">LSP 数据来源与匹配</a>
+<a href="#agent-master" class="lvl-3">Agent Master</a>
+<a href="#carrier-service" class="lvl-3">Carrier / Service</a>
+<a href="#lsp-api-quote-snapshot" class="lvl-3">LSP API Quote Snapshot</a>
+<a href="#lsp-quote-log" class="lvl-3">LSP Quote Log</a>
+<a href="#invoicereader-与-erp-的对账匹配" class="lvl-2">InvoiceReader 与 ERP 的对账匹配</a>
+<a href="#freight-audit-matrix-的数据关系" class="lvl-2">Freight Audit Matrix 的数据关系</a>
+<a href="#同步命令与调度" class="lvl-2">同步命令与调度</a>
+<a href="#搜索和排错用字段" class="lvl-2">搜索和排错用字段</a>
+<a href="#已知风险和开发边界" class="lvl-2">已知风险和开发边界</a>
+<a href="#给后续开发的检查清单" class="lvl-2">给后续开发的检查清单</a>
+      </nav>
+    </aside>
+
+    <main class="content" id="main">
+      <header class="doc-header">
+        <span class="doc-eyebrow">NOTES</span>
+        <h1 class="doc-title">ERP / LSP / WMS 数据关系与匹配字段说明</h1>
+        <p class="doc-subtitle">本文档说明 Freight Intelligence 当前从 ERP、LSP、WMS、InvoiceReader 读取数据时的来源表、落地表、匹配字段、兜底逻辑和已知限制。内容以 2026 06 23 当前项目代码为准，供后续开发、联调、对账和交给 GPT 评估系统完整性使用。</p>
+        <div class="doc-meta">
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-file"/></svg>
+            docs/ERP_LSP_WMS_Data_Relationships_20260623.md
+          </span>
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-calendar"/></svg>
+            2026-06-23
+          </span>
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clock"/></svg>
+            ~6 分钟阅读
+          </span>
+        </div>
+      </header>
+
+      <!-- CONTENT_START -->
+
+<p>本文档说明 Freight Intelligence 当前从 ERP、LSP、WMS、InvoiceReader 读取数据时的来源表、落地表、匹配字段、兜底逻辑和已知限制。内容以 2026-06-23 当前项目代码为准，供后续开发、联调、对账和交给 GPT 评估系统完整性使用。</p>
+
+<h2 id="总体原则">总体原则</h2>
+
+<p>系统不在前端请求时直接跨库读取 ERP/LSP/WMS。所有外部数据先通过 Django management command 同步或导入到 CourieDelivery PostgreSQL 的 master/snapshot/template 表，然后报价、审计、对账都从本地库读取。</p>
+
+<figure class="diagram">
+  <pre class="mermaid">
+flowchart LR
+  WMS[(data_raw.wms)] --&gt;|SKU / warehouse sync| Local[(CourieDelivery PostgreSQL)]
+  ERP[(data_raw.erp)] --&gt;|platform / order / shipment sync| Local
+  LSP[(data_raw.lsp)] --&gt;|agent / carrier / API quote sync| Local
+  Invoice[(SQL Server invoiceReader)] --&gt;|invoice header/detail sync| Local
+  Local --&gt; Quote[Manual Quote / Freight Audit Matrix]
+  Local --&gt; Recon[Invoice Reconciliation]
+  Quote --&gt; Trace[Breakdown / Trace]
+  Recon --&gt; Variance[ERP Est / System Est / Actual variance]
+  </pre>
+  <figcaption class="diagram-caption">Mermaid diagram from source document.</figcaption>
+</figure>
+
+<p>关键原则如下：</p>
+
+<ul>
+<li><code>QuoteEngine</code> 只使用 CourieDelivery 本地 master、rate card、quote channel、SKU/order snapshot，不直接访问 ERP/LSP/WMS。</li>
+<li>ERP 运费预估值目前按订单级别处理；多 tracking 订单必须先汇总到 owner order 再与 ERP Est 比较。</li>
+<li>InvoiceReader 实际收费按 tracking/consignment 进入系统；对账优先使用 tracking 匹配 ERP shipment snapshot。</li>
+<li>LSP API quote 是历史报价证据，很多行不是 ERP 订单触发的正式报价，不能强行模糊匹配。</li>
+<li>WMS/ERP/LSP 的远程读取应集中在同步命令里，前端页面只读本地 API。</li>
+</ul>
+
+<h2 id="本地核心表关系">本地核心表关系</h2>
+
+<figure class="diagram">
+  <pre class="mermaid">
+erDiagram
+  Platform ||--o{ HistoricalOrder : platform
+  Warehouse ||--o{ HistoricalOrder : warehouse
+  HistoricalOrder ||--o{ HistoricalOrderItem : items
+  HistoricalOrder ||--o{ HistoricalOrderShipment : shipments
+  HistoricalOrder ||--o{ ErpShipmentSnapshot : erp_shipments
+  HistoricalOrder ||--o{ LspApiQuoteSnapshot : lsp_quotes
+  Carrier ||--o{ CarrierService : services
+  Agent ||--o{ QuoteChannel : owns
+  CarrierService ||--o{ QuoteChannel : quoted_by
+  InvoiceChargeSnapshot ||--o{ InvoiceReconciliationItem : actual_charge
+  ErpShipmentSnapshot ||--o{ InvoiceReconciliationItem : erp_match
+  SKU ||--o{ SKUComboComponent : combo_parent
+  </pre>
+  <figcaption class="diagram-caption">Mermaid diagram from source document.</figcaption>
+</figure>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>本地模型/表</th>
+<th>作用</th>
+<th>主要外部来源</th>
+<th>关键匹配字段</th>
+</tr></thead><tbody>
+<tr>
+<td><code>SKU</code></td>
+<td>单 SKU 和 combo 父 SKU 尺寸、重量、category 快照</td>
+<td>WMS <code>bas_sku</code>；ERP combo 表</td>
+<td><code>sku</code></td>
+</tr>
+<tr>
+<td><code>SKUComboComponent</code></td>
+<td>combo SKU 组件快照</td>
+<td>ERP <code>hpoms_product_combo*</code></td>
+<td><code>combo_sku</code> + <code>component_sku</code></td>
+</tr>
+<tr>
+<td><code>Warehouse</code></td>
+<td>仓库、地址、state、postcode、发货地判断</td>
+<td>WMS <code>bsm_warehouse</code></td>
+<td><code>code</code> / <code>source_external_id</code></td>
+</tr>
+<tr>
+<td><code>Platform</code></td>
+<td>销售平台和快递报价平台 master data</td>
+<td>ERP <code>hpoms_platform_info</code></td>
+<td><code>code</code> / <code>source_external_id</code></td>
+</tr>
+<tr>
+<td><code>Agent</code></td>
+<td>Broers、EIZ、SHIPPIT、UBI 等 agent master data</td>
+<td>LSP <code>lsp_carrier_agent</code> + quote history 兜底</td>
+<td><code>code</code> / <code>lsp_consign_agent_id</code></td>
+</tr>
+<tr>
+<td><code>Carrier</code></td>
+<td>快递公司 master data</td>
+<td>LSP carrier 相关表、本地导入</td>
+<td><code>code</code> / <code>source_external_id</code></td>
+</tr>
+<tr>
+<td><code>CarrierService</code></td>
+<td>carrier 下的具体服务/渠道</td>
+<td>LSP/API/rate table 配置</td>
+<td><code>carrier</code> + <code>code</code></td>
+</tr>
+<tr>
+<td><code>QuoteChannel</code></td>
+<td>实际可计算的报价渠道</td>
+<td>PostageCalculator/rate table/API 配置</td>
+<td><code>code</code></td>
+</tr>
+<tr>
+<td><code>HistoricalOrder</code></td>
+<td>ERP 订单轻量快照</td>
+<td>ERP owner order 和 manual order</td>
+<td><code>source_system</code> + <code>source_external_id</code></td>
+</tr>
+<tr>
+<td><code>HistoricalOrderItem</code></td>
+<td>订单销售 SKU 行快照</td>
+<td>ERP purchase SKU 表</td>
+<td><code>order</code> + <code>sku</code></td>
+</tr>
+<tr>
+<td><code>HistoricalOrderShipment</code></td>
+<td>ERP shipment/tracking 行快照</td>
+<td>ERP shipment detail</td>
+<td><code>order</code> + <code>source_external_id</code></td>
+</tr>
+<tr>
+<td><code>ErpShipmentSnapshot</code></td>
+<td>对账用 shipment 级快照</td>
+<td>ERP shipment detail + owner/core order</td>
+<td><code>source_system</code> + <code>source_external_id</code>；<code>tracking_no</code></td>
+</tr>
+<tr>
+<td><code>LspApiQuoteSnapshot</code></td>
+<td>LSP API quote 请求/返回快照</td>
+<td>LSP OpenAPI quote task</td>
+<td><code>source_system</code> + <code>source_external_id</code></td>
+</tr>
+<tr>
+<td><code>InvoiceChargeSnapshot</code></td>
+<td>InvoiceReader 实收费用快照</td>
+<td>invoice header/detail 表</td>
+<td><code>source_system</code> + <code>source_external_id</code>；<code>tracking_no</code></td>
+</tr>
+<tr>
+<td><code>InvoiceReconciliationItem</code></td>
+<td>ERP/System/Invoice 对账结果</td>
+<td>本地 snapshot 匹配结果</td>
+<td><code>invoice_charge_snapshot</code> + <code>erp_shipment_snapshot</code></td>
+</tr>
+</tbody></table></div>
+
+<h2 id="wms-数据来源与匹配">WMS 数据来源与匹配</h2>
+
+<h3 id="sku-master">SKU Master</h3>
+
+<p>来源：<code>data_raw.wms.bas_sku</code></p>
+
+<p>同步命令：<code>manage.py sync_sku_from_wms</code></p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>WMS 字段</th>
+<th>CourieDelivery 字段</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td><code>sku</code></td>
+<td><code>SKU.sku</code></td>
+<td>SKU 唯一键；报价时按这个字段找尺寸和重量</td>
+</tr>
+<tr>
+<td><code>skuDescr1</code> / <code>skuDescr2</code> 等描述字段</td>
+<td><code>SKU.description</code></td>
+<td>前端 SKU 下拉和订单明细展示</td>
+</tr>
+<tr>
+<td><code>sku_Group2</code></td>
+<td><code>SKU.category</code></td>
+<td>SKU category，允许中文显示</td>
+</tr>
+<tr>
+<td>重量字段，如 gross/net weight</td>
+<td><code>SKU.unit_weight_kg</code></td>
+<td>实重</td>
+</tr>
+<tr>
+<td>长宽高字段</td>
+<td><code>SKU.length_cm</code> / <code>width_cm</code> / <code>height_cm</code></td>
+<td>体积重和 oversize 预判</td>
+</tr>
+<tr>
+<td>启用状态字段</td>
+<td><code>SKU.active</code></td>
+<td>控制 SKU 是否可选</td>
+</tr>
+<tr>
+<td>更新时间字段 / <code>_airbyte_extracted_at</code></td>
+<td><code>SKU.source_updated_at</code> / <code>source_extracted_at</code></td>
+<td>增量同步水位</td>
+</tr>
+<tr>
+<td>原始行</td>
+<td><code>SKU.source_payload_json</code></td>
+<td>排错保留</td>
+</tr>
+</tbody></table></div>
+
+<p>匹配逻辑：</p>
+
+<ul>
+<li><code>SKU.sku</code> 是系统内 SKU 主键。</li>
+<li>Manual Quote 的 SKU/Combo SKU 输入框和批量选择弹窗都查本地 <code>SKU</code>。</li>
+<li>订单导入时，ERP SKU 行会用本地 <code>SKU.sku</code> 补充尺寸、重量和 category。</li>
+<li>如果 ERP 订单中的 SKU 本地找不到，系统仍可保留订单行，但尺寸和重量会缺失，报价准确性下降。</li>
+</ul>
+
+<h3 id="combo-sku">Combo SKU</h3>
+
+<p>来源：<code>data_raw.erp.hpoms_product_combo</code>、<code>data_raw.erp.hpoms_product_combo_skus</code></p>
+
+<p>虽然 combo SKU 业务上属于商品主数据，但当前来源是 ERP，不是 WMS。系统把 combo 父 SKU 存成 <code>SKU.is_combo = true</code>，组件存入 <code>SKUComboComponent</code>。</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>ERP 字段</th>
+<th>CourieDelivery 字段</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td><code>hpoms_product_combo.combo_sku</code></td>
+<td><code>SKU.sku</code> / <code>SKUComboComponent.combo_sku</code></td>
+<td>combo 父 SKU</td>
+</tr>
+<tr>
+<td><code>hpoms_product_combo_skus.owner_sku</code> / <code>sku</code></td>
+<td><code>SKUComboComponent.component_sku</code></td>
+<td>子 SKU</td>
+</tr>
+<tr>
+<td><code>quantity</code></td>
+<td><code>SKUComboComponent.qty</code></td>
+<td>组件数量</td>
+</tr>
+<tr>
+<td><code>combo_type</code></td>
+<td><code>SKU.combo_type</code> / <code>source_payload_json</code></td>
+<td>combo 类型，需要按 ERP 字典解释</td>
+</tr>
+<tr>
+<td>标题/描述</td>
+<td><code>SKU.description</code></td>
+<td>前端展示</td>
+</tr>
+<tr>
+<td>更新时间字段</td>
+<td><code>source_updated_at</code></td>
+<td>增量同步水位</td>
+</tr>
+</tbody></table></div>
+
+<p>匹配和计算逻辑：</p>
+
+<ul>
+<li>用户选择 combo SKU 时，报价前先展开成 component SKU 快照。</li>
+<li>combo 数量会乘以每个 component 的数量。</li>
+<li>组件尺寸、重量优先使用本地 <code>SKU</code> 中对应 component SKU 的 WMS 快照。</li>
+<li>combo 类型数字必须来自 ERP 字典或 DDL 证据，不能凭猜测写死。</li>
+</ul>
+
+<h3 id="warehouse-master">Warehouse Master</h3>
+
+<p>来源：<code>data_raw.wms.bsm_warehouse</code></p>
+
+<p>同步命令：<code>manage.py sync_warehouses_from_wms</code></p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>WMS 字段类型</th>
+<th>CourieDelivery 字段</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td>仓库 code/id，如 <code>warehouseCode</code>、<code>warehouse_code</code>、<code>code</code>、<code>id</code></td>
+<td><code>Warehouse.code</code> / <code>source_external_id</code></td>
+<td>ERP warehouse 关联主键</td>
+</tr>
+<tr>
+<td>仓库名称，如 <code>warehouseDescr</code></td>
+<td><code>Warehouse.name</code></td>
+<td>前端显示，只显示干净名称，例如 <code>BG01</code></td>
+</tr>
+<tr>
+<td>地址字段</td>
+<td><code>Warehouse.address</code> / <code>address2</code></td>
+<td>发货地址展示和排错</td>
+</tr>
+<tr>
+<td><code>city</code> / suburb 字段</td>
+<td><code>Warehouse.suburb</code></td>
+<td>发货 suburb</td>
+</tr>
+<tr>
+<td><code>postcode</code></td>
+<td><code>Warehouse.postcode</code></td>
+<td>发货 postcode</td>
+</tr>
+<tr>
+<td><code>state</code></td>
+<td><code>Warehouse.state</code></td>
+<td>判断 MEL/SYD 发货地和 rate card origin</td>
+</tr>
+<tr>
+<td>国家/区域/联系方式</td>
+<td>对应 <code>Warehouse</code> 字段</td>
+<td>配置展示</td>
+</tr>
+<tr>
+<td>更新时间字段 / <code>_airbyte_extracted_at</code></td>
+<td><code>external_updated_at</code> / <code>source_extracted_at</code></td>
+<td>增量同步水位</td>
+</tr>
+</tbody></table></div>
+
+<p>ERP 订单 warehouse 匹配优先级：</p>
+
+<ol>
+<li><code>hpoms_orders.wash_warehouse_code</code></li>
+<li><code>hpoms_owner_order_shipment_detail.warehouse_code</code></li>
+<li><code>hpoms_owner_order.warehouse_owner_code</code></li>
+<li><code>hpoms_owner_order_shipment_detail.warehouse_owner_code</code></li>
+</ol>
+
+<p>本地匹配方式：</p>
+
+<ul>
+<li>优先与 <code>Warehouse.code</code> 精确匹配。</li>
+<li>再与 <code>Warehouse.source_external_id</code> 匹配。</li>
+<li>如果无法匹配，订单仍保存原始 warehouse code，但 UI 会显示未映射，报价时只能走 <code>ALL warehouses</code> 或需要补 master data。</li>
+</ul>
+
+<p>发货地对 rate card 的影响：</p>
+
+<ul>
+<li><code>Warehouse.state = VIC</code> 时只应参与 MEL origin rate card。</li>
+<li><code>Warehouse.state = NSW</code> 时只应参与 SYD origin rate card。</li>
+<li>没有 state 的仓库会影响 Hunter/Allied/DFE 这类区分 EX MEL / EX SYD 的计算准确性。</li>
+</ul>
+
+<h2 id="erp-数据来源与匹配">ERP 数据来源与匹配</h2>
+
+<h3 id="platform-master">Platform Master</h3>
+
+<p>来源：<code>data_raw.erp.hpoms_platform_info</code></p>
+
+<p>同步命令：<code>manage.py sync_platforms_from_erp</code></p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>ERP 字段</th>
+<th>CourieDelivery 字段</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td><code>id</code></td>
+<td><code>Platform.code</code> / <code>source_external_id</code></td>
+<td>平台关联主键</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td><code>Platform.name</code></td>
+<td>前端平台名称</td>
+</tr>
+<tr>
+<td><code>company</code></td>
+<td><code>Platform.company</code></td>
+<td>公司名</td>
+</tr>
+<tr>
+<td><code>platform_type</code></td>
+<td><code>source_platform_type_code</code> + 中英文名称</td>
+<td>区分平台类型</td>
+</tr>
+<tr>
+<td><code>platform_group</code></td>
+<td><code>platform_group_code</code> + 中英文名称</td>
+<td>平台分组</td>
+</tr>
+<tr>
+<td><code>legal</code> / legal name</td>
+<td><code>Platform.legal_name</code></td>
+<td>配置展示</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>Platform.active</code></td>
+<td>激活状态</td>
+</tr>
+<tr>
+<td>更新时间字段 / <code>_airbyte_extracted_at</code></td>
+<td><code>external_updated_at</code> / <code>source_extracted_at</code></td>
+<td>增量同步水位</td>
+</tr>
+</tbody></table></div>
+
+<p>类型解释：</p>
+
+<ul>
+<li><code>platform_type</code> 和 <code>platform_group</code> 必须从 ERP 字典/DDL 证据解析。</li>
+<li>平台 group 使用 ERP 字典表，例如 <code>hpoms_dictionary</code>、<code>hpoms_dictionary_value</code>、<code>hpoms_dictionary_value_desc</code>，通过主/子 code 找到真实中英文标签。</li>
+<li>订单导入时用 <code>hpoms_owner_order.platform_id</code> 或 <code>hpoms_orders.platform_id</code> 匹配 <code>Platform.code</code> / <code>source_external_id</code>。</li>
+</ul>
+
+<h3 id="erp-owner-order">ERP Owner Order</h3>
+
+<p>主要来源：</p>
+
+<ul>
+<li><code>data_raw.erp.hpoms_owner_order</code></li>
+<li><code>data_raw.erp.hpoms_orders</code></li>
+<li><code>data_raw.erp.hpoms_order_address</code></li>
+<li><code>data_raw.erp.hpoms_order_shipping_estimated_detail</code></li>
+<li><code>data_raw.erp.hpoms_owner_order_purchase_skus</code></li>
+<li><code>data_raw.erp.hpoms_owner_order_shipment_detail</code></li>
+</ul>
+
+<p>同步命令：<code>manage.py sync_orders_from_erp</code></p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>ERP 字段</th>
+<th>CourieDelivery 字段</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td><code>hpoms_owner_order.id</code></td>
+<td><code>HistoricalOrder.source_external_id</code></td>
+<td>本地订单唯一来源 ID</td>
+</tr>
+<tr>
+<td><code>hpoms_owner_order.order_id</code></td>
+<td><code>HistoricalOrder.order_no</code> / <code>erp_order_no</code></td>
+<td>ERP Order No</td>
+</tr>
+<tr>
+<td><code>owner_order_no</code></td>
+<td><code>HistoricalOrder.erp_owner_order_no</code></td>
+<td>Owner Order No</td>
+</tr>
+<tr>
+<td><code>rd3_order_id</code></td>
+<td><code>HistoricalOrder.external_order_no</code></td>
+<td>第三方/外部单号</td>
+</tr>
+<tr>
+<td><code>platform_reference_no</code></td>
+<td><code>HistoricalOrder.platform_order_no</code></td>
+<td>Platform Order No</td>
+</tr>
+<tr>
+<td><code>platform_id</code></td>
+<td><code>HistoricalOrder.platform</code></td>
+<td>销售平台匹配</td>
+</tr>
+<tr>
+<td><code>shipping_option</code></td>
+<td><code>HistoricalOrder.shipping_option</code></td>
+<td>发货方式</td>
+</tr>
+<tr>
+<td><code>date_placed</code> / <code>created_at</code></td>
+<td><code>HistoricalOrder.order_date</code></td>
+<td>订单日期</td>
+</tr>
+<tr>
+<td>address <code>city/state/postcode</code></td>
+<td><code>suburb</code> / <code>state</code> / <code>postcode</code></td>
+<td>目的地</td>
+</tr>
+<tr>
+<td>latest shipment <code>tracking</code></td>
+<td><code>HistoricalOrder.consignment_no</code></td>
+<td>历史兼容字段；多 tracking 时不能只看它</td>
+</tr>
+<tr>
+<td>latest shipment carrier/channel/service</td>
+<td><code>actual_carrier</code> / raw payload</td>
+<td>ERP 实发快递信息</td>
+</tr>
+<tr>
+<td><code>postage_shipping_estimated_amount</code></td>
+<td><code>postage_shipping_estimated_amount</code> / <code>source_estimated_freight</code></td>
+<td>ERP 运费预估，当前按 ex GST 处理</td>
+</tr>
+<tr>
+<td><code>shipping_estimated_amount</code></td>
+<td><code>source_estimated_freight</code> 兜底</td>
+<td>ERP 预估兜底</td>
+</tr>
+<tr>
+<td><code>updated_at</code> / <code>_airbyte_extracted_at</code></td>
+<td><code>source_updated_at</code></td>
+<td>增量同步水位</td>
+</tr>
+</tbody></table></div>
+
+<p>订单类型：</p>
+
+<ul>
+<li><code>source_order_type = PLATFORM</code>：平台订单。</li>
+<li><code>source_order_type = THIRD_PARTY</code>：第三方订单。</li>
+<li><code>source_order_type = ERP</code> 或 manual source：人工/ERP 内部订单。</li>
+</ul>
+
+<p>订单匹配原则：</p>
+
+<ul>
+<li>本地唯一约束是 <code>HistoricalOrder.source_system + source_external_id</code>。</li>
+<li>UI 输入 ERP Order No / Platform Order No / tracking 时，会查多个字段，不只查 <code>order_no</code>。</li>
+<li><code>rd3_order_id</code> 作为外部单号，<code>platform_reference_no</code> 作为平台单号，二者都需要保留。</li>
+</ul>
+
+<h3 id="erp-sales-sku-lines">ERP Sales SKU Lines</h3>
+
+<p>来源：<code>data_raw.erp.hpoms_owner_order_purchase_skus</code></p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>ERP 字段</th>
+<th>CourieDelivery 字段</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td><code>owner_order_id</code></td>
+<td><code>HistoricalOrderItem.order</code></td>
+<td>通过 <code>HistoricalOrder.source_external_id</code> 关联</td>
+</tr>
+<tr>
+<td><code>owner_purchase_sku</code> / <code>purchase_sku</code> / <code>sku</code></td>
+<td><code>HistoricalOrderItem.sku</code></td>
+<td>SKU</td>
+</tr>
+<tr>
+<td><code>quantity</code></td>
+<td><code>HistoricalOrderItem.qty</code></td>
+<td>数量</td>
+</tr>
+<tr>
+<td>本地 SKU 快照</td>
+<td><code>unit_weight_kg</code> / <code>length_cm</code> / <code>width_cm</code> / <code>height_cm</code></td>
+<td>报价输入快照</td>
+</tr>
+</tbody></table></div>
+
+<p>计算影响：</p>
+
+<ul>
+<li>Manual Quote 的 ERP/Platform Order tab 会把这些 SKU 行带出。</li>
+<li>如果 SKU 是 combo，系统应在报价前展开成 component SKU。</li>
+<li>ERP Est 是订单级别；SKU 行只是系统重新计算运费的输入，不代表 ERP Est 的分摊口径。</li>
+</ul>
+
+<h3 id="erp-shipment-tracking">ERP Shipment / Tracking</h3>
+
+<p>来源：<code>data_raw.erp.hpoms_owner_order_shipment_detail</code></p>
+
+<p>落地表：</p>
+
+<ul>
+<li><code>HistoricalOrderShipment</code>：面向订单页面、Manual Quote、LSP quote 展示。</li>
+<li><code>ErpShipmentSnapshot</code>：面向 Invoice Reconciliation 和 Freight Audit Matrix。</li>
+</ul>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>ERP shipment 字段</th>
+<th><code>HistoricalOrderShipment</code> 字段</th>
+<th><code>ErpShipmentSnapshot</code> 字段</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td><code>id</code></td>
+<td><code>source_external_id</code></td>
+<td><code>source_external_id</code></td>
+<td>shipment 行唯一键</td>
+</tr>
+<tr>
+<td><code>tracking</code></td>
+<td><code>tracking_no</code></td>
+<td><code>tracking_no</code></td>
+<td>invoice 和 LSP 展示的核心匹配字段</td>
+</tr>
+<tr>
+<td><code>owner_order_id</code></td>
+<td><code>order</code></td>
+<td><code>order</code></td>
+<td>关联 <code>HistoricalOrder.source_external_id</code></td>
+</tr>
+<tr>
+<td><code>carrier</code></td>
+<td><code>carrier_name</code></td>
+<td><code>carrier_name</code></td>
+<td>ERP 实发快递</td>
+</tr>
+<tr>
+<td><code>carrier_channel</code></td>
+<td><code>carrier_channel</code></td>
+<td><code>carrier_channel</code></td>
+<td>ERP 实发渠道</td>
+</tr>
+<tr>
+<td><code>service_providers</code></td>
+<td><code>service_provider</code></td>
+<td><code>service_provider</code></td>
+<td>ERP service/provider</td>
+</tr>
+<tr>
+<td><code>carrier_channel_account</code></td>
+<td><code>carrier_channel_account</code></td>
+<td><code>carrier_channel_account</code></td>
+<td>快递账号</td>
+</tr>
+<tr>
+<td><code>warehouse_code</code></td>
+<td><code>warehouse_code</code></td>
+<td><code>warehouse_code</code> 兜底</td>
+<td>仓库</td>
+</tr>
+<tr>
+<td><code>warehouse_owner_code</code></td>
+<td><code>warehouse_owner_code</code></td>
+<td><code>warehouse_code</code> 兜底</td>
+<td>仓库 owner code</td>
+</tr>
+<tr>
+<td><code>package_no</code></td>
+<td><code>package_no</code></td>
+<td>raw payload</td>
+<td>包裹编号</td>
+</tr>
+<tr>
+<td><code>purchase_sku</code> / <code>owner_purchase_sku</code></td>
+<td>对应字段</td>
+<td>raw payload</td>
+<td>shipment SKU 信息</td>
+</tr>
+<tr>
+<td><code>qty</code></td>
+<td><code>qty</code></td>
+<td>raw payload</td>
+<td>shipment 数量</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>status_code</code></td>
+<td>raw payload</td>
+<td>shipment 状态</td>
+</tr>
+</tbody></table></div>
+
+<p><code>ErpShipmentSnapshot</code> 会额外 join：</p>
+
+<ul>
+<li><code>hpoms_owner_order</code>：ERP order no、owner order no、rd3 order、platform reference、ERP estimate。</li>
+<li><code>hpoms_orders</code>：core order no、platform、warehouse、shipping option。</li>
+<li><code>hpoms_platform_info</code>：platform name/company。</li>
+</ul>
+
+<p><code>ErpShipmentSnapshot.estimated_freight</code> 来源优先级：</p>
+
+<ol>
+<li><code>hpoms_owner_order.postage_shipping_estimated_amount</code></li>
+<li><code>hpoms_owner_order.shipping_estimated_amount</code></li>
+</ol>
+
+<p>注意事项：</p>
+
+<ul>
+<li><code>estimated_freight</code> 当前是 ERP 订单级 ex GST 预估。</li>
+<li>如果一个 order 有多个 tracking，实际 invoice 和系统估算都要按订单汇总后再与 ERP Est 比较。</li>
+<li>不要把一个 tracking 的系统估算直接与 ERP Est 比较，除非确认 ERP Est 就是 tracking 级别。</li>
+</ul>
+
+<h3 id="erp-manual-orders">ERP Manual Orders</h3>
+
+<p>来源：</p>
+
+<ul>
+<li><code>data_raw.erp.hpoms_manual_orders</code></li>
+<li><code>data_raw.erp.hpoms_manual_order_address</code></li>
+<li><code>data_raw.erp.hpoms_manual_order_skus</code></li>
+</ul>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>ERP 字段</th>
+<th>CourieDelivery 字段</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td><code>hpoms_manual_orders.id</code></td>
+<td><code>HistoricalOrder.source_external_id</code></td>
+<td>本地唯一来源 ID</td>
+</tr>
+<tr>
+<td><code>manual_order_no</code> / <code>order_id</code></td>
+<td><code>HistoricalOrder.order_no</code></td>
+<td>人工订单号</td>
+</tr>
+<tr>
+<td><code>platform_id</code></td>
+<td><code>HistoricalOrder.platform</code></td>
+<td>平台匹配</td>
+</tr>
+<tr>
+<td><code>warehouse_owner_code</code></td>
+<td><code>HistoricalOrder.warehouse</code> 兜底</td>
+<td>仓库匹配</td>
+</tr>
+<tr>
+<td><code>shipping_option</code></td>
+<td><code>HistoricalOrder.shipping_option</code></td>
+<td>发货方式</td>
+</tr>
+<tr>
+<td>manual address</td>
+<td><code>suburb</code> / <code>state</code> / <code>postcode</code></td>
+<td>目的地</td>
+</tr>
+<tr>
+<td>manual skus <code>sku</code> + <code>quantity</code></td>
+<td><code>HistoricalOrderItem</code></td>
+<td>系统重新估算输入</td>
+</tr>
+</tbody></table></div>
+
+<h3 id="manual-quote-的订单查询字段">Manual Quote 的订单查询字段</h3>
+
+<p>Manual Quote 的 ERP/Platform Order tab 不应只查一个字段。当前应覆盖：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>用户可能输入</th>
+<th>本地查询字段</th>
+</tr></thead><tbody>
+<tr>
+<td>ERP Order No</td>
+<td><code>HistoricalOrder.order_no</code>、<code>erp_order_no</code></td>
+</tr>
+<tr>
+<td>Owner Order No</td>
+<td><code>HistoricalOrder.erp_owner_order_no</code></td>
+</tr>
+<tr>
+<td>Platform Order No</td>
+<td><code>HistoricalOrder.platform_order_no</code></td>
+</tr>
+<tr>
+<td>第三方/外部单号</td>
+<td><code>HistoricalOrder.external_order_no</code></td>
+</tr>
+<tr>
+<td>Consignment</td>
+<td><code>HistoricalOrder.consignment_no</code></td>
+</tr>
+<tr>
+<td>Tracking</td>
+<td><code>HistoricalOrderShipment.tracking_no</code>、<code>ErpShipmentSnapshot.tracking_no</code></td>
+</tr>
+<tr>
+<td>LSP order/shipment reference</td>
+<td><code>LspApiQuoteSnapshot.lsp_order_code</code>、<code>lsp_shipment_code</code></td>
+</tr>
+</tbody></table></div>
+
+<p>返回页面时应展示：</p>
+
+<ul>
+<li>ERP Order No</li>
+<li>Platform Order No</li>
+<li>所有 tracking</li>
+<li>platform name</li>
+<li>warehouse code/name</li>
+<li>shipping option</li>
+<li>ERP Est inc GST 展示值</li>
+<li>ERP 实发 carrier/channel/service</li>
+<li>Sales SKU、Shipment SKU、Quote SKU</li>
+<li>若匹配到 LSP historical API quote，则展示 LSP 当时选择价格和可展开的比价详情</li>
+</ul>
+
+<h2 id="lsp-数据来源与匹配">LSP 数据来源与匹配</h2>
+
+<h3 id="agent-master">Agent Master</h3>
+
+<p>来源：<code>data_raw.lsp.lsp_carrier_agent</code></p>
+
+<p>同步命令：<code>manage.py sync_agents_from_lsp</code></p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>LSP 字段</th>
+<th>CourieDelivery 字段</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td>agent code/id</td>
+<td><code>Agent.code</code> / <code>source_external_id</code></td>
+<td>agent 唯一键</td>
+</tr>
+<tr>
+<td>agent name</td>
+<td><code>Agent.name</code></td>
+<td>前端显示</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>Agent.active</code> / <code>lsp_status_code</code></td>
+<td>激活状态</td>
+</tr>
+<tr>
+<td><code>rate_type</code></td>
+<td><code>Agent.lsp_rate_type</code></td>
+<td>LSP 侧计费类型参考</td>
+</tr>
+<tr>
+<td><code>consign_agent_id</code></td>
+<td><code>Agent.lsp_consign_agent_id</code></td>
+<td>LSP 关联</td>
+</tr>
+</tbody></table></div>
+
+<p>业务含义：</p>
+
+<ul>
+<li>Agent 是 Master Data，不是前端硬编码展示。</li>
+<li>同一个 carrier 在不同 agent 下可能有不同 API 价格或不同维护方。</li>
+<li><code>QuoteChannel.agent</code> 和 <code>ApiCredential.agent</code> 应保留 agent 归属。</li>
+</ul>
+
+<h3 id="carrier-service">Carrier / Service</h3>
+
+<p>主要来源：</p>
+
+<ul>
+<li><code>data_raw.lsp.lsp_carrier</code></li>
+<li><code>data_raw.lsp.lsp_carrier_channel</code></li>
+<li><code>data_raw.lsp.lsp_carrier_account</code></li>
+<li><code>data_raw.lsp.lsp_carrier_rate</code></li>
+<li><code>data_raw.lsp.lsp_carrier_quote_platform_rate</code></li>
+</ul>
+
+<p>同步/导入命令：<code>manage.py import_carriers_from_lsp</code></p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>LSP 字段/统计</th>
+<th>CourieDelivery 字段</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td>carrier code/id</td>
+<td><code>Carrier.code</code> / <code>source_external_id</code></td>
+<td>carrier 唯一键</td>
+</tr>
+<tr>
+<td>carrier name</td>
+<td><code>Carrier.name</code></td>
+<td>UI 显示必须用 name，不用纯数字 code</td>
+</tr>
+<tr>
+<td>carrier status</td>
+<td><code>Carrier.active</code> / <code>lsp_status_code</code></td>
+<td>激活状态</td>
+</tr>
+<tr>
+<td>agent code</td>
+<td><code>Carrier.lsp_agent_code</code></td>
+<td>agent 归属参考</td>
+</tr>
+<tr>
+<td>channel code</td>
+<td><code>Carrier.lsp_channel_code</code></td>
+<td>LSP channel</td>
+</tr>
+<tr>
+<td>active rate rows count</td>
+<td><code>Carrier.active_rate_rows</code></td>
+<td>判断 TABLE</td>
+</tr>
+<tr>
+<td>quote platform rate rows count</td>
+<td><code>Carrier.active_quote_rate_rows</code></td>
+<td>判断平台价卡</td>
+</tr>
+<tr>
+<td>active API account count</td>
+<td><code>Carrier.active_api_accounts</code></td>
+<td>判断 API</td>
+</tr>
+</tbody></table></div>
+
+<p>carrier type 判断：</p>
+
+<ul>
+<li>只有 rate rows：<code>TABLE</code></li>
+<li>只有 active API account：<code>API</code></li>
+<li>rate rows 和 API account 都有：<code>HYBRID</code></li>
+</ul>
+
+<p>注意：</p>
+
+<ul>
+<li>LSP rate raw 表不是当前主要计算模板。用户已要求系统使用 CourieDelivery/PostageCalculator/已导入的本地 rate template。</li>
+<li>LSP rate data 可作为参考或核对，不应在 operational sync 中覆盖已确认的本地 calculator。</li>
+</ul>
+
+<h3 id="lsp-api-quote-snapshot">LSP API Quote Snapshot</h3>
+
+<p>主要来源：</p>
+
+<ul>
+<li><code>data_raw.lsp.lsp_openapi_quote_task</code></li>
+<li><code>data_raw.lsp.lsp_quote_task</code></li>
+<li><code>data_raw.lsp.lsp_booking_order</code></li>
+<li><code>data_raw.erp.hpoms_scp_so_execute</code></li>
+<li><code>data_raw.erp.hpoms_owner_order</code></li>
+</ul>
+
+<p>同步命令：<code>manage.py sync_lsp_api_quotes</code></p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>LSP/ERP 字段</th>
+<th>CourieDelivery 字段</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td><code>lsp_openapi_quote_task.id</code></td>
+<td><code>LspApiQuoteSnapshot.source_external_id</code></td>
+<td>API quote 唯一键</td>
+</tr>
+<tr>
+<td><code>lsp_openapi_quote_task.quote_id</code></td>
+<td><code>quote_id</code>，并 join <code>lsp_quote_task.id</code></td>
+<td>连接 quote task</td>
+</tr>
+<tr>
+<td><code>lsp_quote_task.id</code></td>
+<td><code>quote_task_id</code></td>
+<td>LSP quote task id</td>
+</tr>
+<tr>
+<td><code>lsp_quote_task.order_code</code></td>
+<td><code>lsp_order_code</code></td>
+<td>LSP 内部/reference code，通常不等于 ERP order</td>
+</tr>
+<tr>
+<td><code>lsp_quote_task.shipment_code</code></td>
+<td><code>lsp_shipment_code</code></td>
+<td>LSP shipment/reference code</td>
+</tr>
+<tr>
+<td><code>lsp_quote_task.warehouse_code</code></td>
+<td><code>warehouse_code</code></td>
+<td>LSP 仓库参考</td>
+</tr>
+<tr>
+<td><code>request_id</code></td>
+<td><code>request_id</code></td>
+<td>API 请求 ID</td>
+</tr>
+<tr>
+<td>request JSON</td>
+<td><code>request_summary_json</code></td>
+<td>请求摘要</td>
+</tr>
+<tr>
+<td>response JSON</td>
+<td><code>response_summary_json</code> / <code>raw_response_json</code></td>
+<td>返回摘要和原始返回</td>
+</tr>
+<tr>
+<td>response quote list</td>
+<td><code>LspApiQuoteOption</code></td>
+<td>各 carrier/API 返回价格</td>
+</tr>
+<tr>
+<td>selected/predict carrier</td>
+<td><code>predicted_carrier_code/name</code></td>
+<td>LSP 当时选中的 carrier</td>
+</tr>
+<tr>
+<td>selected/predict price</td>
+<td><code>predicted_shipping_cost</code> / <code>predict_price</code></td>
+<td>LSP 当时价格</td>
+</tr>
+<tr>
+<td>booking <code>tracking_number</code></td>
+<td><code>booking_tracking_no</code></td>
+<td>仅辅助匹配</td>
+</tr>
+<tr>
+<td>booking <code>freight</code></td>
+<td><code>booking_freight</code></td>
+<td>LSP booking freight</td>
+</tr>
+<tr>
+<td>ERP matched owner order</td>
+<td><code>historical_order</code>、<code>source_order_id</code></td>
+<td>匹配到本地订单</td>
+</tr>
+</tbody></table></div>
+
+<p>推荐匹配路径：</p>
+
+<ol>
+<li><code>lsp_openapi_quote_task.quote_id -&gt; lsp_quote_task.id</code></li>
+<li><code>lsp_quote_task.shipment_code -&gt; lsp_booking_order.shipment_code</code></li>
+<li><code>lsp_booking_order.reference_no</code> 或 booking <code>shipment_code</code></li>
+<li>规范化去掉包裹尾缀，例如 <code>_1</code>、<code>-P1</code>、<code>_P1</code>、<code>-1</code></li>
+<li>匹配 ERP <code>hpoms_owner_order.rd3_order_id</code>、<code>platform_reference_no</code>、<code>owner_order_no</code></li>
+<li>找到本地 <code>HistoricalOrder.source_external_id</code></li>
+</ol>
+
+<p>兜底匹配路径：</p>
+
+<ol>
+<li><code>lsp_quote_task.order_code -&gt; erp.hpoms_scp_so_execute.from_order_no</code></li>
+<li><code>hpoms_scp_so_execute.tid -&gt; hpoms_owner_order.rd3_order_id</code></li>
+<li>匹配本地 <code>HistoricalOrder</code></li>
+</ol>
+
+<p>本地 rematch 还会尝试：</p>
+
+<ul>
+<li><code>LspApiQuoteSnapshot.source_order_id -&gt; HistoricalOrder.source_external_id</code></li>
+<li><code>booking_tracking_no -&gt; HistoricalOrderShipment.tracking_no</code></li>
+<li><code>booking_tracking_no -&gt; HistoricalOrder.consignment_no</code></li>
+<li><code>erp_order_no</code>、<code>erp_owner_order_no</code>、<code>external_order_no</code>、<code>platform_order_no</code></li>
+<li><code>source_platform_id -&gt; Platform.code/source_external_id</code></li>
+</ul>
+
+<p>已知限制：</p>
+
+<ul>
+<li><code>lsp_quote_task.order_code</code> 很多时候是 LSP 内部请求号，不可靠。</li>
+<li><code>lsp_booking_order.tracking_number</code> 很多历史 API quote 行不能直接匹配 ERP shipment tracking。</li>
+<li>当前大量 LSP API snapshots 缺 <code>source_order_id</code>、ERP order、external order、platform order，只保留 <code>lsp_order_code</code> / <code>lsp_shipment_code</code>，必须保留为未匹配历史证据，不要强行删除。</li>
+</ul>
+
+<h3 id="lsp-quote-log">LSP Quote Log</h3>
+
+<p>主要来源：</p>
+
+<ul>
+<li><code>data_raw.lsp.lsp_quote_task_job</code></li>
+<li><code>data_raw.lsp.lsp_quote_task_job_log</code></li>
+</ul>
+
+<p>同步命令：<code>manage.py sync_lsp_quote_logs</code></p>
+
+<p>关系：</p>
+
+<ul>
+<li><code>lsp_openapi_quote_task.quote_id -&gt; lsp_quote_task.id</code></li>
+<li><code>lsp_quote_task.id -&gt; lsp_quote_task_job.quote_task_id</code></li>
+<li><code>lsp_quote_task_job.id -&gt; lsp_quote_task_job_log.quote_task_job_id</code></li>
+<li>本地落到 <code>LspQuoteTaskLogItem</code></li>
+</ul>
+
+<p>用途：</p>
+
+<ul>
+<li>Manual Quote 的 ERP/Platform Order 查询展开 LSP 历史报价时，可以显示 LSP 当时各 agent/carrier 的返回详情。</li>
+<li>排查为什么 LSP 当时选了某个 carrier，或者为什么某个 API carrier not available。</li>
+</ul>
+
+<h2 id="invoicereader-与-erp-的对账匹配">InvoiceReader 与 ERP 的对账匹配</h2>
+
+<p>虽然 InvoiceReader 不属于 ERP/LSP/WMS，但它是三者数据关系的最终验证环节。</p>
+
+<p>来源：</p>
+
+<ul>
+<li>SQL Server <code>invoiceReader.dbo.invoice_header_local_freight</code></li>
+<li>SQL Server <code>invoiceReader.dbo.invoice_detail_*</code> 生产明细表</li>
+</ul>
+
+<p>同步命令：</p>
+
+<ul>
+<li><code>manage.py sync_invoices_from_sqlserver</code></li>
+<li><code>manage.py sync_reconciliation_snapshots</code></li>
+</ul>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>InvoiceReader 字段</th>
+<th>CourieDelivery 字段</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td>header invoice no/date/source</td>
+<td><code>InvoiceChargeSnapshot.invoice_no</code> / <code>invoice_date</code> / source fields</td>
+<td>invoice 主信息</td>
+</tr>
+<tr>
+<td>detail tracking/connote</td>
+<td><code>InvoiceChargeSnapshot.tracking_no</code></td>
+<td>与 ERP shipment 匹配</td>
+</tr>
+<tr>
+<td>carrier/source/account</td>
+<td><code>invoice_source</code> / <code>carrier_name</code> / <code>service_name</code> / <code>freight_account</code></td>
+<td>区分 agent + courier service</td>
+</tr>
+<tr>
+<td>charge amount</td>
+<td><code>actual_freight</code></td>
+<td>实收金额，系统内按 inc GST 归一</td>
+</tr>
+<tr>
+<td>source line grouping</td>
+<td><code>source_line_count</code> / <code>raw_payload</code></td>
+<td>多费用行合并和排错</td>
+</tr>
+</tbody></table></div>
+
+<p>对账匹配路径：</p>
+
+<ol>
+<li><code>InvoiceChargeSnapshot.tracking_no -&gt; ErpShipmentSnapshot.tracking_no</code></li>
+<li>如果多个 ERP shipment 同 tracking，用 <code>carrier_name</code>、<code>carrier_channel</code>、<code>service_provider</code>、<code>carrier_channel_account</code> 打分消歧。</li>
+<li>匹配成功后，把 <code>ErpShipmentSnapshot.erp_order_no</code> 写入 <code>InvoiceReconciliationItem.order_no</code>。</li>
+<li><code>estimated_freight</code> 保存 ERP Est 原始口径；serializer 额外提供 inc GST 展示值。</li>
+<li><code>system_estimated_freight</code> 保存 CourieDelivery 当前 calculator 算出的 inc GST 值。</li>
+</ol>
+
+<p>重要口径：</p>
+
+<ul>
+<li>Invoice actual：inc GST。</li>
+<li>System Est：inc GST。</li>
+<li>ERP Est：源字段为 ex GST，外层 UI/export 应显示 backend 提供的 inc GST 字段。</li>
+<li>多 tracking 订单：实际收费和系统估算应汇总到 order 后再与 ERP Est 比较。</li>
+</ul>
+
+<h2 id="freight-audit-matrix-的数据关系">Freight Audit Matrix 的数据关系</h2>
+
+<p>Freight Audit Matrix 是历史订单重新计算和跨快递比价的主要模块。</p>
+
+<p>输入来源：</p>
+
+<ul>
+<li><code>HistoricalOrder</code></li>
+<li><code>HistoricalOrderItem</code></li>
+<li><code>HistoricalOrderShipment</code></li>
+<li><code>ErpShipmentSnapshot</code></li>
+<li><code>QuoteChannel</code></li>
+<li><code>RateCard</code> / calculator tables</li>
+</ul>
+
+<p>模式说明：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>模式</th>
+<th>输入粒度</th>
+<th>与 ERP Est 比较方式</th>
+<th>适用场景</th>
+</tr></thead><tbody>
+<tr>
+<td><code>CONSIGNMENT</code></td>
+<td>一个 owner order 下的 tracking groups</td>
+<td>每个 tracking/consignment 计算后按 order 聚合</td>
+<td>invoice 对账、历史订单核价</td>
+</tr>
+<tr>
+<td><code>ORDER</code></td>
+<td>整单 SKU 一起计算</td>
+<td>整单系统估算 vs ERP order estimate</td>
+<td>订单级预估</td>
+</tr>
+<tr>
+<td><code>ITEM</code></td>
+<td>单 SKU 行</td>
+<td>不应与 ERP order estimate 直接比较</td>
+<td>单品运费测试</td>
+</tr>
+</tbody></table></div>
+
+<p>origin 过滤：</p>
+
+<ul>
+<li>quote/audit 时，系统根据 <code>Warehouse.state</code> 过滤 EX MEL / EX SYD rate card。</li>
+<li>例如 BGS1 设置为 NSW 时，只应参与 SYD 路费表；MEL 路费表不应参与比较。</li>
+</ul>
+
+<p>展示口径：</p>
+
+<ul>
+<li>外层列表只显示 inc GST total。</li>
+<li>base、surcharge、fuel、GST、adjustment 等明细只在 breakdown/detail 中显示。</li>
+<li>多 tracking detail 需要按 tracking 分组和排序，不能全部挤进同一张表。</li>
+</ul>
+
+<h2 id="同步命令与调度">同步命令与调度</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>命令</th>
+<th>读取来源</th>
+<th>落地对象</th>
+<th>用途</th>
+</tr></thead><tbody>
+<tr>
+<td><code>sync_sku_from_wms</code></td>
+<td><code>data_raw.wms.bas_sku</code></td>
+<td><code>SKU</code></td>
+<td>SKU 尺寸重量和 category</td>
+</tr>
+<tr>
+<td><code>sync_warehouses_from_wms</code></td>
+<td><code>data_raw.wms.bsm_warehouse</code></td>
+<td><code>Warehouse</code></td>
+<td>仓库、地址、state</td>
+</tr>
+<tr>
+<td><code>sync_platforms_from_erp</code></td>
+<td><code>data_raw.erp.hpoms_platform_info</code></td>
+<td><code>Platform</code></td>
+<td>平台 master data</td>
+</tr>
+<tr>
+<td><code>sync_agents_from_lsp</code></td>
+<td><code>data_raw.lsp.lsp_carrier_agent</code></td>
+<td><code>Agent</code></td>
+<td>agent master data</td>
+</tr>
+<tr>
+<td><code>import_carriers_from_lsp</code></td>
+<td>LSP carrier/channel/account/rate 相关表</td>
+<td><code>Carrier</code>、<code>CarrierService</code></td>
+<td>carrier/service master data</td>
+</tr>
+<tr>
+<td><code>sync_orders_from_erp</code></td>
+<td>ERP owner/manual order 相关表</td>
+<td><code>HistoricalOrder</code>、items、shipments</td>
+<td>历史订单快照</td>
+</tr>
+<tr>
+<td><code>sync_lsp_api_quotes</code></td>
+<td>LSP OpenAPI quote task 相关表</td>
+<td><code>LspApiQuoteSnapshot</code>、options</td>
+<td>LSP 历史 API 报价</td>
+</tr>
+<tr>
+<td><code>sync_lsp_quote_logs</code></td>
+<td>LSP quote task job/log</td>
+<td><code>LspQuoteTaskLogItem</code></td>
+<td>LSP 比价明细日志</td>
+</tr>
+<tr>
+<td><code>sync_invoices_from_sqlserver</code></td>
+<td>InvoiceReader header/detail</td>
+<td><code>InvoiceChargeSnapshot</code>、batch/items</td>
+<td>invoice 实收导入</td>
+</tr>
+<tr>
+<td><code>sync_reconciliation_snapshots</code></td>
+<td>InvoiceReader + ERP shipment</td>
+<td><code>InvoiceChargeSnapshot</code>、<code>ErpShipmentSnapshot</code>、recon items</td>
+<td>推荐对账快照流程</td>
+</tr>
+<tr>
+<td><code>sync_operational_data</code></td>
+<td>ERP/LSP/WMS master/order/quote</td>
+<td>多个 master/snapshot</td>
+<td>主 operational 同步</td>
+</tr>
+</tbody></table></div>
+
+<p>推荐 operational 同步：</p>
+
+<pre><code class="language-powershell">.\.venv\Scripts\python.exe backend\manage.py ensure_data_raw_sync_indexes --only-missing
+.\.venv\Scripts\python.exe backend\manage.py sync_operational_data --incremental --order-batch-size 5000 --lsp-batch-size 1000 --log-batch-size 3000</code></pre>
+
+<p>全量同步：</p>
+
+<pre><code class="language-powershell">.\.venv\Scripts\python.exe backend\manage.py sync_operational_data --full --order-batch-size 5000 --lsp-batch-size 1000 --log-batch-size 3000</code></pre>
+
+<p>当前设计是每 10 小时做 ERP/LSP operational 增量同步；SKU 可按每天 AEDT 03:00 同步 WMS <code>bas_sku</code>。</p>
+
+<h2 id="搜索和排错用字段">搜索和排错用字段</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>排错问题</th>
+<th>首选字段</th>
+<th>兜底字段</th>
+</tr></thead><tbody>
+<tr>
+<td>一个 ERP 单为何查不到</td>
+<td><code>HistoricalOrder.erp_order_no</code> / <code>order_no</code></td>
+<td><code>erp_owner_order_no</code>、<code>external_order_no</code>、<code>platform_order_no</code></td>
+</tr>
+<tr>
+<td>一个 tracking 为何对不上 invoice</td>
+<td><code>InvoiceChargeSnapshot.tracking_no</code> vs <code>ErpShipmentSnapshot.tracking_no</code></td>
+<td><code>HistoricalOrderShipment.tracking_no</code></td>
+</tr>
+<tr>
+<td>平台显示 ALL/Unmapped</td>
+<td>ERP <code>platform_id</code> vs <code>Platform.code/source_external_id</code></td>
+<td>检查 <code>hpoms_platform_info</code> 是否已同步</td>
+</tr>
+<tr>
+<td>仓库显示 ALL/Unmapped</td>
+<td>ERP <code>wash_warehouse_code</code> / shipment warehouse vs <code>Warehouse.code</code></td>
+<td>检查 <code>bsm_warehouse</code> 是否已同步和 state 是否为空</td>
+</tr>
+<tr>
+<td>SKU 尺寸为空</td>
+<td>ERP SKU vs <code>SKU.sku</code></td>
+<td>检查 WMS <code>bas_sku</code> 是否同步、combo 是否已展开</td>
+</tr>
+<tr>
+<td>LSP 历史报价未显示</td>
+<td><code>historical_order</code> / <code>source_order_id</code> / order refs</td>
+<td><code>lsp_order_code</code>、<code>lsp_shipment_code</code>、booking reference</td>
+</tr>
+<tr>
+<td>ERP Est 似乎不对</td>
+<td><code>ErpShipmentSnapshot.estimate_source</code></td>
+<td><code>postage_shipping_estimated_amount</code>、<code>shipping_estimated_amount</code></td>
+</tr>
+<tr>
+<td>系统估算与 invoice 差异大</td>
+<td><code>FreightAuditResult.breakdown</code></td>
+<td>rate card origin、zone、chargeable kg、surcharge、fuel</td>
+</tr>
+</tbody></table></div>
+
+<h2 id="已知风险和开发边界">已知风险和开发边界</h2>
+
+<ul>
+<li>LSP API quote 与 ERP 订单的关系不是天然一对一；必须保留未匹配快照作为历史证据。</li>
+<li>ERP Est 当前按订单级处理；如果未来确认存在 tracking 级 ERP Est，需要新增字段和口径，不要复用现字段误导对账。</li>
+<li>InvoiceReader detail 表不同 carrier 格式不同，只能使用已确认 mapping，不应扫描所有 <code>invoice_detail%</code> 后猜 amount 字段。</li>
+<li>WMS warehouse <code>state</code> 是 origin rate card 过滤的关键字段；缺失会直接影响 MEL/SYD 费率选择。</li>
+<li>Combo SKU 的类型数字必须通过 ERP 字典解释，不能写成猜测值。</li>
+<li>LSP rate raw 表可以用来核对，但不应自动覆盖系统已确认的 PostageCalculator / Broers / DFE / OrangeConnex / UBI template。</li>
+</ul>
+
+<h2 id="给后续开发的检查清单">给后续开发的检查清单</h2>
+
+<ul>
+<li>新增任何外部同步字段时，同时更新本地 model、serializer、前端展示、HTML 文档。</li>
+<li>新增 invoice source 时，先确认 header/detail 表、tracking 字段、金额是否含 GST、是否需要多行聚合。</li>
+<li>新增 carrier calculator 时，先明确 origin、zone mapping、chargeable weight、multi-item/multi-tracking 规则、fuel/GST/oversize/surcharge 口径。</li>
+<li>新增 LSP/API agent 时，必须落到 <code>Agent</code> master data，并关联 <code>QuoteChannel.agent</code> 或 <code>ApiCredential.agent</code>。</li>
+<li>做 ERP/LSP/WMS 全量同步前先跑 <code>ensure_data_raw_sync_indexes --only-missing</code>，避免大表无索引扫描。</li>
+</ul>
+
+<!-- CONTENT_END -->
+
+      <footer class="doc-footer">
+        <span>Generated by <a href="#">md2html</a></span>
+        <span>来源: docs/ERP_LSP_WMS_Data_Relationships_20260623.md</span>
+      </footer>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    // ---------- Theme ----------
+    const STORAGE_KEY = "md2html-theme";
+    function currentTheme() { return document.documentElement.dataset.theme || "light"; }
+    function applyThemeIcon() {
+      const use = document.getElementById("theme-icon-use");
+      if (use) use.setAttribute("href", currentTheme() === "dark" ? "#i-sun" : "#i-moon");
+    }
+    (function restoreTheme() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) document.documentElement.dataset.theme = saved;
+    })();
+
+    // ---------- Mermaid ----------
+    const diagramSources = new Map();
+    function initMermaid() {
+      const isDark = currentTheme() === "dark";
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: isDark ? "dark" : "default",
+        themeVariables: {
+          primaryColor: isDark ? "#3A2A22" : "#FBEEE6",
+          primaryTextColor: isDark ? "#F5F0E8" : "#1A1A1A",
+          primaryBorderColor: isDark ? "#E89572" : "#D97757",
+          lineColor: isDark ? "#9A938A" : "#6B6B66",
+          secondaryColor: isDark ? "#2A2520" : "#F5F5F0",
+          tertiaryColor: isDark ? "#221E1A" : "#FFFFFF",
+          fontFamily: "Inter, system-ui, sans-serif",
+        },
+      });
+    }
+    async function renderMermaid() {
+      initMermaid();
+      const els = document.querySelectorAll(".mermaid");
+      els.forEach(el => {
+        if (!diagramSources.has(el)) diagramSources.set(el, el.textContent.trim());
+        el.textContent = diagramSources.get(el);
+        el.removeAttribute("data-processed");
+      });
+      try { await mermaid.run({ nodes: els }); } catch (e) { console.error(e); }
+    }
+    function toggleTheme() {
+      const next = currentTheme() === "light" ? "dark" : "light";
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem(STORAGE_KEY, next);
+      applyThemeIcon();
+      renderMermaid();
+    }
+
+    // ---------- TOC drawer (mobile) ----------
+    function openToc()  { document.body.classList.add("toc-open"); }
+    function closeToc() { document.body.classList.remove("toc-open"); }
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape" && document.body.classList.contains("toc-open")) closeToc();
+    });
+
+    // ---------- TOC scrollspy ----------
+    function setupTocSpy() {
+      const links = document.querySelectorAll("#toc-nav a[href^='#']");
+      if (!links.length) {
+        const toc = document.getElementById("toc");
+        if (toc) toc.style.display = "none";
+        return;
+      }
+      const map = new Map();
+      links.forEach(a => {
+        const id = a.getAttribute("href").slice(1);
+        const el = document.getElementById(id);
+        if (el) map.set(el, a);
+        a.addEventListener("click", () => {
+          if (window.matchMedia("(max-width: 900px)").matches) closeToc();
+        });
+      });
+      const obs = new IntersectionObserver((entries) => {
+        entries.forEach(en => {
+          const link = map.get(en.target);
+          if (!link) return;
+          if (en.isIntersecting) {
+            links.forEach(l => l.classList.remove("active"));
+            link.classList.add("active");
+          }
+        });
+      }, { rootMargin: "-80px 0px -70% 0px", threshold: 0 });
+      map.forEach((_, el) => obs.observe(el));
+    }
+
+    // ---------- Anchor links on h2/h3 ----------
+    function injectAnchors() {
+      document.querySelectorAll(".content h2[id], .content h3[id]").forEach(h => {
+        if (h.querySelector(".anchor")) return;
+        const a = document.createElement("a");
+        a.className = "anchor";
+        a.href = "#" + h.id;
+        a.setAttribute("aria-label", "Permalink");
+        a.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-link"/></svg>';
+        h.appendChild(a);
+      });
+    }
+
+    // ---------- Copy-to-clipboard on <pre> ----------
+    function injectCopyButtons() {
+      document.querySelectorAll(".content pre").forEach(pre => {
+        if (pre.classList.contains("mermaid")) return;
+        if (pre.querySelector(".copy-btn")) return;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "copy-btn";
+        btn.setAttribute("aria-label", "Copy code");
+        btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+        btn.addEventListener("click", async () => {
+          const code = pre.querySelector("code")?.textContent ?? pre.textContent;
+          try {
+            await navigator.clipboard.writeText(code);
+            btn.classList.add("copied");
+            btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>';
+            setTimeout(() => {
+              btn.classList.remove("copied");
+              btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+            }, 1500);
+          } catch (e) { console.error(e); }
+        });
+        pre.appendChild(btn);
+      });
+    }
+
+    // ---------- Scroll progress ----------
+    function setupScrollProgress() {
+      const bar = document.getElementById("scroll-progress");
+      if (!bar) return;
+      const onScroll = () => {
+        const h = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+        const p = h > 0 ? (document.documentElement.scrollTop / h * 100) : 0;
+        bar.style.width = p + "%";
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+    }
+
+    // ---------- Boot ----------
+    document.addEventListener("DOMContentLoaded", () => {
+      applyThemeIcon();
+      injectAnchors();
+      injectCopyButtons();
+      renderMermaid();
+      setupTocSpy();
+      setupScrollProgress();
+    });
+  </script>
+</body>
+</html>

@@ -30,6 +30,7 @@ reports/       Markdown analysis reports
 - `docs/deployment.md`: production settings, required services, deployment steps, PostgreSQL operations.
 - `docs/security.md`: secrets, authentication, permissions, upload limits, audit logs.
 - `docs/testing.md`: backend, frontend, E2E, Docker, and CI checks.
+- `docs/ERP_LSP_WMS_Data_Relationships_20260623.md`: ERP/LSP/WMS/InvoiceReader source tables, local snapshot tables, and matching fields.
 
 ## Environment Files
 
