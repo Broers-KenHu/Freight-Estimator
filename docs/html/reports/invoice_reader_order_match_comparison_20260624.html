@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
-  <title>Freight Intelligence HTML Documents</title>
+  <title>InvoiceReader Order Match 与 CourieDelivery 匹配差异报告</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -961,19 +961,27 @@
         </button>
       </div>
       <nav class="toc-nav" id="toc-nav">
-        <a href="#content" class="lvl-2">内容</a>
+        <a href="#结论摘要" class="lvl-2">结论摘要</a>
+<a href="#invoicereader-候选结果表" class="lvl-2">InvoiceReader 候选结果表</a>
+<a href="#选中表字段覆盖" class="lvl-2">选中表字段覆盖</a>
+<a href="#couriedelivery-当前匹配结果" class="lvl-2">CourieDelivery 当前匹配结果</a>
+<a href="#集合差异" class="lvl-2">集合差异</a>
+<a href="#同-tracking-的映射差异" class="lvl-2">同 tracking 的映射差异</a>
+<a href="#金额差异检查" class="lvl-2">金额差异检查</a>
+<a href="#初步判断" class="lvl-2">初步判断</a>
+<a href="#建议动作" class="lvl-2">建议动作</a>
       </nav>
     </aside>
 
     <main class="content" id="main">
       <header class="doc-header">
         <span class="doc-eyebrow">NOTES</span>
-        <h1 class="doc-title">Freight Intelligence HTML Documents</h1>
-        <p class="doc-subtitle">项目 Markdown 文档已转换为可浏览 HTML。点击下方链接即可阅读，页面支持目录、深色模式、打印/保存 PDF 和代码复制。</p>
+        <h1 class="doc-title">InvoiceReader Order Match 与 CourieDelivery 匹配差异报告</h1>
+        <p class="doc-subtitle">生成时间：2026 06 24 12:11:58</p>
         <div class="doc-meta">
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-file"/></svg>
-            _index_source.md
+            reports/invoice_reader_order_match_comparison_20260624.md
           </span>
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-calendar"/></svg>
@@ -981,201 +989,445 @@
           </span>
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clock"/></svg>
-            ~1 分钟阅读
+            ~2 分钟阅读
           </span>
         </div>
       </header>
 
       <!-- CONTENT_START -->
 
-<h2 id="content">内容</h2>
+<p>生成时间：2026-06-24 12:11:58</p>
 
-<p>项目 Markdown 文档已转换为可浏览 HTML。点击下方链接即可阅读，页面支持目录、深色模式、打印/保存 PDF 和代码复制。</p>
+<p>本报告只读取 SQL Server <code>invoiceReader</code> 和 CourieDelivery PostgreSQL 的元数据、匹配键和聚合结果。报告不输出原始 invoice/order/tracking 明细值。</p>
+
+<h2 id="结论摘要">结论摘要</h2>
+
+<ul>
+<li>在 <code>invoiceReader</code> 中识别到最像“order match 结果表”的候选表为 <code>dbo.erp_match_results</code>，行数约 901,428。</li>
+<li>CourieDelivery 当前本地 <code>invoice_reconciliation_item</code> 总行数为 1,132,289，其中来自 InvoiceReader 的本地对账行按 <code>match_status</code> 见下方表格。</li>
+<li>以 tracking 为主键对比：InvoiceReader 结果表唯一 tracking 781,075，CourieDelivery 唯一 tracking 879,506，交集 325,003。</li>
+<li>InvoiceReader 有、CourieDelivery 没有的 tracking：456,072；CourieDelivery 有、InvoiceReader 没有的 tracking：554,503。</li>
+<li>同 tracking 但 ERP/order 映射不同的数量：142,264。</li>
+<li>tracking+order 成对匹配交集：172,819，InvoiceReader 独有 pair：457,433，CourieDelivery 独有 pair：737,256。</li>
+</ul>
+
+<h2 id="invoicereader-候选结果表">InvoiceReader 候选结果表</h2>
 
 <div class="table-wrap">
 <table>
 <thead><tr>
-<th>Source</th>
-<th>Sections</th>
-<th>Read time</th>
+<th>候选表</th>
+<th>行数</th>
+<th>分数</th>
+<th>tracking 字段</th>
+<th>order 字段</th>
+<th>platform/ref 字段</th>
+<th>invoice 字段</th>
+<th>amount 字段</th>
 </tr></thead><tbody>
 <tr>
-<td><a href="AGENTS.html">AGENTS.md</a></td>
-<td>12</td>
-<td>~19 min</td>
+<td><code>dbo.erp_match_results</code></td>
+<td>901,428</td>
+<td>198</td>
+<td><code>detail_tracking</code></td>
+<td><code>erp_owner_order_no</code></td>
+<td><code>erp_rd3_order_id</code></td>
+<td><code>invoice_no</code></td>
+<td><code>detail_amount_inc_gst</code></td>
 </tr>
 <tr>
-<td><a href="README.html">README.md</a></td>
-<td>15</td>
-<td>~5 min</td>
+<td><code>dbo.fact_invoice_order_normalized</code></td>
+<td>743,031</td>
+<td>149</td>
+<td><code>tracking_number</code></td>
+<td><code>booking_order_id</code></td>
+<td><code>reference_no</code></td>
+<td><code>invoice_no</code></td>
+<td><code>total_inc_gst</code></td>
 </tr>
 <tr>
-<td><a href="docs/Broers_Rate_System_Fit_Report_20260612.html">docs/Broers_Rate_System_Fit_Report_20260612.md</a></td>
-<td>23</td>
-<td>~5 min</td>
+<td><code>dbo.fact_lsp_order_sku</code></td>
+<td>4,014,381</td>
+<td>98</td>
+<td><code>tracking_number</code></td>
+<td><code>booking_order_id</code></td>
+<td><code>reference_no</code></td>
+<td><code>-</code></td>
+<td><code>-</code></td>
 </tr>
 <tr>
-<td><a href="docs/Broers_Rate_System_Fit_Report_20260612_v2.html">docs/Broers_Rate_System_Fit_Report_20260612_v2.md</a></td>
-<td>19</td>
-<td>~3 min</td>
+<td><code>dbo.invoice_detail_ubi_rts</code></td>
+<td>29</td>
+<td>94</td>
+<td><code>tracking_no</code></td>
+<td><code>ioss_order_number</code></td>
+<td><code>-</code></td>
+<td><code>invoice_no</code></td>
+<td><code>total_amount_in_gst</code></td>
 </tr>
 <tr>
-<td><a href="docs/Broers_Rate_System_Fit_Report_20260612_v3.html">docs/Broers_Rate_System_Fit_Report_20260612_v3.md</a></td>
-<td>13</td>
-<td>~2 min</td>
+<td><code>dbo.fact_lsp_order_reference</code></td>
+<td>2,555,250</td>
+<td>68</td>
+<td><code>tracking_number</code></td>
+<td><code>-</code></td>
+<td><code>reference_no</code></td>
+<td><code>-</code></td>
+<td><code>-</code></td>
 </tr>
 <tr>
-<td><a href="docs/Broers_Rate_System_Fit_Report_20260612_v4.html">docs/Broers_Rate_System_Fit_Report_20260612_v4.md</a></td>
-<td>5</td>
-<td>~1 min</td>
+<td><code>dbo.fact_lsp_order_tracking</code></td>
+<td>0</td>
+<td>68</td>
+<td><code>tracking_number</code></td>
+<td><code>-</code></td>
+<td><code>reference_no</code></td>
+<td><code>-</code></td>
+<td><code>-</code></td>
 </tr>
 <tr>
-<td><a href="docs/ERP_LSP_WMS_Data_Relationships_20260623.html">docs/ERP_LSP_WMS_Data_Relationships_20260623.md</a></td>
-<td>24</td>
-<td>~6 min</td>
+<td><code>dbo.invoice_detail_sunyee_manifest</code></td>
+<td>404,765</td>
+<td>64</td>
+<td><code>estimated_charge_consignment</code></td>
+<td><code>-</code></td>
+<td><code>-</code></td>
+<td><code>invoice_no</code></td>
+<td><code>under_declared_amount</code></td>
 </tr>
 <tr>
-<td><a href="docs/Freight_Carrier_Calculation_Logic_20260618.html">docs/Freight_Carrier_Calculation_Logic_20260618.md</a></td>
-<td>48</td>
-<td>~5 min</td>
+<td><code>dbo.invoice_detail_ubi_toll_bill</code></td>
+<td>75,233</td>
+<td>64</td>
+<td><code>tracking_no</code></td>
+<td><code>-</code></td>
+<td><code>-</code></td>
+<td><code>invoice_no</code></td>
+<td><code>freight_charge_amount</code></td>
 </tr>
 <tr>
-<td><a href="docs/Freight_Carrier_Calculation_Logic_20260623.html">docs/Freight_Carrier_Calculation_Logic_20260623.md</a></td>
-<td>38</td>
-<td>~3 min</td>
+<td><code>dbo.invoice_detail_eiz_shipment</code></td>
+<td>50,577</td>
+<td>64</td>
+<td><code>tracking_number</code></td>
+<td><code>-</code></td>
+<td><code>-</code></td>
+<td><code>invoice_number</code></td>
+<td><code>tax_amount</code></td>
 </tr>
 <tr>
-<td><a href="docs/Freight_Intelligence_Project_Overview_For_GPT.html">docs/Freight_Intelligence_Project_Overview_For_GPT.md</a></td>
-<td>46</td>
-<td>~7 min</td>
+<td><code>dbo.invoice_detail_shippit_deliveries</code></td>
+<td>37,094</td>
+<td>64</td>
+<td><code>tracking</code></td>
+<td><code>-</code></td>
+<td><code>-</code></td>
+<td><code>invoice_no</code></td>
+<td><code>amount</code></td>
 </tr>
 <tr>
-<td><a href="docs/IPEC_Zone_Mapping_Source_Check_20260618.html">docs/IPEC_Zone_Mapping_Source_Check_20260618.md</a></td>
-<td>8</td>
-<td>~4 min</td>
+<td><code>dbo.invoice_detail_sunyee_retrospect</code></td>
+<td>26,150</td>
+<td>64</td>
+<td><code>article_id</code></td>
+<td><code>-</code></td>
+<td><code>-</code></td>
+<td><code>invoice_no</code></td>
+<td><code>declared_amount</code></td>
 </tr>
 <tr>
-<td><a href="docs/UBI_Agent_Rate_Table_Analysis_Development_Plan_20260617.html">docs/UBI_Agent_Rate_Table_Analysis_Development_Plan_20260617.md</a></td>
-<td>23</td>
-<td>~4 min</td>
-</tr>
-<tr>
-<td><a href="docs/UBI_Rate_Import_System_Development_Plan_20260617.html">docs/UBI_Rate_Import_System_Development_Plan_20260617.md</a></td>
-<td>34</td>
-<td>~4 min</td>
-</tr>
-<tr>
-<td><a href="docs/UBI_Rate_Table_System_Readiness_Check_20260618.html">docs/UBI_Rate_Table_System_Readiness_Check_20260618.md</a></td>
-<td>14</td>
-<td>~3 min</td>
-</tr>
-<tr>
-<td><a href="docs/architecture.html">docs/architecture.md</a></td>
-<td>4</td>
-<td>~1 min</td>
-</tr>
-<tr>
-<td><a href="docs/deployment.html">docs/deployment.md</a></td>
-<td>7</td>
-<td>~1 min</td>
-</tr>
-<tr>
-<td><a href="docs/development.html">docs/development.md</a></td>
-<td>6</td>
-<td>~1 min</td>
-</tr>
-<tr>
-<td><a href="docs/erp_lsp_operational_sync.html">docs/erp_lsp_operational_sync.md</a></td>
-<td>8</td>
-<td>~3 min</td>
-</tr>
-<tr>
-<td><a href="docs/freight_calculators/README.html">docs/freight_calculators/README.md</a></td>
-<td>4</td>
-<td>~2 min</td>
-</tr>
-<tr>
-<td><a href="docs/freight_calculators/allied_express.html">docs/freight_calculators/allied_express.md</a></td>
-<td>22</td>
-<td>~4 min</td>
-</tr>
-<tr>
-<td><a href="docs/freight_calculators/direct_freight_express_2025.html">docs/freight_calculators/direct_freight_express_2025.md</a></td>
-<td>13</td>
-<td>~4 min</td>
-</tr>
-<tr>
-<td><a href="docs/freight_calculators/hunter_road_freight.html">docs/freight_calculators/hunter_road_freight.md</a></td>
-<td>11</td>
-<td>~4 min</td>
-</tr>
-<tr>
-<td><a href="docs/freight_calculators/orange_connex_efn_2026.html">docs/freight_calculators/orange_connex_efn_2026.md</a></td>
-<td>7</td>
-<td>~2 min</td>
-</tr>
-<tr>
-<td><a href="docs/freight_explainability_reconciliation.html">docs/freight_explainability_reconciliation.md</a></td>
-<td>9</td>
-<td>~4 min</td>
-</tr>
-<tr>
-<td><a href="docs/invoice_reader_integration_design.html">docs/invoice_reader_integration_design.md</a></td>
-<td>6</td>
-<td>~5 min</td>
-</tr>
-<tr>
-<td><a href="docs/microsoft_entra_local_sso_setup.html">docs/microsoft_entra_local_sso_setup.md</a></td>
-<td>12</td>
-<td>~3 min</td>
-</tr>
-<tr>
-<td><a href="docs/postgresql_optimization_applied.html">docs/postgresql_optimization_applied.md</a></td>
-<td>4</td>
-<td>~1 min</td>
-</tr>
-<tr>
-<td><a href="docs/security.html">docs/security.md</a></td>
-<td>6</td>
-<td>~1 min</td>
-</tr>
-<tr>
-<td><a href="docs/security_access_control.html">docs/security_access_control.md</a></td>
-<td>9</td>
-<td>~4 min</td>
-</tr>
-<tr>
-<td><a href="docs/testing.html">docs/testing.md</a></td>
-<td>5</td>
-<td>~1 min</td>
-</tr>
-<tr>
-<td><a href="docs/testing/e2e_p123_matrix.html">docs/testing/e2e_p123_matrix.md</a></td>
-<td>4</td>
-<td>~1 min</td>
-</tr>
-<tr>
-<td><a href="frontend/README.html">frontend/README.md</a></td>
-<td>2</td>
-<td>~1 min</td>
-</tr>
-<tr>
-<td><a href="reports/invoice_reader_order_match_comparison_20260624.html">reports/invoice_reader_order_match_comparison_20260624.md</a></td>
-<td>9</td>
-<td>~2 min</td>
-</tr>
-<tr>
-<td><a href="reports/lsp_api_quote_erp_matching_analysis_20260610.html">reports/lsp_api_quote_erp_matching_analysis_20260610.md</a></td>
-<td>8</td>
-<td>~2 min</td>
+<td><code>dbo.cleaned_invoice_detail_eiz_shipment</code></td>
+<td>23,799</td>
+<td>64</td>
+<td><code>tracking_number</code></td>
+<td><code>-</code></td>
+<td><code>-</code></td>
+<td><code>invoice_number</code></td>
+<td><code>tax_amount</code></td>
 </tr>
 </tbody></table></div>
+
+<blockquote>说明：分数由表名和字段名推断，例如是否包含 <code>order</code>、<code>match</code>、<code>normalized</code>、<code>tracking</code>、<code>invoice</code>、<code>amount</code> 等。该分数用于定位候选表，不代表业务正确性。</blockquote>
+
+<h2 id="选中表字段覆盖">选中表字段覆盖</h2>
+
+<p>选中表：<code>dbo.erp_match_results</code></p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>字段</th>
+<th>非空行数</th>
+<th>覆盖率</th>
+</tr></thead><tbody>
+<tr>
+<td><code>detail_tracking</code></td>
+<td>900,934</td>
+<td>99.95%</td>
+</tr>
+<tr>
+<td><code>erp_owner_order_no</code></td>
+<td>744,991</td>
+<td>82.65%</td>
+</tr>
+<tr>
+<td><code>erp_rd3_order_id</code></td>
+<td>745,252</td>
+<td>82.67%</td>
+</tr>
+<tr>
+<td><code>invoice_no</code></td>
+<td>901,428</td>
+<td>100.00%</td>
+</tr>
+<tr>
+<td><code>detail_amount_inc_gst</code></td>
+<td>901,428</td>
+<td>100.00%</td>
+</tr>
+</tbody></table></div>
+
+<p>选中字段：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>用途</th>
+<th>字段</th>
+</tr></thead><tbody>
+<tr>
+<td>Tracking</td>
+<td><code>detail_tracking</code></td>
+</tr>
+<tr>
+<td>ERP/Order</td>
+<td><code>erp_owner_order_no</code></td>
+</tr>
+<tr>
+<td>Platform/External Ref</td>
+<td><code>erp_rd3_order_id</code></td>
+</tr>
+<tr>
+<td>Invoice</td>
+<td><code>invoice_no</code></td>
+</tr>
+<tr>
+<td>Amount</td>
+<td><code>detail_amount_inc_gst</code></td>
+</tr>
+<tr>
+<td>Status</td>
+<td><code>-</code></td>
+</tr>
+</tbody></table></div>
+
+<p>本次本地对齐口径：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>InvoiceReader 字段</th>
+<th>本地对齐字段</th>
+</tr></thead><tbody>
+<tr>
+<td><code>erp_owner_order_no</code></td>
+<td><code>COALESCE(NULLIF(ess.erp_owner_order_no, &#x27;&#x27;), NULLIF(ess.erp_order_no, &#x27;&#x27;), NULLIF(iri.order_no, &#x27;&#x27;))</code></td>
+</tr>
+<tr>
+<td><code>erp_rd3_order_id</code></td>
+<td><code>COALESCE(NULLIF(ess.third_party_order_no, &#x27;&#x27;), NULLIF(ess.platform_order_no, &#x27;&#x27;))</code></td>
+</tr>
+</tbody></table></div>
+
+<h2 id="couriedelivery-当前匹配结果">CourieDelivery 当前匹配结果</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>本地对象</th>
+<th>行数</th>
+</tr></thead><tbody>
+<tr>
+<td><code>invoice_reconciliation_item</code></td>
+<td>1,132,289</td>
+</tr>
+<tr>
+<td><code>invoice_charge_snapshot</code></td>
+<td>189,041</td>
+</tr>
+<tr>
+<td><code>erp_shipment_snapshot</code></td>
+<td>341,361</td>
+</tr>
+</tbody></table></div>
+
+<p>InvoiceReader 本地对账行状态：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>match_status</th>
+<th>行数</th>
+</tr></thead><tbody>
+<tr>
+<td><code>EXCEPTION</code></td>
+<td>147,066</td>
+</tr>
+<tr>
+<td><code>MATCHED</code></td>
+<td>36,061</td>
+</tr>
+<tr>
+<td><code>UNMATCHED</code></td>
+<td>949,162</td>
+</tr>
+</tbody></table></div>
+
+<p>本地覆盖：</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>覆盖项</th>
+<th>行数</th>
+</tr></thead><tbody>
+<tr>
+<td>已关联 <code>ErpShipmentSnapshot</code></td>
+<td>183,419</td>
+</tr>
+<tr>
+<td>已关联 <code>InvoiceChargeSnapshot</code></td>
+<td>189,041</td>
+</tr>
+<tr>
+<td>有 ERP Est</td>
+<td>183,127</td>
+</tr>
+<tr>
+<td>有 System Est</td>
+<td>427</td>
+</tr>
+</tbody></table></div>
+
+<h2 id="集合差异">集合差异</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>维度</th>
+<th>InvoiceReader</th>
+<th>CourieDelivery</th>
+<th>交集</th>
+<th>InvoiceReader 独有</th>
+<th>CourieDelivery 独有</th>
+</tr></thead><tbody>
+<tr>
+<td>Unique tracking</td>
+<td>781,075</td>
+<td>879,506</td>
+<td>325,003</td>
+<td>456,072</td>
+<td>554,503</td>
+</tr>
+<tr>
+<td>Unique order</td>
+<td>595,917</td>
+<td>891,003</td>
+<td>158,196</td>
+<td>437,721</td>
+<td>732,807</td>
+</tr>
+<tr>
+<td>Tracking + order pair</td>
+<td>630,252</td>
+<td>910,075</td>
+<td>172,819</td>
+<td>457,433</td>
+<td>737,256</td>
+</tr>
+<tr>
+<td>Invoice + tracking pair</td>
+<td>794,538</td>
+<td>189,041</td>
+<td>181,782</td>
+<td>-</td>
+<td>-</td>
+</tr>
+</tbody></table></div>
+
+<h2 id="同-tracking-的映射差异">同 tracking 的映射差异</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>差异类型</th>
+<th>数量</th>
+<th>解释</th>
+</tr></thead><tbody>
+<tr>
+<td>同 tracking 但 ERP/order 映射不同</td>
+<td>142,264</td>
+<td>两边都能找到 tracking，但 order 集合没有交集，需要检查字段口径或 normalize 规则</td>
+</tr>
+<tr>
+<td>InvoiceReader 有 order，本地同 tracking 没 order</td>
+<td>13</td>
+<td>本地可能只导入了 invoice charge，未匹配 ERP shipment</td>
+</tr>
+<tr>
+<td>本地有 order，InvoiceReader 同 tracking 没 order</td>
+<td>7,872</td>
+<td>InvoiceReader result 表可能缺 order match 或字段选择不对</td>
+</tr>
+</tbody></table></div>
+
+<h2 id="金额差异检查">金额差异检查</h2>
+
+<p>金额字段是根据字段名推断的 <code>detail_amount_inc_gst</code>，只作为辅助检查，不直接代表最终实际运费口径。</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>项目</th>
+<th>数量</th>
+</tr></thead><tbody>
+<tr>
+<td>可按 tracking 对比金额</td>
+<td>325,003</td>
+</tr>
+<tr>
+<td>金额一致，误差 &lt;= 0.01</td>
+<td>93,556</td>
+</tr>
+<tr>
+<td>金额不同</td>
+<td>231,447</td>
+</tr>
+</tbody></table></div>
+
+<h2 id="初步判断">初步判断</h2>
+
+<ol>
+<li>如果 <code>dbo.erp_match_results</code> 是 InvoiceReader 已有的 order match 结果表，它的覆盖范围和 CourieDelivery 当前 tracking-based reconciliation 不完全一致。</li>
+<li>CourieDelivery 目前的主路径仍然是 <code>InvoiceChargeSnapshot.tracking_no -&gt; ErpShipmentSnapshot.tracking_no</code>，再用 carrier/channel/service 消歧。</li>
+<li>InvoiceReader 结果表可作为对账辅助来源，但不建议直接替代当前逻辑，除非确认它的 order 字段、tracking 字段、金额字段、GST 口径和多行聚合规则。</li>
+<li>下一步建议抽样核对 <code>same tracking but different order</code> 的明细，确认差异来自字段选择、tracking normalization、multi-package 分组，还是 InvoiceReader 结果表的历史匹配规则。</li>
+</ol>
+
+<h2 id="建议动作">建议动作</h2>
+
+<ul>
+<li>将 <code>dbo.erp_match_results</code> 作为候选辅助匹配源新增到设计文档，但先不要直接改写生产同步逻辑。</li>
+<li>对 <code>InvoiceReader 独有 tracking</code> 做二次检查：是否来自当前系统未导入的 <code>invoice_detail_*</code> 表、tracking 格式差异、或历史 invoice 不在本地 batch 范围。</li>
+<li>对 <code>CourieDelivery 独有 tracking</code> 做二次检查：是否来自 CSV/XLSX 手动上传、本地重新同步后的 ERP shipment、或 InvoiceReader result 表未覆盖的 carrier。</li>
+<li>如果业务确认 InvoiceReader result 表更可信，可新增一个 <code>invoice_reader_order_match_snapshot</code> 本地表保存其结果，再和 <code>InvoiceChargeSnapshot</code>、<code>ErpShipmentSnapshot</code> 三方比对，不要在请求时直接连 <code>.8</code>。</li>
+</ul>
 
 <!-- CONTENT_END -->
 
       <footer class="doc-footer">
         <span>Generated by <a href="#">md2html</a></span>
-        <span>来源: _index_source.md</span>
+        <span>来源: reports/invoice_reader_order_match_comparison_20260624.md</span>
       </footer>
     </main>
   </div>
