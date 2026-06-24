@@ -228,7 +228,7 @@ class Command(BaseCommand):
         order_map = {
             order.source_external_id: order
             for order in HistoricalOrder.objects.filter(source_system=OWNER_SYSTEM, source_external_id__in=owner_ids).prefetch_related(
-                "shipments", "erp_shipment_snapshots"
+                "shipments"
             )
         }
         tracking_order_map = self._tracking_order_map(tracking_numbers)
@@ -706,12 +706,6 @@ class Command(BaseCommand):
         for shipment in shipments:
             if shipment.tracking_no:
                 return shipment.tracking_no
-        snapshots = getattr(order, "_prefetched_objects_cache", {}).get("erp_shipment_snapshots")
-        if snapshots is None:
-            snapshots = list(order.erp_shipment_snapshots.order_by("id"))
-        for snapshot in snapshots:
-            if snapshot.tracking_no:
-                return snapshot.tracking_no
         return ""
 
     def _since_boundary(self, option_value: str | None, full: bool):

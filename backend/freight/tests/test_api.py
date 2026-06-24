@@ -11,7 +11,6 @@ from rest_framework.test import APIClient
 from freight.models import (
     Carrier,
     CarrierService,
-    ErpShipmentSnapshot,
     FreightAuditResult,
     FreightAuditRow,
     HistoricalOrder,
@@ -542,7 +541,7 @@ def test_order_lookup_totals_lsp_api_quotes_by_agent(api):
 
 
 @pytest.mark.django_db
-def test_order_lookup_derives_platform_and_warehouse_from_erp_snapshot(api):
+def test_order_lookup_derives_platform_and_warehouse_from_order_and_shipment(api):
     platform = Platform.objects.create(code="ERP_PLATFORM_LOOKUP", name="ERP Lookup Platform", source_external_id="ERP-PLATFORM-LOOKUP-ID")
     warehouse = Warehouse.objects.create(code="ERP_WH_LOOKUP", name="ERP Lookup Warehouse", source_external_id="ERP-WH-LOOKUP-ID")
     order = HistoricalOrder.objects.create(
@@ -552,14 +551,13 @@ def test_order_lookup_derives_platform_and_warehouse_from_erp_snapshot(api):
         postcode="3205",
         state="VIC",
         source_order_type="OWNER",
+        raw_payload={"platform_code": "ERP-PLATFORM-LOOKUP-ID"},
     )
     HistoricalOrderItem.objects.create(order=order, sku="DEMO-CHAIR", qty="1")
-    ErpShipmentSnapshot.objects.create(
+    HistoricalOrderShipment.objects.create(
         order=order,
+        source_external_id="SHIP-LOOKUP-1",
         tracking_no="TRK-SNAPSHOT-LOOKUP-1",
-        erp_order_no="ERP-SNAPSHOT-LOOKUP-1",
-        platform_code="ERP-PLATFORM-LOOKUP-ID",
-        platform_name="ERP Lookup Platform",
         warehouse_code="ERP-WH-LOOKUP-ID",
     )
 
@@ -569,9 +567,9 @@ def test_order_lookup_derives_platform_and_warehouse_from_erp_snapshot(api):
     assert len(response.data) == 1
     result = response.data[0]
     assert result["platform_code"] == platform.code
-    assert result["platform_source"] == "erp_shipment_snapshot.platform_code"
+    assert result["platform_source"] == "historical_order.raw_payload.platform_code"
     assert result["warehouse_code"] == warehouse.code
-    assert result["warehouse_source"] == "erp_shipment_snapshot.warehouse_code"
+    assert result["warehouse_source"] == "historical_order_shipment"
     assert result["tracking_numbers"] == ["TRK-SNAPSHOT-LOOKUP-1"]
     assert result["quote_items"][0]["tracking_numbers"] == ["TRK-SNAPSHOT-LOOKUP-1"]
 

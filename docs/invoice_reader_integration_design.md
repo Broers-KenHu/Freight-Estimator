@@ -68,7 +68,7 @@ Manual invoice upload supports CSV and XLSX. Direct PDF upload is intentionally 
 
 ## Matching To CourieDelivery
 
-Confirmed rule as of 2026-06-24: CourieDelivery must not decide invoice/order mapping from local `InvoiceChargeSnapshot.tracking_no -> ErpShipmentSnapshot.tracking_no` logic. That local path produced many conflicts. InvoiceReader `dbo.erp_match_results` is the authoritative mapping table.
+Confirmed rule as of 2026-06-24: CourieDelivery must not decide invoice/order mapping from local tracking-to-order logic. That local path produced many conflicts. InvoiceReader `dbo.erp_match_results` is the authoritative mapping table.
 
 For each InvoiceReader matched row:
 
@@ -76,7 +76,7 @@ For each InvoiceReader matched row:
 - Use `detail_tracking` as tracking/consignment, `invoice_no` as invoice number, and `detail_amount_inc_gst` as actual invoice freight inc GST.
 - Use `erp_order_id`, `erp_owner_order_no`, and `erp_rd3_order_id` to resolve the local `HistoricalOrder`. Tracking is not used to decide which order owns the invoice row.
 - Store carrier context from `erp_carrier`, `erp_carrier_channel`, and `erp_carrier_channel_account`.
-- Optionally link matching `InvoiceChargeSnapshot` and exact same owner/tracking `ErpShipmentSnapshot` only for traceability. These optional links must not override InvoiceReader's order mapping.
+- Optionally link matching `InvoiceChargeSnapshot` only for traceability. This optional link must not override InvoiceReader's order mapping.
 - ERP estimates come from the mapped local order: `HistoricalOrder.postage_shipping_estimated_amount`, falling back to `HistoricalOrder.source_estimated_freight`.
 - Compare `InvoiceOrderMatchSnapshot.amount_inc_gst` against `HistoricalOrder ERP estimate * 1.10` because ERP freight estimates are imported ex GST.
 - Optional system-estimate backfill compares invoice actual freight against CourieDelivery's current quote engine result:
@@ -120,7 +120,7 @@ Default command order:
 3. Resolve local `HistoricalOrder` only by InvoiceReader mapped ERP/order references.
 4. Generate `InvoiceReconciliationItem` rows from `InvoiceOrderMatchSnapshot`.
 
-This avoids the incorrect local tracking-based matching path. Use `--erp-only` / `--erp-from-invoices-only` only for diagnostics or controlled historical backfills.
+This avoids the incorrect local tracking-based matching path. The obsolete ERP shipment snapshot sync modes have been removed.
 
 Operational options:
 
@@ -129,7 +129,6 @@ Operational options:
 - `--reconcile-only`: regenerate reconciliation from existing `InvoiceOrderMatchSnapshot` rows.
 - `--clear-snapshots`: delete snapshot tables before rebuilding.
 - `--clear-reconciliation`: delete prior `invoiceReader.*` reconciliation batches/items before regenerating.
-- `--erp-only` / `--erp-from-invoices-only`: legacy diagnostics for ERP shipment snapshots; not the preferred reconciliation path.
 
 ## Command
 

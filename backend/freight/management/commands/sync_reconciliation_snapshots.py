@@ -4,19 +4,13 @@ import os
 import re
 from datetime import datetime
 from decimal import Decimal
-from pathlib import Path
 from typing import Any, Iterable
-from urllib.parse import urlparse, urlunparse
 from zoneinfo import ZoneInfo
 
-import environ
-import psycopg
-from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connections, transaction
 from django.db.models import Q
 from django.utils import timezone
-from psycopg.rows import dict_row
 
 from freight.management.commands.sync_invoices_from_sqlserver import (
     Command as InvoiceReaderCommand,
@@ -29,11 +23,9 @@ from freight.management.commands.sync_invoices_from_sqlserver import (
     safe_code,
     short_hash,
 )
-from freight.management.commands.sync_orders_from_erp import OWNER_SYSTEM, SOURCE_DATABASE, SOURCE_SCHEMA
 from freight.models import (
     Carrier,
     CarrierService,
-    ErpShipmentSnapshot,
     HistoricalOrder,
     ImportJob,
     InvoiceChargeSnapshot,
@@ -46,7 +38,6 @@ from freight.quote_engine import json_safe
 
 
 SOURCE_TZ = ZoneInfo("Australia/Sydney")
-ERP_SHIPMENT_SYSTEM = f"{SOURCE_DATABASE}.{SOURCE_SCHEMA}.hpoms_owner_order_shipment_detail"
 INVOICE_CHARGE_SYSTEM_PREFIX = f"{INVOICE_DATABASE}.{INVOICE_SCHEMA}.invoice_charge_snapshot"
 INVOICE_ORDER_MATCH_SYSTEM = f"{INVOICE_DATABASE}.{INVOICE_SCHEMA}.erp_match_results"
 RECONCILIATION_SYSTEM = "invoiceReader.order_match_reconciliation"
@@ -74,8 +65,6 @@ class Command(BaseCommand):
     help = "Build InvoiceReader charge/order-match snapshots, then reconcile from InvoiceReader's mapped ERP order results."
 
     def add_arguments(self, parser):
-        parser.add_argument("--erp-only", action="store_true")
-        parser.add_argument("--erp-from-invoices-only", action="store_true")
         parser.add_argument("--invoice-only", action="store_true")
         parser.add_argument("--order-match-only", action="store_true")
         parser.add_argument("--reconcile-only", action="store_true")
@@ -93,14 +82,12 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         selected = [
-            options["erp_only"],
-            options["erp_from_invoices_only"],
             options["invoice_only"],
             options["order_match_only"],
             options["reconcile_only"],
         ]
         if sum(bool(item) for item in selected) > 1:
-            raise CommandError("--erp-only, --erp-from-invoices-only, --invoice-only, --order-match-only, and --reconcile-only are mutually exclusive.")
+            raise CommandError("--invoice-only, --order-match-only, and --reconcile-only are mutually exclusive.")
 
         dry_run = bool(options["dry_run"])
         batch_size = max(100, int(options["batch_size"] or 1000))
@@ -122,25 +109,15 @@ class Command(BaseCommand):
         report: dict[str, Any] = {}
         try:
             if options["clear_snapshots"] and not dry_run:
-                erp_deleted = ErpShipmentSnapshot.objects.all().delete()[0]
                 invoice_deleted = InvoiceChargeSnapshot.objects.all().delete()[0]
                 order_match_deleted = InvoiceOrderMatchSnapshot.objects.all().delete()[0]
-                report["cleared_snapshots"] = {"erp": erp_deleted, "invoice": invoice_deleted, "order_match": order_match_deleted}
+                report["cleared_snapshots"] = {"invoice": invoice_deleted, "order_match": order_match_deleted}
             if options["clear_reconciliation"] and not dry_run:
                 items_deleted, batches_deleted = self._clear_invoice_reader_reconciliation()
                 report["cleared_reconciliation"] = {"items": items_deleted, "batches": batches_deleted}
 
             if options["reconcile_only"]:
                 report["reconciliation"] = self._generate_reconciliation(
-                    options["limit"],
-                    batch_size,
-                    dry_run,
-                    options.get("source_config") or "",
-                )
-            elif options["erp_only"]:
-                report["erp_shipments"] = self._sync_erp_shipments(options["limit"], batch_size, dry_run)
-            elif options["erp_from_invoices_only"]:
-                report["erp_shipments"] = self._sync_erp_shipments_for_invoice_charges(
                     options["limit"],
                     batch_size,
                     dry_run,
@@ -214,225 +191,6 @@ class Command(BaseCommand):
             finally:
                 cursor.execute("SET statement_timeout = DEFAULT")
         return items_deleted, batches_deleted
-
-    def _sync_erp_shipments(self, limit: int | None, batch_size: int, dry_run: bool) -> dict[str, int]:
-        result = {"total": 0, "success": 0, "created": 0, "updated": 0}
-        with psycopg.connect(self._erp_url(), connect_timeout=20, row_factory=dict_row) as conn:
-            for rows in self._iter_erp_shipment_batches(conn, limit, batch_size):
-                result["total"] += len(rows)
-                if dry_run:
-                    continue
-                batch_result = self._upsert_erp_shipments(rows)
-                for key in ("success", "created", "updated"):
-                    result[key] += batch_result[key]
-        if dry_run:
-            result["success"] = result["total"]
-        return result
-
-    def _sync_erp_shipments_for_invoice_charges(
-        self,
-        limit: int | None,
-        batch_size: int,
-        dry_run: bool,
-        source_config: str = "",
-    ) -> dict[str, int]:
-        result = {"total": 0, "success": 0, "created": 0, "updated": 0, "tracking_requested": 0}
-        trackings = self._invoice_tracking_values(limit, source_config)
-        result["tracking_requested"] = len(trackings)
-        if not trackings:
-            return result
-        with psycopg.connect(self._erp_url(), connect_timeout=20, row_factory=dict_row) as conn:
-            self._load_temp_trackings(conn, trackings)
-            for rows in self._iter_erp_shipment_batches(conn, None, batch_size, use_temp_trackings=True):
-                result["total"] += len(rows)
-                if dry_run:
-                    continue
-                batch_result = self._upsert_erp_shipments(rows)
-                for key in ("success", "created", "updated"):
-                    result[key] += batch_result[key]
-        if dry_run:
-            result["success"] = result["total"]
-        return result
-
-    def _invoice_tracking_values(self, limit: int | None, source_config: str = "") -> list[str]:
-        qs = InvoiceChargeSnapshot.objects.exclude(tracking_no="")
-        if source_config:
-            qs = qs.filter(source_key__iexact=source_config)
-        qs = qs.order_by("tracking_no").values_list("tracking_no", flat=True).distinct()
-        if limit:
-            qs = qs[:limit]
-        return [clean(tracking) for tracking in qs if clean(tracking)]
-
-    def _load_temp_trackings(self, conn, trackings: list[str]) -> None:
-        with conn.cursor() as cur:
-            cur.execute("DROP TABLE IF EXISTS temp_invoice_trackings")
-            cur.execute("CREATE TEMP TABLE temp_invoice_trackings (tracking varchar PRIMARY KEY) ON COMMIT DROP")
-            with cur.copy("COPY temp_invoice_trackings (tracking) FROM STDIN") as copy:
-                for tracking in trackings:
-                    copy.write_row((tracking,))
-
-    def _iter_erp_shipment_batches(
-        self,
-        conn,
-        limit: int | None,
-        batch_size: int,
-        use_temp_trackings: bool = False,
-    ) -> Iterable[list[dict[str, Any]]]:
-        if use_temp_trackings:
-            source_sql = """
-                SELECT sd.*
-                FROM erp.hpoms_owner_order_shipment_detail sd
-                JOIN temp_invoice_trackings t ON t.tracking = sd.tracking
-            """
-        else:
-            limit_sql = "LIMIT %s" if limit else ""
-            source_sql = f"""
-                SELECT *
-                FROM erp.hpoms_owner_order_shipment_detail sd
-                WHERE NULLIF(sd.tracking, '') IS NOT NULL
-                {limit_sql}
-            """
-        params: list[Any] = []
-        if limit and not use_temp_trackings:
-            params.append(limit)
-        query = f"""
-            WITH source_shipments AS MATERIALIZED (
-                {source_sql}
-            )
-            SELECT
-                COALESCE(NULLIF(sd.id, ''), concat_ws('|', sd.owner_order_id, sd.tracking, sd.package_no, sd.purchase_sku)) AS source_external_id,
-                sd.id AS shipment_detail_id,
-                sd.tracking,
-                sd.owner_order_id,
-                COALESCE(NULLIF(oo.order_id, ''), NULLIF(sd.order_id, '')) AS erp_order_no,
-                COALESCE(NULLIF(oo.owner_order_no, ''), NULLIF(sd.owner_order_no, '')) AS erp_owner_order_no,
-                COALESCE(NULLIF(oo.rd3_order_id, ''), NULLIF(core.rd3_order_id, ''), NULLIF(sd.rd3_order_id, '')) AS third_party_order_no,
-                COALESCE(NULLIF(oo.platform_reference_no, ''), NULLIF(core.platform_reference_no, '')) AS platform_order_no,
-                COALESCE(NULLIF(oo.platform_id, ''), NULLIF(core.platform_id, '')) AS platform_code,
-                platform.name AS platform_name,
-                platform.company AS platform_company,
-                COALESCE(NULLIF(core.wash_warehouse_code, ''), NULLIF(sd.warehouse_code, ''), NULLIF(oo.warehouse_owner_code, '')) AS warehouse_code,
-                sd.carrier AS carrier_name,
-                sd.carrier_channel,
-                sd.service_providers AS service_provider,
-                sd.carrier_channel_account,
-                COALESCE(NULLIF(core.shipping_option, ''), NULLIF(oo.shipping_option, '')) AS shipping_option,
-                COALESCE(oo.date_placed, oo.created_at)::date AS order_date,
-                COALESCE(sd.updated_at, sd.created_at, oo.updated_at, oo.created_at, sd._airbyte_extracted_at) AS source_updated_at,
-                COALESCE(oo.postage_shipping_estimated_amount, oo.shipping_estimated_amount) AS estimated_freight,
-                CASE
-                    WHEN oo.postage_shipping_estimated_amount IS NOT NULL THEN 'owner_order.postage_shipping_estimated_amount'
-                    WHEN oo.shipping_estimated_amount IS NOT NULL THEN 'owner_order.shipping_estimated_amount'
-                    ELSE ''
-                END AS estimate_source
-            FROM source_shipments sd
-            LEFT JOIN erp.hpoms_owner_order oo ON oo.id = sd.owner_order_id
-            LEFT JOIN erp.hpoms_orders core ON core.id = oo.order_id
-            LEFT JOIN erp.hpoms_platform_info platform ON platform.id = COALESCE(NULLIF(oo.platform_id, ''), NULLIF(core.platform_id, ''))
-        """
-        with conn.cursor(name="erp_shipment_snapshot_cursor") as cur:
-            cur.execute(query, params)
-            while True:
-                rows = cur.fetchmany(batch_size)
-                if not rows:
-                    break
-                yield list(rows)
-
-    @transaction.atomic
-    def _upsert_erp_shipments(self, rows: list[dict[str, Any]]) -> dict[str, int]:
-        result = {"success": 0, "created": 0, "updated": 0}
-        source_ids = [clean(row.get("source_external_id")) for row in rows if clean(row.get("source_external_id"))]
-        order_source_ids = {clean(row.get("owner_order_id")) for row in rows if clean(row.get("owner_order_id"))}
-        order_map = {
-            order.source_external_id: order
-            for order in HistoricalOrder.objects.filter(source_system=OWNER_SYSTEM, source_external_id__in=order_source_ids)
-        }
-        existing = {
-            snapshot.source_external_id: snapshot
-            for snapshot in ErpShipmentSnapshot.objects.filter(source_system=ERP_SHIPMENT_SYSTEM, source_external_id__in=source_ids)
-        }
-        to_create: list[ErpShipmentSnapshot] = []
-        to_update: list[ErpShipmentSnapshot] = []
-        for row in rows:
-            source_external_id = clean(row.get("source_external_id"))
-            if not source_external_id:
-                continue
-            payload = self._erp_snapshot_payload(row, order_map.get(clean(row.get("owner_order_id"))))
-            snapshot = existing.get(source_external_id)
-            if snapshot:
-                for field, value in payload.items():
-                    setattr(snapshot, field, value)
-                to_update.append(snapshot)
-            else:
-                to_create.append(ErpShipmentSnapshot(**payload))
-        if to_create:
-            ErpShipmentSnapshot.objects.bulk_create(to_create, batch_size=500)
-        if to_update:
-            ErpShipmentSnapshot.objects.bulk_update(
-                to_update,
-                [
-                    "order",
-                    "tracking_no",
-                    "erp_order_no",
-                    "erp_owner_order_no",
-                    "third_party_order_no",
-                    "platform_order_no",
-                    "platform_code",
-                    "platform_name",
-                    "platform_company",
-                    "warehouse_code",
-                    "carrier_name",
-                    "carrier_channel",
-                    "service_provider",
-                    "carrier_channel_account",
-                    "shipping_option",
-                    "order_date",
-                    "source_updated_at",
-                    "estimated_freight",
-                    "estimate_source",
-                    "raw_payload",
-                    "updated_at",
-                ],
-                batch_size=500,
-            )
-        result["created"] = len(to_create)
-        result["updated"] = len(to_update)
-        result["success"] = len(to_create) + len(to_update)
-        return result
-
-    def _erp_snapshot_payload(self, row: dict[str, Any], order: HistoricalOrder | None) -> dict[str, Any]:
-        return {
-            "order": order,
-            "source_system": ERP_SHIPMENT_SYSTEM,
-            "source_external_id": clean(row.get("source_external_id"))[:160],
-            "tracking_no": clean(row.get("tracking"))[:120],
-            "erp_order_no": clean(row.get("erp_order_no"))[:120],
-            "erp_owner_order_no": clean(row.get("erp_owner_order_no"))[:120],
-            "third_party_order_no": clean(row.get("third_party_order_no"))[:160],
-            "platform_order_no": clean(row.get("platform_order_no"))[:160],
-            "platform_code": clean(row.get("platform_code"))[:80],
-            "platform_name": clean(row.get("platform_name"))[:160],
-            "platform_company": clean(row.get("platform_company"))[:160],
-            "warehouse_code": clean(row.get("warehouse_code"))[:80],
-            "carrier_name": clean(row.get("carrier_name"))[:160],
-            "carrier_channel": clean(row.get("carrier_channel"))[:160],
-            "service_provider": clean(row.get("service_provider"))[:160],
-            "carrier_channel_account": clean(row.get("carrier_channel_account"))[:120],
-            "shipping_option": clean(row.get("shipping_option"))[:160],
-            "order_date": parse_date(row.get("order_date")),
-            "source_updated_at": self._aware(row.get("source_updated_at")),
-            "estimated_freight": dec(row.get("estimated_freight")),
-            "estimate_source": clean(row.get("estimate_source"))[:80],
-            "raw_payload": json_safe(
-                {
-                    "shipment_detail_id": row.get("shipment_detail_id"),
-                    "owner_order_id": row.get("owner_order_id"),
-                    "estimated_courier": row.get("estimated_courier"),
-                    "estimated_courier_channel": row.get("estimated_courier_channel"),
-                    "estimated_service_provider": row.get("estimated_service_provider"),
-                }
-            ),
-        }
 
     def _sync_invoice_charges(self, options: dict[str, Any], batch_size: int, dry_run: bool) -> dict[str, int]:
         if not options["user"] or not options["password"]:
@@ -1042,12 +800,10 @@ class Command(BaseCommand):
         existing_ids = [match.source_external_id for match in matches]
         InvoiceReconciliationItem.objects.filter(source_system=RECONCILIATION_SYSTEM, source_external_id__in=existing_ids).delete()
         charge_map = self._invoice_charge_map(matches)
-        erp_map = self._erp_snapshot_map(matches)
         items = []
         for match in matches:
             charge = charge_map.get((match.invoice_no, match.tracking_no))
-            erp_snapshot = erp_map.get((match.tracking_no, match.erp_owner_order_no))
-            item = self._reconciliation_item_from_order_match(batch, match, charge, erp_snapshot)
+            item = self._reconciliation_item_from_order_match(batch, match, charge)
             items.append(item)
             result["success"] += 1
             if item.match_status == InvoiceReconciliationItem.MatchStatus.MATCHED:
@@ -1078,26 +834,11 @@ class Command(BaseCommand):
             result.setdefault((charge.invoice_no, charge.tracking_no), charge)
         return result
 
-    def _erp_snapshot_map(
-        self,
-        matches: list[InvoiceOrderMatchSnapshot],
-    ) -> dict[tuple[str, str], ErpShipmentSnapshot]:
-        trackings = {match.tracking_no for match in matches if match.tracking_no}
-        owners = {match.erp_owner_order_no for match in matches if match.erp_owner_order_no}
-        if not trackings or not owners:
-            return {}
-        result = {}
-        qs = ErpShipmentSnapshot.objects.select_related("order").filter(tracking_no__in=trackings, erp_owner_order_no__in=owners)
-        for snapshot in qs.order_by("-source_updated_at", "-id"):
-            result.setdefault((snapshot.tracking_no, snapshot.erp_owner_order_no), snapshot)
-        return result
-
     def _reconciliation_item_from_order_match(
         self,
         batch: InvoiceReconciliationBatch,
         match: InvoiceOrderMatchSnapshot,
         charge: InvoiceChargeSnapshot | None,
-        erp_snapshot: ErpShipmentSnapshot | None,
     ) -> InvoiceReconciliationItem:
         order = match.order
         estimate = self._erp_estimate_for_order(order)
@@ -1136,7 +877,6 @@ class Command(BaseCommand):
         return InvoiceReconciliationItem(
             batch=batch,
             order=order,
-            erp_shipment_snapshot=erp_snapshot,
             invoice_charge_snapshot=charge,
             invoice_order_match_snapshot=match,
             carrier=invoice_source.carrier if invoice_source else None,
@@ -1161,7 +901,6 @@ class Command(BaseCommand):
                     "mapping_source": INVOICE_ORDER_MATCH_SYSTEM,
                     "invoice_order_match_snapshot_id": match.id,
                     "invoice_charge_snapshot_id": charge.id if charge else None,
-                    "erp_snapshot_id": erp_snapshot.id if erp_snapshot else None,
                     "estimate_basis": "ERP_EX_GST",
                     "actual_basis": "INVOICE_READER_DETAIL_INC_GST",
                     "comparison_estimated_freight_inc_gst": str(estimate * GST_MULTIPLIER) if estimate is not None else "",
@@ -1208,137 +947,6 @@ class Command(BaseCommand):
             return qs[:limit]
         return qs
 
-    @transaction.atomic
-    def _create_reconciliation_items(self, batch: InvoiceReconciliationBatch, charges: list[InvoiceChargeSnapshot]) -> dict[str, int]:
-        result = {"success": 0, "matched": 0, "exceptions": 0, "unmatched": 0}
-        tracking_values = {charge.tracking_no for charge in charges if charge.tracking_no}
-        erp_by_tracking: dict[str, list[ErpShipmentSnapshot]] = {}
-        if tracking_values:
-            for snapshot in ErpShipmentSnapshot.objects.select_related("order").filter(tracking_no__in=tracking_values):
-                erp_by_tracking.setdefault(snapshot.tracking_no, []).append(snapshot)
-
-        existing_ids = [charge.source_external_id for charge in charges]
-        InvoiceReconciliationItem.objects.filter(source_system=RECONCILIATION_SYSTEM, source_external_id__in=existing_ids).delete()
-        items = []
-        for charge in charges:
-            erp_snapshot, match_reason = self._best_erp_match(charge, erp_by_tracking.get(charge.tracking_no, []))
-            item = self._reconciliation_item_from_snapshots(batch, charge, erp_snapshot, match_reason)
-            items.append(item)
-            result["success"] += 1
-            if item.match_status == InvoiceReconciliationItem.MatchStatus.MATCHED:
-                result["matched"] += 1
-            elif item.match_status == InvoiceReconciliationItem.MatchStatus.EXCEPTION:
-                result["exceptions"] += 1
-            else:
-                result["unmatched"] += 1
-        if items:
-            InvoiceReconciliationItem.objects.bulk_create(items, batch_size=500)
-        return result
-
-    def _best_erp_match(
-        self,
-        charge: InvoiceChargeSnapshot,
-        candidates: list[ErpShipmentSnapshot],
-    ) -> tuple[ErpShipmentSnapshot | None, str]:
-        if not charge.tracking_no:
-            return None, "Invoice row has no tracking number"
-        if not candidates:
-            return None, "No ERP shipment matched by tracking"
-        carrier_text = " ".join([charge.carrier_name, charge.source_platform, charge.service_name])
-        scored = [(self._carrier_match_score(carrier_text, candidate), candidate) for candidate in candidates]
-        scored.sort(key=lambda item: item[0], reverse=True)
-        score, candidate = scored[0]
-        if score > 0:
-            return candidate, "Matched by tracking and carrier/channel"
-        if len(candidates) == 1:
-            return candidate, "Matched by tracking only"
-        return candidate, "Matched by tracking; carrier/channel needs review"
-
-    def _reconciliation_item_from_snapshots(
-        self,
-        batch: InvoiceReconciliationBatch,
-        charge: InvoiceChargeSnapshot,
-        erp_snapshot: ErpShipmentSnapshot | None,
-        match_reason: str,
-    ) -> InvoiceReconciliationItem:
-        estimate = erp_snapshot.estimated_freight if erp_snapshot else None
-        actual = charge.actual_freight
-        variance_amount = None
-        variance_percent = None
-        match_status = InvoiceReconciliationItem.MatchStatus.UNMATCHED
-        variance_type = InvoiceReconciliationItem.VarianceType.UNMATCHED
-        dispute = False
-        reason = match_reason
-        if erp_snapshot and estimate is None:
-            reason = f"{match_reason}; ERP shipment has no shipping estimate"
-        elif erp_snapshot and estimate is not None and estimate != 0:
-            comparison_estimate = estimate * GST_MULTIPLIER
-            variance_amount = actual - comparison_estimate
-            variance_percent = (variance_amount / comparison_estimate) * Decimal("100") if comparison_estimate else None
-            if abs(variance_amount) <= Decimal("2.00") or abs(variance_percent) <= Decimal("5.00"):
-                match_status = InvoiceReconciliationItem.MatchStatus.MATCHED
-                variance_type = InvoiceReconciliationItem.VarianceType.OK
-                reason = f"{match_reason}; ERP estimate inc GST within tolerance"
-            else:
-                match_status = InvoiceReconciliationItem.MatchStatus.EXCEPTION
-                variance_type = (
-                    InvoiceReconciliationItem.VarianceType.OVERCHARGE
-                    if variance_amount > 0
-                    else InvoiceReconciliationItem.VarianceType.UNDERCHARGE
-                )
-                dispute = variance_amount > 0
-                reason = f"{match_reason}; ERP estimate inc GST variance outside tolerance"
-
-        order = erp_snapshot.order if erp_snapshot else None
-        return InvoiceReconciliationItem(
-            batch=batch,
-            order=order,
-            erp_shipment_snapshot=erp_snapshot,
-            invoice_charge_snapshot=charge,
-            carrier=charge.invoice_source.carrier if charge.invoice_source else None,
-            carrier_service=charge.invoice_source.carrier_service if charge.invoice_source else None,
-            invoice_source=charge.invoice_source,
-            consignment_no=charge.tracking_no,
-            order_no=(erp_snapshot.erp_order_no if erp_snapshot else charge.order_reference) or "",
-            invoice_no=charge.invoice_no,
-            invoice_date=charge.invoice_date,
-            source_system=RECONCILIATION_SYSTEM,
-            source_external_id=charge.source_external_id,
-            estimated_freight=estimate,
-            actual_freight=actual,
-            variance_amount=variance_amount,
-            variance_percent=variance_percent,
-            match_status=match_status,
-            variance_type=variance_type,
-            dispute_recommended=dispute,
-            reason=reason[:255],
-            raw_payload=json_safe(
-                {
-                    "erp_snapshot_id": erp_snapshot.id if erp_snapshot else None,
-                    "invoice_charge_snapshot_id": charge.id,
-                    "erp": {
-                        "erp_order_no": erp_snapshot.erp_order_no if erp_snapshot else "",
-                        "erp_owner_order_no": erp_snapshot.erp_owner_order_no if erp_snapshot else "",
-                        "third_party_order_no": erp_snapshot.third_party_order_no if erp_snapshot else "",
-                        "platform_order_no": erp_snapshot.platform_order_no if erp_snapshot else "",
-                        "platform_name": erp_snapshot.platform_name if erp_snapshot else "",
-                        "carrier_name": erp_snapshot.carrier_name if erp_snapshot else "",
-                        "carrier_channel": erp_snapshot.carrier_channel if erp_snapshot else "",
-                        "estimate_source": erp_snapshot.estimate_source if erp_snapshot else "",
-                    },
-                    "estimate_basis": "ERP_EX_GST",
-                    "comparison_estimated_freight_inc_gst": str(estimate * GST_MULTIPLIER) if estimate is not None else "",
-                    "invoice": {
-                        "source_key": charge.source_key,
-                        "source_label": charge.source_label,
-                        "source_table": charge.source_table,
-                        "service_name": charge.service_name,
-                        "freight_account": charge.freight_account,
-                    },
-                }
-            ),
-        )
-
     def _carrier_for_text(self, text: str) -> Carrier | None:
         norm = normalize(text)
         carriers = list(Carrier.objects.all())
@@ -1380,37 +988,6 @@ class Command(BaseCommand):
         code = safe_code("INV", source_name)
         return CarrierService.objects.filter(carrier=carrier, code=code).first()
 
-    def _carrier_match_score(self, invoice_text: str, erp: ErpShipmentSnapshot) -> int:
-        invoice_norm = normalize(invoice_text)
-        score = 0
-        for text in (erp.carrier_name, erp.carrier_channel, erp.service_provider):
-            erp_norm = normalize(text)
-            if not erp_norm or not invoice_norm:
-                continue
-            if erp_norm in invoice_norm or invoice_norm in erp_norm:
-                score += 10
-            for token in self._tokens(text):
-                if token in invoice_norm:
-                    score += 1
-        return score
-
-    def _tokens(self, text: str) -> list[str]:
-        stop = {"express", "freight", "road", "standard", "service", "services", "logistics", "australia", "pty", "ltd"}
-        parts = []
-        for part in clean(text).replace("-", " ").replace("_", " ").split():
-            token = normalize(part)
-            if len(token) >= 3 and token not in stop:
-                parts.append(token)
-        return parts
-
-    def _erp_url(self) -> str:
-        env = environ.Env()
-        env.read_env(Path(settings.BASE_DIR) / ".env")
-        database_url = env("DATABASE_URL", default="")
-        if not database_url:
-            raise CommandError("DATABASE_URL is required.")
-        parts = urlparse(database_url)
-        return urlunparse(parts._replace(path=f"/{SOURCE_DATABASE}"))
 
     def _aware(self, value):
         if value is None:

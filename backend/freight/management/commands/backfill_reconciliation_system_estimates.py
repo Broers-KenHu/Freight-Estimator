@@ -34,7 +34,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--use-actual-platform-warehouse",
             action="store_true",
-            help="Use ERP snapshot platform/warehouse codes instead of ALL/ALL. This may leave many rows unavailable if links are not configured.",
+            help="Use mapped order platform/warehouse codes instead of ALL/ALL. This may leave many rows unavailable if links are not configured.",
         )
         parser.add_argument("--dry-run", action="store_true")
 
@@ -81,16 +81,19 @@ class Command(BaseCommand):
 
     def _base_queryset(self, options):
         queryset = InvoiceReconciliationItem.objects.select_related(
-            "erp_shipment_snapshot",
+            "order",
+            "order__platform",
+            "order__warehouse",
+            "invoice_order_match_snapshot",
             "invoice_charge_snapshot",
             "invoice_source",
             "carrier",
             "carrier_service",
-        ).exclude(erp_shipment_snapshot__isnull=True)
+        ).exclude(order__isnull=True)
         if options.get("batch_id"):
             queryset = queryset.filter(batch_id=options["batch_id"])
         if options.get("source_config"):
-            queryset = queryset.filter(invoice_charge_snapshot__source_key__iexact=options["source_config"])
+            queryset = queryset.filter(invoice_order_match_snapshot__source_key__iexact=options["source_config"])
         if not options.get("include_existing"):
             queryset = queryset.filter(system_estimated_freight__isnull=True)
         return queryset
@@ -99,9 +102,9 @@ class Command(BaseCommand):
         report = {"total": len(rows), "quoted": 0, "missing_input": 0, "not_available": 0, "errors": 0}
         owner_ids = sorted(
             {
-                clean((row.erp_shipment_snapshot.raw_payload or {}).get("owner_order_id"))
+                clean(row.order.source_external_id)
                 for row in rows
-                if row.erp_shipment_snapshot and clean((row.erp_shipment_snapshot.raw_payload or {}).get("owner_order_id"))
+                if row.order and clean(row.order.source_external_id)
             }
         )
         trackings = sorted({row.consignment_no for row in rows if row.consignment_no})
@@ -113,10 +116,10 @@ class Command(BaseCommand):
 
         for item in rows:
             try:
-                erp_snapshot = item.erp_shipment_snapshot
-                owner_order_id = clean((erp_snapshot.raw_payload or {}).get("owner_order_id")) if erp_snapshot else ""
+                order = item.order
+                owner_order_id = clean(order.source_external_id) if order else ""
                 context = order_map.get(owner_order_id)
-                if not erp_snapshot or not owner_order_id or not context:
+                if not order or not owner_order_id or not context:
                     self._set_system_result(item, None, "missing_erp_order_context")
                     report["missing_input"] += 1
                     to_update.append(item)
@@ -138,12 +141,12 @@ class Command(BaseCommand):
                         owner_order_id,
                         item.consignment_no,
                         "actual" if use_actual_scope else "all",
-                        self._carrier_family(item, erp_snapshot),
+                        self._carrier_family(item),
                     ]
                 )
                 candidate, reason = quote_cache.get(cache_key, (None, ""))
                 if not reason:
-                    candidate, reason = self._quote_candidate_for_item(engine, item, erp_snapshot, context, payload_items, use_actual_scope)
+                    candidate, reason = self._quote_candidate_for_item(engine, item, context, payload_items, use_actual_scope)
                     quote_cache[cache_key] = (candidate, reason)
                 self._set_system_result(item, candidate, reason)
                 if candidate:
@@ -176,14 +179,14 @@ class Command(BaseCommand):
         self,
         engine: QuoteEngine,
         item: InvoiceReconciliationItem,
-        erp_snapshot,
         context: dict[str, Any],
         payload_items: list[dict[str, Any]],
         use_actual_scope: bool,
     ) -> tuple[QuoteCandidate | None, str]:
+        order = item.order
         payload = {
-            "platform_code": erp_snapshot.platform_code if use_actual_scope and erp_snapshot.platform_code else "ALL",
-            "warehouse_code": erp_snapshot.warehouse_code if use_actual_scope and erp_snapshot.warehouse_code else "ALL",
+            "platform_code": order.platform.code if use_actual_scope and order and order.platform else "ALL",
+            "warehouse_code": order.warehouse.code if use_actual_scope and order and order.warehouse else "ALL",
             "destination": {
                 "state": context["state"],
                 "suburb": context["suburb"],
@@ -202,7 +205,7 @@ class Command(BaseCommand):
                 availability=QuoteCandidate.Availability.AVAILABLE
             )
         )
-        family = self._carrier_family(item, erp_snapshot)
+        family = self._carrier_family(item)
         family_candidates = [candidate for candidate in candidates if self._candidate_matches(candidate, family)]
         if family_candidates:
             return sorted(family_candidates, key=lambda candidate: candidate.total_inc_gst)[0], f"system_quote_matched_{family}_carrier"
@@ -239,7 +242,8 @@ class Command(BaseCommand):
         )
         item.raw_payload = payload
 
-    def _carrier_family(self, item: InvoiceReconciliationItem, erp_snapshot) -> str:
+    def _carrier_family(self, item: InvoiceReconciliationItem) -> str:
+        match = item.invoice_order_match_snapshot
         text = normalize(
             " ".join(
                 [
@@ -247,9 +251,9 @@ class Command(BaseCommand):
                     item.carrier_service.name if item.carrier_service else "",
                     item.invoice_source.name if item.invoice_source else "",
                     item.invoice_charge_snapshot.source_key if item.invoice_charge_snapshot else "",
-                    erp_snapshot.carrier_name if erp_snapshot else "",
-                    erp_snapshot.carrier_channel if erp_snapshot else "",
-                    erp_snapshot.service_provider if erp_snapshot else "",
+                    match.carrier_name if match else "",
+                    match.carrier_channel if match else "",
+                    match.service_name if match else "",
                 ]
             )
         )

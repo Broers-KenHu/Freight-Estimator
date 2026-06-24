@@ -10,9 +10,9 @@ from django.db import transaction
 from freight.management.commands.backfill_reconciliation_system_estimates import Command as EstimateHelper
 from freight.management.commands.sync_invoices_from_sqlserver import clean, normalize
 from freight.models import (
-    ErpShipmentSnapshot,
     FreightAuditResult,
     FreightAuditRow,
+    HistoricalOrderShipment,
     InvoiceReconciliationItem,
     QuoteCandidate,
     QuoteChannel,
@@ -51,7 +51,7 @@ class Command(BaseCommand):
         source_qs = self._source_queryset(options)
         requested_owner_ids = [clean(owner_id) for owner_id in options["owner_id"] if clean(owner_id)]
         if requested_owner_ids:
-            source_qs = source_qs.filter(erp_shipment_snapshot__raw_payload__owner_order_id__in=requested_owner_ids)
+            source_qs = source_qs.filter(order__source_external_id__in=requested_owner_ids)
         owner_ids = self._source_owner_ids(source_qs)
         if options["limit"]:
             owner_ids = owner_ids[: int(options["limit"])]
@@ -77,7 +77,7 @@ class Command(BaseCommand):
             for start in range(0, len(owner_ids), order_batch_size):
                 batch_owner_ids = owner_ids[start : start + order_batch_size]
                 source_rows = list(
-                    source_qs.filter(erp_shipment_snapshot__raw_payload__owner_order_id__in=batch_owner_ids).order_by("id")
+                    source_qs.filter(order__source_external_id__in=batch_owner_ids).order_by("id")
                 )
                 batch_report = self._process_order_batch(
                     conn,
@@ -101,24 +101,27 @@ class Command(BaseCommand):
     def _source_queryset(self, options):
         qs = (
             InvoiceReconciliationItem.objects.select_related(
-                "erp_shipment_snapshot",
+                "order",
+                "order__platform",
+                "order__warehouse",
+                "invoice_order_match_snapshot",
                 "invoice_charge_snapshot",
                 "invoice_source",
             )
-            .exclude(erp_shipment_snapshot__isnull=True)
+            .exclude(order__isnull=True)
         )
         if options.get("batch_id"):
             qs = qs.filter(batch_id=options["batch_id"])
         if options.get("source_config"):
-            qs = qs.filter(invoice_charge_snapshot__source_key__iexact=options["source_config"])
+            qs = qs.filter(invoice_order_match_snapshot__source_key__iexact=options["source_config"])
         return qs
 
     def _source_owner_ids(self, source_qs) -> list[str]:
         seen: set[str] = set()
         owner_ids: list[str] = []
         raw_ids = (
-            source_qs.values_list("erp_shipment_snapshot__raw_payload__owner_order_id", flat=True)
-            .order_by("erp_shipment_snapshot__raw_payload__owner_order_id")
+            source_qs.values_list("order__source_external_id", flat=True)
+            .order_by("order__source_external_id")
             .distinct()
         )
         for raw_id in raw_ids:
@@ -160,7 +163,7 @@ class Command(BaseCommand):
                 source_by_owner[owner_id].append(source)
 
         order_context = helper._fetch_order_context(conn, owner_ids)
-        trackings_by_owner = self._trackings_by_owner(owner_ids)
+        trackings_by_owner = self._trackings_by_owner(owner_ids, source_by_owner)
         all_trackings = sorted({tracking for trackings in trackings_by_owner.values() for tracking in trackings})
         tracking_items = helper._fetch_tracking_items(conn, owner_ids, all_trackings)
         order_items = helper._fetch_order_items(conn, owner_ids)
@@ -171,8 +174,8 @@ class Command(BaseCommand):
             if not sources:
                 continue
             source = sources[0]
-            erp = source.erp_shipment_snapshot
-            if not erp:
+            order = source.order
+            if not order:
                 report["error_rows"] += 1
                 continue
             context = order_context.get(owner_id)
@@ -186,7 +189,7 @@ class Command(BaseCommand):
                         self._quote_single_run_row(
                             source,
                             sources,
-                            erp,
+                            order,
                             context,
                             [item],
                             mode,
@@ -207,7 +210,7 @@ class Command(BaseCommand):
                     self._quote_single_run_row(
                         source,
                         sources,
-                        erp,
+                        order,
                         context,
                         order_items.get(owner_id) or [],
                         mode,
@@ -228,7 +231,7 @@ class Command(BaseCommand):
                 self._quote_consignment_aggregate_row(
                     source,
                     sources,
-                    erp,
+                    order,
                     context,
                     tracking_groups,
                     source_external_id,
@@ -245,20 +248,28 @@ class Command(BaseCommand):
         return report
 
     def _owner_id(self, source: InvoiceReconciliationItem) -> str:
-        erp = source.erp_shipment_snapshot
-        return clean((erp.raw_payload or {}).get("owner_order_id")) if erp else ""
+        return clean(source.order.source_external_id) if source.order else ""
 
-    def _trackings_by_owner(self, owner_ids: list[str]) -> dict[str, list[str]]:
+    def _trackings_by_owner(
+        self,
+        owner_ids: list[str],
+        source_by_owner: dict[str, list[InvoiceReconciliationItem]],
+    ) -> dict[str, list[str]]:
         grouped: dict[str, set[str]] = defaultdict(set)
-        snapshots = ErpShipmentSnapshot.objects.filter(raw_payload__owner_order_id__in=owner_ids).values_list(
-            "raw_payload__owner_order_id",
+        shipments = HistoricalOrderShipment.objects.filter(order__source_external_id__in=owner_ids).values_list(
+            "order__source_external_id",
             "tracking_no",
         )
-        for owner_id, tracking in snapshots:
+        for owner_id, tracking in shipments:
             owner_id = clean(owner_id)
             tracking = clean(tracking)
             if owner_id and tracking:
                 grouped[owner_id].add(tracking)
+        for owner_id, sources in source_by_owner.items():
+            for source in sources:
+                tracking = clean(source.consignment_no)
+                if owner_id and tracking:
+                    grouped[owner_id].add(tracking)
         return {owner_id: sorted(trackings) for owner_id, trackings in grouped.items()}
 
     def _tracking_groups(
@@ -293,7 +304,7 @@ class Command(BaseCommand):
         self,
         source: InvoiceReconciliationItem,
         sources: list[InvoiceReconciliationItem],
-        erp,
+        order,
         context: dict[str, Any] | None,
         payload_items: list[dict[str, Any]],
         mode: str,
@@ -308,7 +319,7 @@ class Command(BaseCommand):
         audit_row = self._upsert_audit_row(
             source,
             sources,
-            erp,
+            order,
             context,
             payload_items,
             mode,
@@ -333,7 +344,7 @@ class Command(BaseCommand):
         self,
         source: InvoiceReconciliationItem,
         sources: list[InvoiceReconciliationItem],
-        erp,
+        order,
         context: dict[str, Any] | None,
         tracking_groups: list[dict[str, Any]],
         source_external_id: str,
@@ -346,7 +357,7 @@ class Command(BaseCommand):
         audit_row = self._upsert_audit_row(
             source,
             sources,
-            erp,
+            order,
             context,
             payload_items,
             FreightAuditRow.CalculationMode.CONSIGNMENT,
@@ -395,7 +406,7 @@ class Command(BaseCommand):
         self,
         source: InvoiceReconciliationItem,
         sources: list[InvoiceReconciliationItem],
-        erp,
+        order,
         context: dict[str, Any] | None,
         payload_items: list[dict[str, Any]],
         mode: str,
@@ -416,17 +427,16 @@ class Command(BaseCommand):
             raw_payload.update(extra_payload)
         defaults = {
             "invoice_reconciliation_item": source,
-            "erp_shipment_snapshot": erp,
-            "order_no": erp.erp_order_no or source.order_no,
+            "order_no": order.erp_order_no or order.order_no or source.order_no,
             "tracking_no": tracking_summary,
-            "platform_code": erp.platform_code,
-            "platform_name": erp.platform_name,
-            "warehouse_code": erp.warehouse_code,
-            "order_date": context.get("order_date") if context else erp.order_date,
+            "platform_code": order.platform.code if order.platform else "",
+            "platform_name": order.platform.name if order.platform else "",
+            "warehouse_code": order.warehouse.code if order.warehouse else "",
+            "order_date": context.get("order_date") if context else order.order_date,
             "suburb": context.get("suburb") if context else "",
             "postcode": context.get("postcode") if context else "",
             "state": context.get("state") if context else "",
-            "erp_estimated_freight": erp.estimated_freight if compare_to_erp else None,
+            "erp_estimated_freight": source.estimated_freight if compare_to_erp else None,
             "invoice_actual_freight": actual_freight,
             "item_count": len(payload_items),
             "total_qty": total_qty,

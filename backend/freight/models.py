@@ -829,50 +829,6 @@ class HistoricalOrderShipment(TimeStampedModel):
         return self.tracking_no
 
 
-class ErpShipmentSnapshot(TimeStampedModel):
-    order = models.ForeignKey(HistoricalOrder, null=True, blank=True, on_delete=models.SET_NULL, related_name="erp_shipment_snapshots")
-    source_system = models.CharField(max_length=160, blank=True)
-    source_external_id = models.CharField(max_length=160, blank=True)
-    tracking_no = models.CharField(max_length=120)
-    erp_order_no = models.CharField(max_length=120, blank=True)
-    erp_owner_order_no = models.CharField(max_length=120, blank=True)
-    third_party_order_no = models.CharField(max_length=160, blank=True)
-    platform_order_no = models.CharField(max_length=160, blank=True)
-    platform_code = models.CharField(max_length=80, blank=True)
-    platform_name = models.CharField(max_length=160, blank=True)
-    platform_company = models.CharField(max_length=160, blank=True)
-    warehouse_code = models.CharField(max_length=80, blank=True)
-    carrier_name = models.CharField(max_length=160, blank=True)
-    carrier_channel = models.CharField(max_length=160, blank=True)
-    service_provider = models.CharField(max_length=160, blank=True)
-    carrier_channel_account = models.CharField(max_length=120, blank=True)
-    shipping_option = models.CharField(max_length=160, blank=True)
-    order_date = models.DateField(null=True, blank=True)
-    source_updated_at = models.DateTimeField(null=True, blank=True)
-    estimated_freight = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
-    estimate_source = models.CharField(max_length=80, blank=True)
-    raw_payload = models.JSONField(default=dict, blank=True)
-
-    class Meta:
-        db_table = "erp_shipment_snapshot"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["source_system", "source_external_id"],
-                condition=~models.Q(source_system="") & ~models.Q(source_external_id=""),
-                name="uniq_erp_ship_snapshot_source",
-            )
-        ]
-        indexes = [
-            models.Index(fields=["tracking_no"]),
-            models.Index(fields=["carrier_name", "carrier_channel"]),
-            models.Index(fields=["platform_code", "order_date"]),
-            models.Index(fields=["source_system", "source_updated_at"]),
-        ]
-
-    def __str__(self) -> str:
-        return f"{self.tracking_no} / {self.erp_order_no}"
-
-
 class LspApiQuoteSnapshot(TimeStampedModel):
     historical_order = models.ForeignKey(
         HistoricalOrder,
@@ -1332,7 +1288,6 @@ class InvoiceReconciliationItem(TimeStampedModel):
     batch = models.ForeignKey(InvoiceReconciliationBatch, on_delete=models.CASCADE, related_name="items")
     order = models.ForeignKey(HistoricalOrder, null=True, blank=True, on_delete=models.SET_NULL)
     quote_candidate = models.ForeignKey(QuoteCandidate, null=True, blank=True, on_delete=models.SET_NULL)
-    erp_shipment_snapshot = models.ForeignKey(ErpShipmentSnapshot, null=True, blank=True, on_delete=models.SET_NULL)
     invoice_charge_snapshot = models.ForeignKey(InvoiceChargeSnapshot, null=True, blank=True, on_delete=models.SET_NULL)
     invoice_order_match_snapshot = models.ForeignKey(InvoiceOrderMatchSnapshot, null=True, blank=True, on_delete=models.SET_NULL)
     carrier = models.ForeignKey(Carrier, null=True, blank=True, on_delete=models.SET_NULL)
@@ -1384,7 +1339,6 @@ class FreightAuditRow(TimeStampedModel):
     source_external_id = models.CharField(max_length=180, blank=True)
     calculation_mode = models.CharField(max_length=20, choices=CalculationMode.choices, default=CalculationMode.CONSIGNMENT)
     invoice_reconciliation_item = models.ForeignKey(InvoiceReconciliationItem, null=True, blank=True, on_delete=models.SET_NULL)
-    erp_shipment_snapshot = models.ForeignKey(ErpShipmentSnapshot, null=True, blank=True, on_delete=models.SET_NULL)
     quote_run = models.ForeignKey(QuoteRun, null=True, blank=True, on_delete=models.SET_NULL)
     order_no = models.CharField(max_length=120, blank=True)
     tracking_no = models.CharField(max_length=120, blank=True)

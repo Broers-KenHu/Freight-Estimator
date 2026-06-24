@@ -25,7 +25,6 @@ for model in [
     models.HistoricalOrder,
     models.HistoricalOrderItem,
     models.HistoricalOrderShipment,
-    models.ErpShipmentSnapshot,
     models.ImportJob,
     models.QuoteRun,
     models.QuoteCandidate,

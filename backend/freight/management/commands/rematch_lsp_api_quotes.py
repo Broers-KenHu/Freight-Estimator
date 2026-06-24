@@ -9,7 +9,6 @@ from django.db.models import Q
 
 from freight.management.commands.sync_orders_from_erp import OWNER_SYSTEM
 from freight.models import (
-    ErpShipmentSnapshot,
     HistoricalOrder,
     HistoricalOrderShipment,
     LspApiQuoteSnapshot,
@@ -133,9 +132,6 @@ class Command(BaseCommand):
         result: dict[str, HistoricalOrder] = {}
         for shipment in HistoricalOrderShipment.objects.select_related("order", "order__platform").filter(tracking_no__in=tracking_values):
             result.setdefault(clean(shipment.tracking_no), shipment.order)
-        for snapshot in ErpShipmentSnapshot.objects.select_related("order", "order__platform").filter(tracking_no__in=tracking_values):
-            if snapshot.order:
-                result.setdefault(clean(snapshot.tracking_no), snapshot.order)
         for order in HistoricalOrder.objects.select_related("platform").filter(consignment_no__in=tracking_values):
             result.setdefault(clean(order.consignment_no), order)
         return result

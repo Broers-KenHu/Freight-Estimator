@@ -10,8 +10,8 @@ KEY_TABLES = [
     "freight_sku",
     "freight_historicalorder",
     "freight_historicalordershipment",
-    "erp_shipment_snapshot",
     "invoice_charge_snapshot",
+    "invoice_order_match_snapshot",
     "invoice_reconciliation_item",
     "quote_request",
     "quote_result",
@@ -71,7 +71,7 @@ class Command(BaseCommand):
 
     def _expected_indexes(self) -> list[str]:
         migration = import_module("freight.migrations.0022_postgresql_search_and_audit_indexes")
-        return list(migration.INDEX_NAMES)
+        return [name for name in migration.INDEX_NAMES if not name.startswith("fi_erp_ship_")]
 
     def _extensions(self, cursor) -> set[str]:
         cursor.execute("select extname from pg_extension")

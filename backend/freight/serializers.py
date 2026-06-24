@@ -487,9 +487,6 @@ class HistoricalOrderSerializer(serializers.ModelSerializer):
         for shipment in obj.shipments.all():
             if shipment.tracking_no:
                 values.add(str(shipment.tracking_no).strip())
-        for snapshot in obj.erp_shipment_snapshots.all():
-            if snapshot.tracking_no:
-                values.add(str(snapshot.tracking_no).strip())
         return sorted(value for value in values if value)
 
     def update(self, instance, validated_data):
@@ -573,12 +570,6 @@ class LspApiQuoteSnapshotSerializer(serializers.ModelSerializer):
         for shipment in shipments:
             if shipment.tracking_no:
                 return shipment.tracking_no
-        snapshots = getattr(order, "_prefetched_objects_cache", {}).get("erp_shipment_snapshots")
-        if snapshots is None:
-            snapshots = list(order.erp_shipment_snapshots.all()[:1])
-        for snapshot in snapshots:
-            if snapshot.tracking_no:
-                return snapshot.tracking_no
         return ""
 
     def get_display_warehouse_code(self, obj: LspApiQuoteSnapshot) -> str:
@@ -744,7 +735,7 @@ class InvoiceReconciliationItemSerializer(serializers.ModelSerializer):
             return explicit
         if obj.quote_candidate_id:
             return obj.estimated_freight
-        if obj.erp_shipment_snapshot_id or obj.invoice_charge_snapshot_id or str(obj.source_system or "").startswith("invoiceReader."):
+        if obj.invoice_order_match_snapshot_id or obj.invoice_charge_snapshot_id or str(obj.source_system or "").startswith("invoiceReader."):
             return obj.estimated_freight * Decimal("1.10")
         return obj.estimated_freight
 
@@ -754,7 +745,7 @@ class InvoiceReconciliationItemSerializer(serializers.ModelSerializer):
             return str(payload["estimate_basis"])
         if obj.quote_candidate_id:
             return "SYSTEM_INC_GST"
-        if obj.erp_shipment_snapshot_id or obj.invoice_charge_snapshot_id or str(obj.source_system or "").startswith("invoiceReader."):
+        if obj.invoice_order_match_snapshot_id or obj.invoice_charge_snapshot_id or str(obj.source_system or "").startswith("invoiceReader."):
             return "ERP_EX_GST"
         return "UNKNOWN"
 

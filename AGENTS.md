@@ -63,11 +63,11 @@ Working notes for Codex agents continuing this project after context compaction.
   - Remote source reads should be inside management commands or explicit sync actions.
   - Detailed ERP/LSP/WMS/InvoiceReader relationship and matching-field doc: `docs\ERP_LSP_WMS_Data_Relationships_20260623.md`.
 - ERP estimate scope is order-level unless proven otherwise from source DDL/data:
-  - `ErpShipmentSnapshot.estimated_freight` currently comes from `hpoms_owner_order.postage_shipping_estimated_amount` then `shipping_estimated_amount`.
+  - ERP Est. is stored on `HistoricalOrder.postage_shipping_estimated_amount`, falling back to `HistoricalOrder.source_estimated_freight`.
   - Never compare one tracking/consignment system estimate directly to ERP Est.
   - For multi-tracking orders, quote each tracking when needed, aggregate back to owner-order level, then compare with ERP Est.
 - Invoice actual scope is invoice/tracking charge data:
-  - Match InvoiceReader charges to ERP shipments by tracking first.
+  - Match InvoiceReader charges to ERP orders using `InvoiceOrderMatchSnapshot` from `invoiceReader.dbo.erp_match_results`.
   - If several tracking rows belong to one owner order, sum actual freight before comparing to order-level ERP/system estimates.
 - Quote engine behavior:
   - `quote_manual` uses platform/warehouse/carrier eligibility.
@@ -127,10 +127,9 @@ Working notes for Codex agents continuing this project after context compaction.
   - Source: `data_raw.erp.hpoms_owner_order` and manual-order ERP tables.
   - Shipment tracking source: `data_raw.erp.hpoms_owner_order_shipment_detail`.
   - Local shipment model: `HistoricalOrderShipment`.
-  - Reconciliation snapshot model: `ErpShipmentSnapshot`; it stores tracking no, ERP order no, owner order no, third-party/rd3 order no, platform order no, platform, carrier/channel/service, warehouse, and shipping estimate.
   - `sync_orders_from_erp` now imports all available owner-order shipment tracking rows, not only the latest tracking on `HistoricalOrder.consignment_no`.
   - Use `manage.py sync_orders_from_erp --shipments-only` to backfill shipment tracking rows for already imported owner orders without reimporting all order/SKU data.
-  - Do not use local ERP shipment tracking as the authority for invoice reconciliation order mapping. The confirmed source of truth is now InvoiceReader `dbo.erp_match_results`; local ERP shipment/order snapshots are only auxiliary display and audit context.
+  - Do not use local tracking-to-order logic as the authority for invoice reconciliation order mapping. The confirmed source of truth is InvoiceReader `dbo.erp_match_results`.
 - Carriers:
   - Source: `data_raw.lsp`
   - Import command: `manage.py import_carriers_from_lsp`
@@ -154,7 +153,7 @@ Working notes for Codex agents continuing this project after context compaction.
   - Authoritative order-match snapshot model: `InvoiceOrderMatchSnapshot`; it stores rows from `invoiceReader.dbo.erp_match_results`, including tracking, invoice no, mapped ERP owner/order refs, rd3/platform ref, carrier/channel/account, matched tier, and invoice actual ex/inc GST.
   - Invoice rows are grouped before import by invoice source, freight account, invoice number, order reference, and consignment/tracking number, so one carrier invoice with multiple fee/surcharge rows does not compare the same estimate repeatedly.
   - Matching order for the preferred path: `InvoiceOrderMatchSnapshot` from `dbo.erp_match_results` first. Resolve local `HistoricalOrder` only by the mapped refs (`erp_order_id`, `erp_owner_order_no`, `erp_rd3_order_id`, platform/external order refs). Never decide the order by local tracking-to-ERP logic.
-  - `InvoiceReconciliationItem.invoice_order_match_snapshot` points to the authoritative InvoiceReader match. `invoice_charge_snapshot` and `erp_shipment_snapshot` are optional auxiliary links only; they must not override the InvoiceReader mapping.
+  - `InvoiceReconciliationItem.invoice_order_match_snapshot` points to the authoritative InvoiceReader match. `invoice_charge_snapshot` is only a traceability link and must not override the InvoiceReader mapping.
   - `InvoiceReconciliationItem.order_no` should display the mapped local ERP order number when available, otherwise the InvoiceReader mapped owner/order ref.
   - `InvoiceReconciliationItem.actual_freight` for the preferred path is `InvoiceOrderMatchSnapshot.amount_inc_gst` from InvoiceReader. `estimated_freight` stores ERP Est. ex GST from the mapped `HistoricalOrder`; serializer exposes `estimated_freight_inc_gst` and `estimated_freight_basis`. `system_estimated_freight` is CourieDelivery System Est. calculated by the current quote engine/rate cards and is already inc GST.
   - System estimate backfill command: `manage.py backfill_reconciliation_system_estimates --batch-id 221 --source-config HUNTER --limit 100`. Use `--order-desc` to fill the newest Review rows first. This command reads ERP address/SKU lines for matched invoice tracking rows, runs the current quote engine, and stores `system_estimated_freight`, `system_variance_amount`, and `system_variance_percent`.
@@ -169,9 +168,9 @@ Working notes for Codex agents continuing this project after context compaction.
   - Async task endpoints are additive and do not replace sync endpoints: `/api/skus/sync-from-wms-async/`, `/api/historical-orders/sync-from-erp-async/`, `/api/lsp-api-quotes/sync-from-lsp-async/`, `/api/lsp-quote-log-items/sync-from-lsp-async/`, `/api/invoice-reconciliation-batches/sync-from-sqlserver-async/`, and `/api/freight-audit-rows/build-from-reconciliation-async/`.
   - CSV upload limits are configurable with `MAX_CSV_UPLOAD_MB` and `MAX_CSV_IMPORT_ROWS`; CSV importers should report row-level `errors` without leaking credentials or raw secrets.
   - New preferred command: `manage.py sync_reconciliation_snapshots`. Default flow imports InvoiceReader charge snapshots for traceability, imports `InvoiceOrderMatchSnapshot` from `dbo.erp_match_results`, then creates `InvoiceReconciliationBatch` / `InvoiceReconciliationItem` from InvoiceReader's mapped ERP/order result.
-  - `--order-match-only` refreshes only `InvoiceOrderMatchSnapshot`. `--reconcile-only` rebuilds reconciliation items from local `InvoiceOrderMatchSnapshot`. `--erp-from-invoices-only` is retained only for old diagnostics and should not be used as the default reconciliation path.
-  - ERP snapshot estimate source is intentionally limited to `hpoms_owner_order.postage_shipping_estimated_amount` then `hpoms_owner_order.shipping_estimated_amount`; do not add a lateral fallback to `hpoms_order_shipping_estimated_detail` without checking indexes because it is too slow on large imports.
-  - Useful modes: `--order-match-only`, `--invoice-only`, `--reconcile-only`, `--clear-snapshots`, `--clear-reconciliation`, `--source-config HUNTER`, `--limit 100`, `--dry-run`. `--erp-only` / `--erp-from-invoices-only` are legacy diagnostics.
+  - `--order-match-only` refreshes only `InvoiceOrderMatchSnapshot`. `--reconcile-only` rebuilds reconciliation items from local `InvoiceOrderMatchSnapshot`.
+  - The obsolete `ErpShipmentSnapshot` table/model and `--erp-only` / `--erp-from-invoices-only` reconciliation sync modes have been removed. Do not reintroduce them; use `HistoricalOrderShipment` for shipment tracking and InvoiceReader mapping for invoice/order reconciliation.
+  - Useful modes: `--order-match-only`, `--invoice-only`, `--reconcile-only`, `--clear-snapshots`, `--clear-reconciliation`, `--source-config HUNTER`, `--limit 100`, `--dry-run`.
   - Source mappings are declared in `backend\freight\management\commands\sync_invoices_from_sqlserver.py` via `INVOICE_SOURCE_CONFIGS`.
   - Mapped sources include Allied, EIZ, eSolution Direct Freight, Hunter, Shippit, Sunyee, Orange Connex, UBI Toll, UBI Toll P3, UBI eParcel, UBI Fastway, and UBI Misc Adjustments.
   - UBI Misc Adjustments is marked `REVIEW`; the workbook documents some tables in overview but not in the verified reconciliation map.
@@ -361,7 +360,6 @@ cd C:\Users\KenHu\.vscode\CourieDelivery\backend
 & ..\.venv\Scripts\python.exe manage.py sync_orders_from_erp --shipments-only --dry-run --limit 100
 & ..\.venv\Scripts\python.exe manage.py sync_reconciliation_snapshots --dry-run --limit 100
 & ..\.venv\Scripts\python.exe manage.py sync_reconciliation_snapshots --invoice-only --dry-run --source-config HUNTER --limit 10
-& ..\.venv\Scripts\python.exe manage.py sync_reconciliation_snapshots --erp-from-invoices-only --source-config HUNTER
 & ..\.venv\Scripts\python.exe manage.py build_freight_audit_matrix --batch-id 221 --mode CONSIGNMENT --limit 5000 --order-batch-size 5000
 & ..\.venv\Scripts\python.exe manage.py build_freight_audit_matrix --batch-id 221 --source-config HUNTER --carrier-keyword pc_hunter_mel_2023 --mode CONSIGNMENT --limit 5000 --order-batch-size 5000
 & ..\.venv\Scripts\python.exe manage.py import_carriers_from_lsp --dry-run

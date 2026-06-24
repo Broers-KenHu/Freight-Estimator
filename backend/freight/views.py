@@ -31,7 +31,6 @@ from .models import (
     AuditLog,
     Carrier,
     CarrierService,
-    ErpShipmentSnapshot,
     FreightAuditResult,
     FreightAuditRow,
     HistoricalOrder,
@@ -203,7 +202,7 @@ def invoice_estimate_basis(item: InvoiceReconciliationItem) -> str:
         return str(payload["estimate_basis"])
     if item.quote_candidate_id:
         return "SYSTEM_INC_GST"
-    if item.erp_shipment_snapshot_id or item.invoice_charge_snapshot_id or str(item.source_system or "").startswith("invoiceReader."):
+    if item.invoice_order_match_snapshot_id or item.invoice_charge_snapshot_id or str(item.source_system or "").startswith("invoiceReader."):
         return "ERP_EX_GST"
     return "UNKNOWN"
 
@@ -1001,7 +1000,6 @@ class HistoricalOrderViewSet(AuditMixin, viewsets.ModelViewSet):
         "order_no",
         "consignment_no",
         "shipments__tracking_no",
-        "erp_shipment_snapshots__tracking_no",
         "erp_order_no",
         "erp_owner_order_no",
         "external_order_no",
@@ -1032,7 +1030,7 @@ class HistoricalOrderViewSet(AuditMixin, viewsets.ModelViewSet):
             .order_by("-quote_run__created_at", "total_inc_gst", "id")
         )
         queryset = (
-            HistoricalOrder.objects.prefetch_related("items", "shipments", "erp_shipment_snapshots")
+            HistoricalOrder.objects.prefetch_related("items", "shipments")
             .select_related("platform", "warehouse")
             .annotate(
                 item_count=Count("items", distinct=True),
@@ -1047,7 +1045,6 @@ class HistoricalOrderViewSet(AuditMixin, viewsets.ModelViewSet):
             queryset = queryset.filter(
                 Q(consignment_no__icontains=tracking)
                 | Q(shipments__tracking_no__icontains=tracking)
-                | Q(erp_shipment_snapshots__tracking_no__icontains=tracking)
             ).distinct()
         return queryset.order_by(F("source_updated_at").desc(nulls_last=True), "-created_at")
 
@@ -1092,10 +1089,9 @@ class HistoricalOrderViewSet(AuditMixin, viewsets.ModelViewSet):
         limit = min(int(request.query_params.get("limit") or "20"), 50)
         queryset = (
             HistoricalOrder.objects.select_related("platform", "warehouse")
-            .prefetch_related("items", "shipments", "erp_shipment_snapshots")
+            .prefetch_related("items", "shipments")
             .annotate(
                 lookup_shipment_count=Count("shipments", distinct=True),
-                lookup_snapshot_count=Count("erp_shipment_snapshots", distinct=True),
                 lookup_has_platform=Case(
                     When(platform__isnull=False, then=1),
                     default=0,
@@ -1114,7 +1110,6 @@ class HistoricalOrderViewSet(AuditMixin, viewsets.ModelViewSet):
             )
             .order_by(
                 "-lookup_shipment_count",
-                "-lookup_snapshot_count",
                 "-lookup_has_warehouse",
                 "-lookup_has_platform",
                 "-lookup_has_source",
@@ -1133,7 +1128,6 @@ class HistoricalOrderViewSet(AuditMixin, viewsets.ModelViewSet):
                 | Q(platform_order_no__icontains=search_term)
                 | Q(consignment_no__icontains=search_term)
                 | Q(shipments__tracking_no__icontains=search_term)
-                | Q(erp_shipment_snapshots__tracking_no__icontains=search_term)
             ).distinct()
         else:
             return response.Response([])
@@ -1757,24 +1751,10 @@ class HistoricalOrderViewSet(AuditMixin, viewsets.ModelViewSet):
             if platform:
                 return {"code": platform.code, "name": platform.name, "raw_code": str(value or "").strip(), "source": source}
 
-        fallback_raw_code = ""
-        fallback_name = ""
-        for snapshot in self._erp_shipment_snapshots(order):
-            for value, source in (
-                (snapshot.platform_code, "erp_shipment_snapshot.platform_code"),
-                (snapshot.platform_name, "erp_shipment_snapshot.platform_name"),
-                (snapshot.platform_company, "erp_shipment_snapshot.platform_company"),
-            ):
-                platform = self._find_platform(value)
-                if platform:
-                    return {"code": platform.code, "name": platform.name, "raw_code": str(value or "").strip(), "source": source}
-            fallback_raw_code = fallback_raw_code or snapshot.platform_code
-            fallback_name = fallback_name or snapshot.platform_name or snapshot.platform_company
-
         return {
             "code": "ALL",
-            "name": fallback_name,
-            "raw_code": fallback_raw_code or str(payload.get("platform_code") or payload.get("platform_id") or "").strip(),
+            "name": "",
+            "raw_code": str(payload.get("platform_code") or payload.get("platform_id") or "").strip(),
             "source": "unmapped",
         }
 
@@ -1796,6 +1776,19 @@ class HistoricalOrderViewSet(AuditMixin, viewsets.ModelViewSet):
                         "raw_code": str(value or "").strip(),
                         "source": "historical_order_shipment",
                     }
+        shipments = getattr(order, "_prefetched_objects_cache", {}).get("shipments")
+        if shipments is None:
+            shipments = list(order.shipments.all())
+        for shipment in shipments:
+            for value in (shipment.warehouse_code, shipment.warehouse_owner_code):
+                warehouse = self._find_warehouse(value)
+                if warehouse:
+                    return {
+                        "code": warehouse.code,
+                        "name": warehouse.name,
+                        "raw_code": str(value or "").strip(),
+                        "source": "historical_order_shipment",
+                    }
         payload = order.raw_payload or {}
         for key in ("warehouse_code", "shipment_warehouse_code", "warehouse_owner_code", "shipment_warehouse_owner_code", "wash_warehouse_code"):
             value = payload.get(key)
@@ -1803,23 +1796,10 @@ class HistoricalOrderViewSet(AuditMixin, viewsets.ModelViewSet):
             if warehouse:
                 return {"code": warehouse.code, "name": warehouse.name, "raw_code": str(value or "").strip(), "source": f"historical_order.raw_payload.{key}"}
 
-        fallback_raw_code = ""
-        for snapshot in self._erp_shipment_snapshots(order):
-            warehouse = self._find_warehouse(snapshot.warehouse_code)
-            if warehouse:
-                return {
-                    "code": warehouse.code,
-                    "name": warehouse.name,
-                    "raw_code": snapshot.warehouse_code,
-                    "source": "erp_shipment_snapshot.warehouse_code",
-                }
-            fallback_raw_code = fallback_raw_code or snapshot.warehouse_code
-
         return {
             "code": "ALL",
             "name": "",
-            "raw_code": fallback_raw_code
-            or str(payload.get("warehouse_code") or payload.get("shipment_warehouse_code") or payload.get("wash_warehouse_code") or "").strip(),
+            "raw_code": str(payload.get("warehouse_code") or payload.get("shipment_warehouse_code") or payload.get("wash_warehouse_code") or "").strip(),
             "source": "unmapped",
         }
 
@@ -1837,19 +1817,12 @@ class HistoricalOrderViewSet(AuditMixin, viewsets.ModelViewSet):
             return None
         return Warehouse.objects.filter(Q(code__iexact=text) | Q(source_external_id__iexact=text) | Q(name__iexact=text)).first()
 
-    def _erp_shipment_snapshots(self, order: HistoricalOrder) -> list[ErpShipmentSnapshot]:
-        prefetched = getattr(order, "_prefetched_objects_cache", {}).get("erp_shipment_snapshots")
-        if prefetched is not None:
-            return list(prefetched)
-        return list(order.erp_shipment_snapshots.all())
-
     def _order_tracking_numbers(self, order: HistoricalOrder, shipment_items: list[dict]) -> list[str]:
         tracking_numbers = {str(item.get("tracking_no") or "").strip() for item in shipment_items if item.get("tracking_no")}
-        tracking_numbers.update(
-            str(snapshot.tracking_no or "").strip()
-            for snapshot in self._erp_shipment_snapshots(order)
-            if snapshot.tracking_no
-        )
+        shipments = getattr(order, "_prefetched_objects_cache", {}).get("shipments")
+        if shipments is None:
+            shipments = list(order.shipments.all())
+        tracking_numbers.update(str(shipment.tracking_no or "").strip() for shipment in shipments if shipment.tracking_no)
         if order.consignment_no:
             tracking_numbers.add(str(order.consignment_no).strip())
         return sorted(value for value in tracking_numbers if value)
@@ -1889,7 +1862,6 @@ class LspApiQuoteSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         "historical_order__external_order_no",
         "historical_order__platform_order_no",
         "historical_order__shipments__tracking_no",
-        "historical_order__erp_shipment_snapshots__tracking_no",
         "booking_tracking_no",
         "lsp_order_code",
         "lsp_shipment_code",
@@ -1917,7 +1889,7 @@ class LspApiQuoteSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         queryset = (
             LspApiQuoteSnapshot.objects.select_related("historical_order", "platform", "carrier", "service")
-            .prefetch_related("options", "historical_order__shipments", "historical_order__erp_shipment_snapshots")
+            .prefetch_related("options", "historical_order__shipments")
             .annotate(internal_log_item_count=Count("internal_log_items", distinct=True))
             .order_by(F("quote_at").desc(nulls_last=True), F("source_updated_at").desc(nulls_last=True), "-id")
         )
@@ -2092,7 +2064,7 @@ class FreightAuditRowViewSet(viewsets.ReadOnlyModelViewSet):
         "build_from_reconciliation_async": "quote.audit.build",
     }
     queryset = (
-        FreightAuditRow.objects.select_related("quote_run", "invoice_reconciliation_item", "erp_shipment_snapshot")
+        FreightAuditRow.objects.select_related("quote_run", "invoice_reconciliation_item")
         .prefetch_related("results__quote_channel", "results__quote_candidate", "results__carrier", "results__carrier_service")
         .all()
         .order_by("-created_at", "-id")
