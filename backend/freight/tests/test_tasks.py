@@ -5,6 +5,11 @@ def test_celery_app_is_configured():
     from config.celery import app
 
     assert app.main == "freight_intelligence"
+    assert "sync-operational-data-every-10-hours" in app.conf.beat_schedule
+    assert "sync-invoice-reader-order-matches-every-10-hours" in app.conf.beat_schedule
+    assert app.conf.beat_schedule["sync-invoice-reader-order-matches-every-10-hours"]["kwargs"][
+        "incremental"
+    ] is True
 
 
 def test_sync_sku_task_delegates_to_management_command(monkeypatch):

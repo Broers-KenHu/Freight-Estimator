@@ -69,6 +69,7 @@ The recurring incremental command is:
 ```powershell
 .venv\Scripts\python.exe backend\manage.py ensure_data_raw_sync_indexes --only-missing
 .venv\Scripts\python.exe backend\manage.py sync_operational_data --incremental --order-batch-size 5000 --lsp-batch-size 1000 --log-batch-size 3000
+.venv\Scripts\python.exe backend\manage.py sync_reconciliation_snapshots --incremental --skip-invoice-charges --batch-size 5000
 ```
 
 It uses each underlying command's local checkpoint:
@@ -76,28 +77,33 @@ It uses each underlying command's local checkpoint:
 - ERP orders: latest local `HistoricalOrder.source_updated_at`.
 - LSP API quotes: latest local `LspApiQuoteSnapshot.source_updated_at`.
 - LSP logs: latest local `LspQuoteTaskLogItem.log_updated_at`.
+- InvoiceReader order/invoice mapping: latest local numeric `InvoiceOrderMatchSnapshot.source_external_id`, which is the SQL Server `invoiceReader.dbo.erp_match_results.id`.
 
-## Current Local Automation
+## Internal Scheduler
 
-Codex app automation:
-
-```text
-freight-intelligence-erp-lsp-incremental-sync
-```
-
-Schedule:
+The application now defines Celery beat entries in `backend/config/celery.py`:
 
 ```text
-Every 10 hours
+sync-operational-data-every-10-hours
+sync-invoice-reader-order-matches-every-10-hours
 ```
 
-The automation runs the incremental command above from:
+Run one worker and one beat process on the server:
+
+```powershell
+cd backend
+celery -A config worker -l info
+celery -A config beat -l info
+```
+
+Default interval is 10 hours. Configure with:
 
 ```text
-C:\Users\KenHu\.vscode\CourieDelivery
+FREIGHT_SYNC_INTERVAL_HOURS=10
+FREIGHT_SYNC_BEAT_ENABLED=1
 ```
 
-The automation currently verifies source indexes first, then runs the incremental operational sync.
+Set `FREIGHT_SYNC_BEAT_ENABLED=0` to disable the internal schedules in a one-off maintenance shell.
 
 ## Data Policy
 

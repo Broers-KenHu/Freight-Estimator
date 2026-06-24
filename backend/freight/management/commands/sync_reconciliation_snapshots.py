@@ -68,6 +68,21 @@ class Command(BaseCommand):
         parser.add_argument("--invoice-only", action="store_true")
         parser.add_argument("--order-match-only", action="store_true")
         parser.add_argument("--reconcile-only", action="store_true")
+        parser.add_argument(
+            "--incremental",
+            action="store_true",
+            help="Only pull InvoiceReader erp_match_results rows with source id greater than the local high-water mark.",
+        )
+        parser.add_argument(
+            "--since-source-id",
+            type=int,
+            help="Only pull/reconcile InvoiceReader erp_match_results rows with id greater than this value.",
+        )
+        parser.add_argument(
+            "--skip-invoice-charges",
+            action="store_true",
+            help="Skip legacy invoice charge snapshot import; InvoiceReader erp_match_results already carries actual invoice amount.",
+        )
         parser.add_argument("--clear-snapshots", action="store_true")
         parser.add_argument("--clear-reconciliation", action="store_true")
         parser.add_argument("--limit", type=int)
@@ -101,6 +116,9 @@ class Command(BaseCommand):
                 report_json={
                     "mode": "invoice_reader_order_match_reconciliation",
                     "source_config": options["source_config"],
+                    "incremental": bool(options["incremental"]),
+                    "since_source_id": options.get("since_source_id"),
+                    "skip_invoice_charges": bool(options["skip_invoice_charges"]),
                     "limit": options["limit"],
                     "batch_size": batch_size,
                 },
@@ -116,25 +134,46 @@ class Command(BaseCommand):
                 items_deleted, batches_deleted = self._clear_invoice_reader_reconciliation()
                 report["cleared_reconciliation"] = {"items": items_deleted, "batches": batches_deleted}
 
+            min_source_row_id = self._invoice_order_match_incremental_floor(options)
+            report["invoice_order_match_checkpoint"] = {
+                "incremental": bool(options["incremental"]),
+                "min_source_row_id": min_source_row_id,
+            }
+
             if options["reconcile_only"]:
                 report["reconciliation"] = self._generate_reconciliation(
                     options["limit"],
                     batch_size,
                     dry_run,
                     options.get("source_config") or "",
+                    min_source_row_id,
                 )
             elif options["invoice_only"]:
                 report["invoice_charges"] = self._sync_invoice_charges(options, batch_size, dry_run)
             elif options["order_match_only"]:
-                report["invoice_order_matches"] = self._sync_invoice_order_matches(options, batch_size, dry_run)
+                report["invoice_order_matches"] = self._sync_invoice_order_matches(
+                    options,
+                    batch_size,
+                    dry_run,
+                    min_source_row_id,
+                )
             else:
-                report["invoice_charges"] = self._sync_invoice_charges(options, batch_size, dry_run)
-                report["invoice_order_matches"] = self._sync_invoice_order_matches(options, batch_size, dry_run)
+                if options["skip_invoice_charges"] or options["incremental"]:
+                    report["invoice_charges"] = {"skipped": True, "reason": "erp_match_results carries invoice actuals"}
+                else:
+                    report["invoice_charges"] = self._sync_invoice_charges(options, batch_size, dry_run)
+                report["invoice_order_matches"] = self._sync_invoice_order_matches(
+                    options,
+                    batch_size,
+                    dry_run,
+                    min_source_row_id,
+                )
                 report["reconciliation"] = self._generate_reconciliation(
                     options["limit"],
                     batch_size,
                     dry_run,
                     options.get("source_config") or "",
+                    min_source_row_id,
                 )
         except Exception as exc:  # noqa: BLE001
             if job:
@@ -225,10 +264,16 @@ class Command(BaseCommand):
             result["success"] = result["total"]
         return result
 
-    def _sync_invoice_order_matches(self, options: dict[str, Any], batch_size: int, dry_run: bool) -> dict[str, int]:
+    def _sync_invoice_order_matches(
+        self,
+        options: dict[str, Any],
+        batch_size: int,
+        dry_run: bool,
+        min_source_row_id: int | None = None,
+    ) -> dict[str, int]:
         if not options["user"] or not options["password"]:
             raise CommandError("SQL Server invoiceReader user/password are required.")
-        result = {"total": 0, "success": 0, "created": 0, "updated": 0}
+        result = {"total": 0, "success": 0, "created": 0, "updated": 0, "min_source_row_id": min_source_row_id or 0}
         invoice_cmd = InvoiceReaderCommand()
         with invoice_cmd._connect(options) as conn:
             columns = self._invoice_reader_columns(conn, "erp_match_results")
@@ -238,6 +283,7 @@ class Command(BaseCommand):
                 options["limit"],
                 batch_size,
                 options.get("source_config") or "",
+                min_source_row_id,
             ):
                 result["total"] += len(rows)
                 if dry_run:
@@ -269,6 +315,7 @@ class Command(BaseCommand):
         limit: int | None,
         batch_size: int,
         source_config: str = "",
+        min_source_row_id: int | None = None,
     ) -> Iterable[list[dict[str, Any]]]:
         required = {"id", "detail_tracking", "invoice_no", "erp_owner_order_no", "erp_rd3_order_id", "detail_amount_inc_gst"}
         missing = sorted(required - columns)
@@ -276,6 +323,9 @@ class Command(BaseCommand):
             raise CommandError(f"invoiceReader.dbo.erp_match_results is missing required columns: {', '.join(missing)}")
         limit_sql = f"TOP ({int(limit)})" if limit else ""
         filter_sql, params = self._invoice_order_match_source_filter(columns, source_config)
+        if min_source_row_id:
+            filter_sql += " AND [id] > %s"
+            params.append(int(min_source_row_id))
         query = f"""
             SELECT {limit_sql}
                 {self._sql_text("id", columns, "source_row_id")},
@@ -359,6 +409,30 @@ class Command(BaseCommand):
         text_sql = "LOWER(" + " + ' ' + ".join(f"COALESCE(CONVERT(NVARCHAR(500), [{column}]), '')" for column in searchable) + ")"
         clauses = [f"{text_sql} LIKE %s" for _ in tokens]
         return f"AND ({' OR '.join(clauses)})", [f"%{token}%" for token in tokens]
+
+    def _invoice_order_match_incremental_floor(self, options: dict[str, Any]) -> int | None:
+        explicit = options.get("since_source_id")
+        local_max = self._max_invoice_order_match_source_id() if options.get("incremental") else None
+        values = [int(value) for value in (explicit, local_max) if value is not None]
+        return max(values) if values else None
+
+    def _max_invoice_order_match_source_id(self) -> int | None:
+        with connections["default"].cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT MAX(
+                    CASE
+                        WHEN source_external_id ~ '^[0-9]+$' THEN source_external_id::bigint
+                        ELSE NULL
+                    END
+                )
+                FROM invoice_order_match_snapshot
+                WHERE source_system = %s
+                """,
+                [INVOICE_ORDER_MATCH_SYSTEM],
+            )
+            value = cursor.fetchone()[0]
+        return int(value) if value is not None else None
 
     @transaction.atomic
     def _upsert_invoice_charges(self, rows: list[dict[str, Any]], source_key: str) -> dict[str, int]:
@@ -732,10 +806,11 @@ class Command(BaseCommand):
         batch_size: int,
         dry_run: bool,
         source_config: str = "",
+        min_source_row_id: int | None = None,
     ) -> dict[str, int]:
         result = {"total": 0, "success": 0, "matched": 0, "exceptions": 0, "unmatched": 0}
         if dry_run:
-            result["total"] = self._invoice_order_match_queryset(limit, source_config).count()
+            result["total"] = self._invoice_order_match_queryset(limit, source_config, min_source_row_id).count()
             result["success"] = result["total"]
             return result
         batch = InvoiceReconciliationBatch.objects.create(
@@ -744,7 +819,7 @@ class Command(BaseCommand):
             source_system=RECONCILIATION_SYSTEM,
             source_external_id=short_hash(timezone.now().isoformat(), 16),
         )
-        match_qs = self._invoice_order_match_queryset(limit, source_config)
+        match_qs = self._invoice_order_match_queryset(limit, source_config, min_source_row_id)
         offset = 0
         while True:
             matches = list(match_qs[offset : offset + batch_size])
@@ -765,12 +840,18 @@ class Command(BaseCommand):
             "matched": result["matched"],
             "exceptions": result["exceptions"],
             "unmatched": result["unmatched"],
+            "min_source_row_id": min_source_row_id,
         }
         batch.save(update_fields=["total_rows", "matched_rows", "exception_rows", "status", "report_json", "updated_at"])
         result["batch_id"] = batch.id
         return result
 
-    def _invoice_order_match_queryset(self, limit: int | None, source_config: str = ""):
+    def _invoice_order_match_queryset(
+        self,
+        limit: int | None,
+        source_config: str = "",
+        min_source_row_id: int | None = None,
+    ):
         qs = (
             InvoiceOrderMatchSnapshot.objects.select_related(
                 "order",
@@ -786,6 +867,13 @@ class Command(BaseCommand):
             for token in tokens:
                 filters |= Q(source_key__icontains=token) | Q(source_label__icontains=token) | Q(carrier_name__icontains=token)
             qs = qs.filter(filters)
+        if min_source_row_id:
+            qs = qs.extra(
+                where=[
+                    "CASE WHEN source_external_id ~ '^[0-9]+$' THEN source_external_id::bigint ELSE NULL END > %s"
+                ],
+                params=[int(min_source_row_id)],
+            )
         if limit:
             return qs[:limit]
         return qs

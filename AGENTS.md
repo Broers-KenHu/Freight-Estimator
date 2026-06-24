@@ -8,7 +8,7 @@ Working notes for Codex agents continuing this project after context compaction.
 - Backend: Django / DRF in `backend`, served on `http://127.0.0.1:8010`
 - Frontend: React / Vite / Ant Design in `frontend`, served on `http://127.0.0.1:5173`
 - Browser is usually already open at `http://127.0.0.1:5173/`
-- This directory is not currently a git repository, so do not rely on `git status`.
+- This directory is a git repository. Remote: `https://github.com/Broers-KenHu/Freight-Estimator.git`.
 
 ## Environment And Secrets
 
@@ -24,7 +24,11 @@ Working notes for Codex agents continuing this project after context compaction.
   - It runs ERP/LSP/WMS master sync, ERP order/manual-order sync, LSP API quote/log sync, removes non-ERP legacy `HistoricalOrder` rows by default, and opens all active platform/warehouse/carrier-service relationships.
   - When opening quote channels, it must only enable channels whose carrier is active and whose service is either active or null; inactive services such as DFE PALLET must remain disabled.
   - Design/operations doc: `docs\erp_lsp_operational_sync.md`.
-  - Current Codex app 10-hour incremental automation id: `freight-intelligence-erp-lsp-incremental-sync`; it now verifies `data_raw.erp` source indexes before running incremental sync.
+  - Internal recurring sync uses Celery beat in `backend\config\celery.py`, not Codex app automation. Run both `celery -A config worker -l info` and `celery -A config beat -l info` on the server.
+  - Default interval is 10 hours via `FREIGHT_SYNC_INTERVAL_HOURS=10`; set `FREIGHT_SYNC_BEAT_ENABLED=0` to disable the beat entries in maintenance shells.
+  - Beat entries:
+    - `sync-operational-data-every-10-hours`: runs `sync_operational_data --incremental`.
+    - `sync-invoice-reader-order-matches-every-10-hours`: runs `sync_reconciliation_snapshots --incremental --skip-invoice-charges`.
   - `data_raw.erp` Airbyte tables may have no native indexes; `ensure_data_raw_sync_indexes` creates non-destructive `fi_src_*` indexes on source order/SKU/tracking/address/estimate tables.
   - The same command also creates `fi_src_lsp_*` indexes for LSP booking/quote-task lookup. With `--only-missing`, all existing ERP/LSP source indexes should be skipped quickly and should not ANALYZE large tables.
   - Do not import LSP rate tables into pricing as part of this operational sync; user previously chose CourieDelivery/PostageCalculator rate templates over LSP rates.
@@ -169,8 +173,11 @@ Working notes for Codex agents continuing this project after context compaction.
   - CSV upload limits are configurable with `MAX_CSV_UPLOAD_MB` and `MAX_CSV_IMPORT_ROWS`; CSV importers should report row-level `errors` without leaking credentials or raw secrets.
   - New preferred command: `manage.py sync_reconciliation_snapshots`. Default flow imports InvoiceReader charge snapshots for traceability, imports `InvoiceOrderMatchSnapshot` from `dbo.erp_match_results`, then creates `InvoiceReconciliationBatch` / `InvoiceReconciliationItem` from InvoiceReader's mapped ERP/order result.
   - `--order-match-only` refreshes only `InvoiceOrderMatchSnapshot`. `--reconcile-only` rebuilds reconciliation items from local `InvoiceOrderMatchSnapshot`.
+  - Incremental command: `manage.py sync_reconciliation_snapshots --incremental --skip-invoice-charges --batch-size 5000`. It uses the maximum numeric local `InvoiceOrderMatchSnapshot.source_external_id` as the SQL Server `erp_match_results.id` high-water mark and queries only `[id] > high_water`. Use `--since-source-id N` only for explicit repair/backfill.
+  - Important: after a partial/sample sync, run one full `--order-match-only` before trusting incremental high-water. On 2026-06-24 the full InvoiceReader mapping import completed with 900,934 `InvoiceOrderMatchSnapshot` rows, max source id `15998508`; immediate incremental dry-run returned 0 rows.
+  - On 2026-06-24 reconciliation was rebuilt from full InvoiceReader mapping: 900,934 `InvoiceReconciliationItem` rows, reconciliation batch id `249`; status counts were MATCHED/OK 301,448, EXCEPTION/OVERCHARGE 48,868, EXCEPTION/UNDERCHARGE 394,211, UNMATCHED 156,407.
   - The obsolete `ErpShipmentSnapshot` table/model and `--erp-only` / `--erp-from-invoices-only` reconciliation sync modes have been removed. Do not reintroduce them; use `HistoricalOrderShipment` for shipment tracking and InvoiceReader mapping for invoice/order reconciliation.
-  - Useful modes: `--order-match-only`, `--invoice-only`, `--reconcile-only`, `--clear-snapshots`, `--clear-reconciliation`, `--source-config HUNTER`, `--limit 100`, `--dry-run`.
+  - Useful modes: `--order-match-only`, `--invoice-only`, `--reconcile-only`, `--incremental`, `--skip-invoice-charges`, `--clear-snapshots`, `--clear-reconciliation`, `--source-config HUNTER`, `--limit 100`, `--dry-run`.
   - Source mappings are declared in `backend\freight\management\commands\sync_invoices_from_sqlserver.py` via `INVOICE_SOURCE_CONFIGS`.
   - Mapped sources include Allied, EIZ, eSolution Direct Freight, Hunter, Shippit, Sunyee, Orange Connex, UBI Toll, UBI Toll P3, UBI eParcel, UBI Fastway, and UBI Misc Adjustments.
   - UBI Misc Adjustments is marked `REVIEW`; the workbook documents some tables in overview but not in the verified reconciliation map.

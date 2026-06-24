@@ -240,17 +240,19 @@ Invoice/order reconciliation:
 cd backend
 python manage.py sync_orders_from_erp --limit 5000
 python manage.py sync_reconciliation_snapshots --limit 100
+python manage.py sync_reconciliation_snapshots --incremental --skip-invoice-charges
 python manage.py build_freight_audit_matrix --limit 100
 ```
 
-Celery worker for async task execution:
+Celery worker and beat scheduler for async task execution and 10-hour incremental sync:
 
 ```bash
 cd backend
 celery -A config worker -l info
+celery -A config beat -l info
 ```
 
-The synchronous management commands remain available even when Celery/Redis is not running.
+Beat schedules `sync_operational_data --incremental` and `sync_reconciliation_snapshots --incremental --skip-invoice-charges` every 10 hours by default. The InvoiceReader sync uses the latest local `erp_match_results.id` high-water mark, so rows already imported are not pulled again. Override the interval with `FREIGHT_SYNC_INTERVAL_HOURS`; disable beat entries with `FREIGHT_SYNC_BEAT_ENABLED=0`. The synchronous management commands remain available even when Celery/Redis is not running.
 
 Demo data cleanup:
 
