@@ -1,33 +1,222 @@
-import { DownloadOutlined, EyeOutlined, SyncOutlined, UploadOutlined } from '@ant-design/icons'
+import { DownloadOutlined, EyeOutlined, FilterOutlined, SyncOutlined, UploadOutlined } from '@ant-design/icons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Button, Drawer, Input, Space, Table, Tag, Typography, Upload, message, type UploadProps } from 'antd'
-import { useCallback, useEffect, useState } from 'react'
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Descriptions,
+  Drawer,
+  Input,
+  Select,
+  Segmented,
+  Space,
+  Table,
+  Tag,
+  Typography,
+  Upload,
+  message,
+  type UploadProps,
+} from 'antd'
+import type { ColumnsType } from 'antd/es/table'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, listResource, type Paginated } from '../api/client'
 import type { InvoiceReconciliationBatch, InvoiceReconciliationItem } from '../types'
 
-const money = (value?: string | null) => (value === null || value === undefined ? '-' : `$${Number(value).toFixed(2)}`)
-const erpEstimateMoney = (value?: string | null) => {
-  if (value === null || value === undefined) return '-'
+type DataView =
+  | 'all'
+  | 'matched'
+  | 'exceptions'
+  | 'overcharge'
+  | 'undercharge'
+  | 'unmatched'
+  | 'disputes'
+  | 'missing_erp'
+  | 'missing_system'
+  | 'with_system'
+
+type ColumnGroup = 'identity' | 'amounts' | 'differences' | 'status' | 'reasons'
+
+type ItemFilters = {
+  order_no: string
+  tracking: string
+  invoice_no: string
+  carrier_name: string
+  invoice_source_name: string
+  has_erp_estimate: string
+  has_system_estimate: string
+  has_order: string
+}
+
+type SummaryBreakdown = {
+  total: number
+  invoice_source_id?: number | null
+  invoice_source__name?: string | null
+  carrier_id?: number | null
+  carrier__name?: string | null
+}
+
+type ReconciliationSummary = {
+  total: number
+  matched: number
+  exceptions: number
+  unmatched: number
+  overcharge: number
+  undercharge: number
+  disputes: number
+  missing_erp: number
+  missing_system: number
+  actual_total?: string | null
+  erp_estimate_total?: string | null
+  system_estimate_total?: string | null
+  erp_variance_total?: string | null
+  system_variance_total?: string | null
+  by_invoice_source: SummaryBreakdown[]
+  by_carrier: SummaryBreakdown[]
+}
+
+const defaultItemFilters: ItemFilters = {
+  order_no: '',
+  tracking: '',
+  invoice_no: '',
+  carrier_name: '',
+  invoice_source_name: '',
+  has_erp_estimate: '',
+  has_system_estimate: '',
+  has_order: '',
+}
+
+const dataViewOptions: { label: string; value: DataView }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Matched', value: 'matched' },
+  { label: 'Exceptions', value: 'exceptions' },
+  { label: 'Overcharge', value: 'overcharge' },
+  { label: 'Undercharge', value: 'undercharge' },
+  { label: 'Unmatched', value: 'unmatched' },
+  { label: 'Disputes', value: 'disputes' },
+  { label: 'Missing ERP', value: 'missing_erp' },
+  { label: 'Missing System', value: 'missing_system' },
+  { label: 'With System', value: 'with_system' },
+]
+
+const columnGroupOptions: { label: string; value: ColumnGroup }[] = [
+  { label: 'Identity', value: 'identity' },
+  { label: 'Amounts', value: 'amounts' },
+  { label: 'Differences', value: 'differences' },
+  { label: 'Status', value: 'status' },
+  { label: 'Reasons', value: 'reasons' },
+]
+
+const estimateOptions = [
+  { label: 'All', value: '' },
+  { label: 'Yes', value: 'true' },
+  { label: 'No', value: 'false' },
+]
+
+const money = (value?: string | number | null) => {
+  if (value === null || value === undefined || value === '') return '-'
   const numeric = Number(value)
   return Number.isFinite(numeric) ? `$${numeric.toFixed(2)}` : '-'
 }
+
+const erpEstimateMoney = (value?: string | number | null) => {
+  if (value === null || value === undefined || value === '') return '-'
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? `$${numeric.toFixed(2)}` : '-'
+}
+
 const erpVarianceMoney = (_value: string | null, record: InvoiceReconciliationItem) => {
   const actual = Number(record.actual_freight)
   const estimate = Number(record.estimated_freight_inc_gst ?? record.estimated_freight)
   if (!Number.isFinite(actual) || !Number.isFinite(estimate)) return '-'
   return `$${(actual - estimate).toFixed(2)}`
 }
+
 const erpVariancePercent = (_value: string | null, record: InvoiceReconciliationItem) => {
   const actual = Number(record.actual_freight)
   const estimate = Number(record.estimated_freight_inc_gst ?? record.estimated_freight)
   if (!Number.isFinite(actual) || !Number.isFinite(estimate) || estimate === 0) return '-'
   return `${(((actual - estimate) / estimate) * 100).toFixed(1)}%`
 }
+
 const percent = (value?: string | null) => (value === null || value === undefined ? '-' : `${Number(value).toFixed(1)}%`)
 const compactText = (value?: string | null) => value || '-'
+const detailText = (value?: string | number | null) => (value === null || value === undefined || value === '' ? '-' : String(value))
+
 const filenameFromDisposition = (value?: string) => {
   const match = value?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i)
   return match ? decodeURIComponent(match[1]) : ''
+}
+
+function buildItemParams(
+  batch: InvoiceReconciliationBatch,
+  page: number,
+  pageSize: number,
+  searchValue: string,
+  dataView: DataView,
+  filters: ItemFilters,
+  includePagination = true,
+) {
+  const params: Record<string, string | number | undefined> = { batch: batch.id }
+  if (includePagination) {
+    params.page = page
+    params.page_size = pageSize
+  }
+  if (searchValue) params.search = searchValue
+  if (dataView !== 'all') params.data_view = dataView
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params[key] = value
+  })
+  return params
+}
+
+function DetailDescriptions({ record }: { record: InvoiceReconciliationItem }) {
+  const match = record.invoice_match_detail || {}
+  const order = record.order_detail || {}
+  const amount = record.amount_detail || {}
+  return (
+    <div className="reconciliation-detail-panel">
+      <Descriptions size="small" bordered column={4} title="Order and Invoice Match">
+        <Descriptions.Item label="ERP Order">{detailText(order.erp_order_no || record.order_no)}</Descriptions.Item>
+        <Descriptions.Item label="Platform Order">{detailText(order.platform_order_no || match.platform_order_no)}</Descriptions.Item>
+        <Descriptions.Item label="3rd Party Order">{detailText(order.third_party_order_no || match.third_party_order_no)}</Descriptions.Item>
+        <Descriptions.Item label="Tracking">{detailText(match.tracking_no || record.consignment_no)}</Descriptions.Item>
+        <Descriptions.Item label="Warehouse">{detailText(order.warehouse_code || match.warehouse_owner_code)}</Descriptions.Item>
+        <Descriptions.Item label="Platform">{detailText(order.platform_name || order.platform_code)}</Descriptions.Item>
+        <Descriptions.Item label="Shipping Option">{detailText(order.shipping_option)}</Descriptions.Item>
+        <Descriptions.Item label="ERP Carrier">{detailText(order.actual_carrier || match.carrier_name)}</Descriptions.Item>
+        <Descriptions.Item label="Invoice Source" span={2}>
+          {detailText(match.source_label || record.invoice_source_name)}
+        </Descriptions.Item>
+        <Descriptions.Item label="Match Tier">{detailText(match.match_tier)}</Descriptions.Item>
+        <Descriptions.Item label="Match Method">{detailText(match.match_method)}</Descriptions.Item>
+        <Descriptions.Item label="Reason" span={4}>
+          {detailText(match.match_reason || record.reason)}
+        </Descriptions.Item>
+      </Descriptions>
+
+      <Descriptions size="small" bordered column={4} title="Amount Basis">
+        <Descriptions.Item label="ERP Est ex GST">{money(amount.erp_estimate_ex_gst)}</Descriptions.Item>
+        <Descriptions.Item label="ERP Est inc GST">{money(amount.erp_estimate_inc_gst)}</Descriptions.Item>
+        <Descriptions.Item label="System Est inc GST">{money(amount.system_estimate_inc_gst)}</Descriptions.Item>
+        <Descriptions.Item label="Invoice Actual inc GST">{money(amount.actual_invoice_inc_gst || record.actual_freight)}</Descriptions.Item>
+        <Descriptions.Item label="ERP Diff inc GST">{money(amount.erp_variance_inc_gst)}</Descriptions.Item>
+        <Descriptions.Item label="ERP Diff %">{percent(amount.erp_variance_percent || record.variance_percent)}</Descriptions.Item>
+        <Descriptions.Item label="System Diff inc GST">{money(amount.system_variance_inc_gst)}</Descriptions.Item>
+        <Descriptions.Item label="System Diff %">{percent(amount.system_variance_percent || record.system_variance_percent)}</Descriptions.Item>
+      </Descriptions>
+
+      <Descriptions size="small" bordered column={4} title="InvoiceReader Source Detail">
+        <Descriptions.Item label="Source Row ID">{detailText(match.source_external_id)}</Descriptions.Item>
+        <Descriptions.Item label="Invoice No">{detailText(match.invoice_no || record.invoice_no)}</Descriptions.Item>
+        <Descriptions.Item label="Carrier Channel">{detailText(match.carrier_channel)}</Descriptions.Item>
+        <Descriptions.Item label="Account">{detailText(match.carrier_channel_account)}</Descriptions.Item>
+        <Descriptions.Item label="Amount ex GST">{money(match.amount_ex_gst)}</Descriptions.Item>
+        <Descriptions.Item label="Amount inc GST">{money(match.amount_inc_gst)}</Descriptions.Item>
+        <Descriptions.Item label="ERP Carrier Freight">{money(match.erp_carrier_freight)}</Descriptions.Item>
+        <Descriptions.Item label="Matched At">{detailText(match.matched_at)}</Descriptions.Item>
+      </Descriptions>
+    </div>
+  )
 }
 
 export function InvoiceReconciliation() {
@@ -45,12 +234,28 @@ export function InvoiceReconciliation() {
   const [batchSearch, setBatchSearch] = useState('')
   const [itemSearchText, setItemSearchText] = useState('')
   const [itemSearch, setItemSearch] = useState('')
+  const [dataView, setDataView] = useState<DataView>('all')
+  const [itemFilters, setItemFilters] = useState<ItemFilters>(defaultItemFilters)
+  const [visibleColumnGroups, setVisibleColumnGroups] = useState<ColumnGroup[]>(['identity', 'amounts', 'differences', 'status', 'reasons'])
+
   const { data = [], isFetching } = useQuery({
     queryKey: ['invoice-reconciliation-batches', batchSearch],
     queryFn: () => {
       const params = new URLSearchParams({ page_size: '200' })
       if (batchSearch) params.set('search', batchSearch)
       return listResource<InvoiceReconciliationBatch>(`/invoice-reconciliation-batches/?${params.toString()}`)
+    },
+  })
+
+  const summaryQuery = useQuery({
+    queryKey: ['invoice-reconciliation-summary', selected?.id, dataView, itemSearch, itemFilters],
+    enabled: Boolean(selected),
+    queryFn: async () => {
+      if (!selected) throw new Error('No batch selected')
+      const { data } = await api.get<ReconciliationSummary>('/invoice-reconciliation-items/summary/', {
+        params: buildItemParams(selected, 1, 1, itemSearch, dataView, itemFilters, false),
+      })
+      return data
     },
   })
 
@@ -96,67 +301,114 @@ export function InvoiceReconciliation() {
     }
   }
 
-  const loadBatchItems = useCallback(async (batch: InvoiceReconciliationBatch, page = 1, pageSize = selectedPageSize, searchValue = itemSearch) => {
-    setSelected(batch)
-    setLoadingItems(true)
-    try {
-      const { data: payload } = await api.get<Paginated<InvoiceReconciliationItem> | InvoiceReconciliationItem[]>('/invoice-reconciliation-items/', {
-        params: { batch: batch.id, page, page_size: pageSize, search: searchValue || undefined },
-      })
-      const rows = Array.isArray(payload) ? payload : payload.results
-      setSelectedItems(rows)
-      setSelectedTotal(Array.isArray(payload) ? rows.length : payload.count)
-      setSelectedPage(page)
-      setSelectedPageSize(pageSize)
-    } finally {
-      setLoadingItems(false)
-    }
-  }, [itemSearch, selectedPageSize])
+  const loadBatchItems = useCallback(
+    async (
+      batch: InvoiceReconciliationBatch,
+      page = 1,
+      pageSize = selectedPageSize,
+      searchValue = itemSearch,
+      viewValue = dataView,
+      filters = itemFilters,
+    ) => {
+      setSelected(batch)
+      setLoadingItems(true)
+      try {
+        const { data: payload } = await api.get<Paginated<InvoiceReconciliationItem> | InvoiceReconciliationItem[]>('/invoice-reconciliation-items/', {
+          params: buildItemParams(batch, page, pageSize, searchValue, viewValue, filters),
+        })
+        const rows = Array.isArray(payload) ? payload : payload.results
+        setSelectedItems(rows)
+        setSelectedTotal(Array.isArray(payload) ? rows.length : payload.count)
+        setSelectedPage(page)
+        setSelectedPageSize(pageSize)
+      } finally {
+        setLoadingItems(false)
+      }
+    },
+    [dataView, itemFilters, itemSearch, selectedPageSize],
+  )
 
   const openBatch = async (batch: InvoiceReconciliationBatch) => {
     setSelectedItems([])
     setSelectedTotal(0)
     setItemSearchText('')
     setItemSearch('')
-    await loadBatchItems(batch, 1, selectedPageSize, '')
+    setDataView('all')
+    setItemFilters(defaultItemFilters)
+    await loadBatchItems(batch, 1, selectedPageSize, '', 'all', defaultItemFilters)
   }
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
       const nextSearch = itemSearchText.trim()
       setItemSearch(nextSearch)
-      if (selected) void loadBatchItems(selected, 1, selectedPageSize, nextSearch)
+      if (selected) void loadBatchItems(selected, 1, selectedPageSize, nextSearch, dataView, itemFilters)
     }, 350)
     return () => window.clearTimeout(handle)
-  }, [itemSearchText, loadBatchItems, selected, selectedPageSize])
+  }, [dataView, itemFilters, itemSearchText, loadBatchItems, selected, selectedPageSize])
 
-  const itemColumns = [
-    { title: 'ERP Order', dataIndex: 'order_no', width: 170, ellipsis: true, render: compactText },
-    { title: 'Tracking', dataIndex: 'consignment_no', width: 120, ellipsis: true, render: compactText },
-    { title: 'Invoice', dataIndex: 'invoice_no', width: 118, ellipsis: true, render: compactText },
-    { title: 'Source', dataIndex: 'invoice_source_name', width: 170, ellipsis: true, render: compactText },
-    { title: 'Carrier', dataIndex: 'carrier_name', width: 140, ellipsis: true, render: (value: string, record: InvoiceReconciliationItem) => value || record.carrier_code || '-' },
-    { title: 'Service', dataIndex: 'carrier_service_name', width: 150, ellipsis: true, render: (value: string, record: InvoiceReconciliationItem) => value || record.carrier_service_code || '-' },
-    {
-      title: 'ERP Est. inc GST',
-      dataIndex: 'estimated_freight_inc_gst',
-      width: 112,
-      align: 'right' as const,
-      className: 'money-cell',
-      render: erpEstimateMoney,
-    },
-    { title: 'System Est.', dataIndex: 'system_estimated_freight', width: 92, align: 'right' as const, className: 'money-cell', render: money },
-    { title: 'Actual', dataIndex: 'actual_freight', width: 86, align: 'right' as const, className: 'money-cell', render: money },
-    { title: 'ERP Diff', dataIndex: 'variance_amount', width: 86, align: 'right' as const, className: 'money-cell', render: erpVarianceMoney },
-    { title: 'ERP %', dataIndex: 'variance_percent', width: 74, align: 'right' as const, render: erpVariancePercent },
-    { title: 'Sys Diff', dataIndex: 'system_variance_amount', width: 86, align: 'right' as const, className: 'money-cell', render: money },
-    { title: 'Sys %', dataIndex: 'system_variance_percent', width: 72, align: 'right' as const, render: percent },
-    { title: 'Status', dataIndex: 'match_status', width: 92, render: (value: string) => <Tag color={value === 'MATCHED' ? 'green' : value === 'EXCEPTION' ? 'red' : 'default'}>{value}</Tag> },
-    { title: 'Type', dataIndex: 'variance_type', width: 104, render: (value: string) => <Tag color={value === 'OVERCHARGE' ? 'red' : value === 'UNDERCHARGE' ? 'gold' : value === 'OK' ? 'green' : 'default'}>{value}</Tag> },
-    { title: 'Dispute', dataIndex: 'dispute_recommended', width: 70, render: (value: boolean) => <Tag color={value ? 'red' : 'default'}>{value ? 'Y' : 'N'}</Tag> },
-    { title: 'System Reason', dataIndex: 'system_estimate_reason', width: 210, ellipsis: true, render: compactText },
-    { title: 'Reason', dataIndex: 'reason', width: 360, ellipsis: true, render: compactText },
-  ]
+  const itemColumns = useMemo<ColumnsType<InvoiceReconciliationItem>>(() => {
+    const groups = new Set(visibleColumnGroups)
+    const columns: ColumnsType<InvoiceReconciliationItem> = []
+    if (groups.has('identity')) {
+      columns.push(
+        { title: 'ERP Order', dataIndex: 'order_no', width: 170, ellipsis: true, render: compactText },
+        { title: 'Tracking', dataIndex: 'consignment_no', width: 120, ellipsis: true, render: compactText },
+        { title: 'Invoice', dataIndex: 'invoice_no', width: 118, ellipsis: true, render: compactText },
+        { title: 'Source', dataIndex: 'invoice_source_name', width: 170, ellipsis: true, render: compactText },
+        { title: 'Carrier', dataIndex: 'carrier_name', width: 140, ellipsis: true, render: (value: string, record) => value || record.carrier_code || '-' },
+        { title: 'Service', dataIndex: 'carrier_service_name', width: 150, ellipsis: true, render: (value: string, record) => value || record.carrier_service_code || '-' },
+      )
+    }
+    if (groups.has('amounts')) {
+      columns.push(
+        { title: 'ERP Est. inc GST', dataIndex: 'estimated_freight_inc_gst', width: 112, align: 'right', className: 'money-cell', render: erpEstimateMoney },
+        { title: 'System Est.', dataIndex: 'system_estimated_freight', width: 92, align: 'right', className: 'money-cell', render: money },
+        { title: 'Actual', dataIndex: 'actual_freight', width: 86, align: 'right', className: 'money-cell', render: money },
+      )
+    }
+    if (groups.has('differences')) {
+      columns.push(
+        { title: 'ERP Diff', dataIndex: 'variance_amount', width: 86, align: 'right', className: 'money-cell', render: erpVarianceMoney },
+        { title: 'ERP %', dataIndex: 'variance_percent', width: 74, align: 'right', render: erpVariancePercent },
+        { title: 'Sys Diff', dataIndex: 'system_variance_amount', width: 86, align: 'right', className: 'money-cell', render: money },
+        { title: 'Sys %', dataIndex: 'system_variance_percent', width: 72, align: 'right', render: percent },
+      )
+    }
+    if (groups.has('status')) {
+      columns.push(
+        { title: 'Status', dataIndex: 'match_status', width: 92, render: (value: string) => <Tag color={value === 'MATCHED' ? 'green' : value === 'EXCEPTION' ? 'red' : 'default'}>{value}</Tag> },
+        { title: 'Type', dataIndex: 'variance_type', width: 104, render: (value: string) => <Tag color={value === 'OVERCHARGE' ? 'red' : value === 'UNDERCHARGE' ? 'gold' : value === 'OK' ? 'green' : 'default'}>{value}</Tag> },
+        { title: 'Dispute', dataIndex: 'dispute_recommended', width: 70, render: (value: boolean) => <Tag color={value ? 'red' : 'default'}>{value ? 'Y' : 'N'}</Tag> },
+      )
+    }
+    if (groups.has('reasons')) {
+      columns.push(
+        { title: 'System Reason', dataIndex: 'system_estimate_reason', width: 210, ellipsis: true, render: compactText },
+        { title: 'Reason', dataIndex: 'reason', width: 360, ellipsis: true, render: compactText },
+      )
+    }
+    return columns
+  }, [visibleColumnGroups])
+
+  const updateFilter = (key: keyof ItemFilters, value: string) => {
+    const next = { ...itemFilters, [key]: value }
+    setItemFilters(next)
+    if (selected) void loadBatchItems(selected, 1, selectedPageSize, itemSearch, dataView, next)
+  }
+
+  const changeDataView = (value: DataView) => {
+    setDataView(value)
+    if (selected) void loadBatchItems(selected, 1, selectedPageSize, itemSearch, value, itemFilters)
+  }
+
+  const clearItemFilters = () => {
+    setItemFilters(defaultItemFilters)
+    setDataView('all')
+    setItemSearchText('')
+    setItemSearch('')
+    if (selected) void loadBatchItems(selected, 1, selectedPageSize, '', 'all', defaultItemFilters)
+  }
 
   const downloadBatchExport = async (batch: InvoiceReconciliationBatch, scope: 'all' | 'disputes' = 'all') => {
     setExportingBatchId(batch.id)
@@ -178,12 +430,14 @@ export function InvoiceReconciliation() {
     }
   }
 
+  const summary = summaryQuery.data
+
   return (
     <section className="page-surface">
       <div className="page-toolbar">
         <div>
           <Typography.Title level={2}>Invoice Reconciliation</Typography.Title>
-          <Typography.Text type="secondary">Upload carrier invoices, match estimates to actual freight, and produce a dispute list.</Typography.Text>
+          <Typography.Text type="secondary">Review InvoiceReader order matches, ERP estimates, system estimates, and invoice actuals.</Typography.Text>
         </div>
         <Space>
           <Button icon={<SyncOutlined spin={syncing} />} loading={syncing} onClick={syncFromSqlServer}>
@@ -264,11 +518,65 @@ export function InvoiceReconciliation() {
         {selected && (
           <>
             <div className="review-summary-strip">
-              <span>Total {selected.total_rows.toLocaleString()}</span>
-              <span>Matched {selected.matched_rows.toLocaleString()}</span>
-              <span>Exceptions {selected.exception_rows.toLocaleString()}</span>
+              <span>Total {(summary?.total ?? selected.total_rows).toLocaleString()}</span>
+              <span>Matched {(summary?.matched ?? selected.matched_rows).toLocaleString()}</span>
+              <span>Exceptions {(summary?.exceptions ?? selected.exception_rows).toLocaleString()}</span>
+              <span>Overcharge {(summary?.overcharge ?? 0).toLocaleString()}</span>
+              <span>Undercharge {(summary?.undercharge ?? 0).toLocaleString()}</span>
+              <span>Unmatched {(summary?.unmatched ?? 0).toLocaleString()}</span>
+              <span>Actual {money(summary?.actual_total)}</span>
+              <span>System Est {money(summary?.system_estimate_total)}</span>
               <span>Loaded {selectedItems.length.toLocaleString()} / {selectedTotal.toLocaleString()}</span>
             </div>
+
+            <div className="reconciliation-control-panel">
+              <Segmented<DataView> size="small" value={dataView} options={dataViewOptions} onChange={changeDataView} />
+              <div className="reconciliation-filter-grid">
+                <label className="reconciliation-filter-field">
+                  <span>ERP Order</span>
+                  <Input size="small" allowClear value={itemFilters.order_no} onChange={(event) => updateFilter('order_no', event.target.value)} />
+                </label>
+                <label className="reconciliation-filter-field">
+                  <span>Tracking</span>
+                  <Input size="small" allowClear value={itemFilters.tracking} onChange={(event) => updateFilter('tracking', event.target.value)} />
+                </label>
+                <label className="reconciliation-filter-field">
+                  <span>Invoice No</span>
+                  <Input size="small" allowClear value={itemFilters.invoice_no} onChange={(event) => updateFilter('invoice_no', event.target.value)} />
+                </label>
+                <label className="reconciliation-filter-field">
+                  <span>Carrier</span>
+                  <Input size="small" allowClear value={itemFilters.carrier_name} onChange={(event) => updateFilter('carrier_name', event.target.value)} />
+                </label>
+                <label className="reconciliation-filter-field">
+                  <span>Invoice Source</span>
+                  <Input size="small" allowClear value={itemFilters.invoice_source_name} onChange={(event) => updateFilter('invoice_source_name', event.target.value)} />
+                </label>
+                <label className="reconciliation-filter-field">
+                  <span>ERP Est</span>
+                  <Select size="small" value={itemFilters.has_erp_estimate} options={estimateOptions} onChange={(value) => updateFilter('has_erp_estimate', value)} />
+                </label>
+                <label className="reconciliation-filter-field">
+                  <span>System Est</span>
+                  <Select size="small" value={itemFilters.has_system_estimate} options={estimateOptions} onChange={(value) => updateFilter('has_system_estimate', value)} />
+                </label>
+                <label className="reconciliation-filter-field">
+                  <span>Order Match</span>
+                  <Select size="small" value={itemFilters.has_order} options={estimateOptions} onChange={(value) => updateFilter('has_order', value)} />
+                </label>
+              </div>
+              <div className="reconciliation-column-controls">
+                <Space size={6}>
+                  <FilterOutlined />
+                  <Typography.Text type="secondary">Columns</Typography.Text>
+                </Space>
+                <Checkbox.Group options={columnGroupOptions} value={visibleColumnGroups} onChange={(value) => setVisibleColumnGroups(value as ColumnGroup[])} />
+                <Button size="small" onClick={clearItemFilters}>
+                  Clear filters
+                </Button>
+              </div>
+            </div>
+
             <div className="list-search-row">
               <Input.Search
                 allowClear
@@ -280,7 +588,7 @@ export function InvoiceReconciliation() {
                 onSearch={(value) => {
                   const nextSearch = value.trim()
                   setItemSearch(nextSearch)
-                  void loadBatchItems(selected, 1, selectedPageSize, nextSearch)
+                  void loadBatchItems(selected, 1, selectedPageSize, nextSearch, dataView, itemFilters)
                 }}
               />
             </div>
@@ -288,11 +596,12 @@ export function InvoiceReconciliation() {
               rowKey="id"
               size="small"
               className="reconciliation-review-table"
-              loading={loadingItems}
+              loading={loadingItems || summaryQuery.isFetching}
               dataSource={selectedItems}
               columns={itemColumns}
               tableLayout="fixed"
-              scroll={{ x: 2270, y: 'calc(100vh - 245px)' }}
+              expandable={{ expandedRowRender: (record) => <DetailDescriptions record={record} /> }}
+              scroll={{ x: 2270, y: 'calc(100vh - 355px)' }}
               pagination={{
                 current: selectedPage,
                 pageSize: selectedPageSize,
@@ -304,7 +613,7 @@ export function InvoiceReconciliation() {
               }}
               rowClassName={(record) => `reconciliation-row reconciliation-row-${record.match_status.toLowerCase()}`}
               onChange={(pagination) => {
-                void loadBatchItems(selected, pagination.current || 1, pagination.pageSize || selectedPageSize, itemSearch)
+                void loadBatchItems(selected, pagination.current || 1, pagination.pageSize || selectedPageSize, itemSearch, dataView, itemFilters)
               }}
             />
           </>

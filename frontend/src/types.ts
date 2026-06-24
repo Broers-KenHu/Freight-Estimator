@@ -256,6 +256,19 @@ export type InvoiceReconciliationItem = {
   dispute_recommended: boolean
   reason: string
   system_estimate_reason?: string
+  amount_detail?: {
+    erp_estimate_ex_gst?: string | null
+    erp_estimate_inc_gst?: string | null
+    erp_estimate_basis?: string | null
+    system_estimate_inc_gst?: string | null
+    actual_invoice_inc_gst?: string | null
+    erp_variance_inc_gst?: string | null
+    erp_variance_percent?: string | null
+    system_variance_inc_gst?: string | null
+    system_variance_percent?: string | null
+  }
+  invoice_match_detail?: Record<string, string | null> | null
+  order_detail?: Record<string, string | number | null>
 }
 
 export type InvoiceReconciliationBatch = {

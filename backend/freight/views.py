@@ -2479,7 +2479,10 @@ class InvoiceReconciliationItemViewSet(viewsets.ReadOnlyModelViewSet):
             "carrier_service",
             "invoice_source",
             "invoice_order_match_snapshot",
+            "invoice_charge_snapshot",
             "order",
+            "order__platform",
+            "order__warehouse",
             "quote_candidate",
         )
         .all()
@@ -2512,6 +2515,94 @@ class InvoiceReconciliationItemViewSet(viewsets.ReadOnlyModelViewSet):
         "invoice_source__code",
         "invoice_source__name",
     ]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        params = self.request.query_params
+        data_view = (params.get("data_view") or params.get("view") or "all").lower()
+        if data_view == "matched":
+            queryset = queryset.filter(match_status=InvoiceReconciliationItem.MatchStatus.MATCHED)
+        elif data_view == "exceptions":
+            queryset = queryset.filter(match_status=InvoiceReconciliationItem.MatchStatus.EXCEPTION)
+        elif data_view == "unmatched":
+            queryset = queryset.filter(match_status=InvoiceReconciliationItem.MatchStatus.UNMATCHED)
+        elif data_view == "overcharge":
+            queryset = queryset.filter(variance_type=InvoiceReconciliationItem.VarianceType.OVERCHARGE)
+        elif data_view == "undercharge":
+            queryset = queryset.filter(variance_type=InvoiceReconciliationItem.VarianceType.UNDERCHARGE)
+        elif data_view == "disputes":
+            queryset = queryset.filter(dispute_recommended=True)
+        elif data_view == "missing_erp":
+            queryset = queryset.filter(estimated_freight__isnull=True)
+        elif data_view == "missing_system":
+            queryset = queryset.filter(system_estimated_freight__isnull=True)
+        elif data_view == "with_system":
+            queryset = queryset.filter(system_estimated_freight__isnull=False)
+        elif data_view == "invoice_reader":
+            queryset = queryset.filter(source_system__startswith="invoiceReader.")
+
+        for param_name, field_name in (
+            ("order_no", "order_no"),
+            ("tracking", "consignment_no"),
+            ("invoice_no", "invoice_no"),
+            ("carrier_name", "carrier__name"),
+            ("service_name", "carrier_service__name"),
+            ("invoice_source_name", "invoice_source__name"),
+        ):
+            value = (params.get(param_name) or "").strip()
+            if value:
+                queryset = queryset.filter(**{f"{field_name}__icontains": value})
+
+        has_erp_estimate = self._bool_query_param(params.get("has_erp_estimate"))
+        if has_erp_estimate is not None:
+            queryset = queryset.filter(estimated_freight__isnull=not has_erp_estimate)
+        has_system_estimate = self._bool_query_param(params.get("has_system_estimate"))
+        if has_system_estimate is not None:
+            queryset = queryset.filter(system_estimated_freight__isnull=not has_system_estimate)
+        has_order = self._bool_query_param(params.get("has_order"))
+        if has_order is not None:
+            queryset = queryset.filter(order__isnull=not has_order)
+        return queryset
+
+    @decorators.action(detail=False, methods=["get"])
+    def summary(self, request):
+        queryset = self.filter_queryset(self.get_queryset()).order_by()
+        summary = queryset.aggregate(
+            total=Count("id"),
+            matched=Count("id", filter=Q(match_status=InvoiceReconciliationItem.MatchStatus.MATCHED)),
+            exceptions=Count("id", filter=Q(match_status=InvoiceReconciliationItem.MatchStatus.EXCEPTION)),
+            unmatched=Count("id", filter=Q(match_status=InvoiceReconciliationItem.MatchStatus.UNMATCHED)),
+            overcharge=Count("id", filter=Q(variance_type=InvoiceReconciliationItem.VarianceType.OVERCHARGE)),
+            undercharge=Count("id", filter=Q(variance_type=InvoiceReconciliationItem.VarianceType.UNDERCHARGE)),
+            disputes=Count("id", filter=Q(dispute_recommended=True)),
+            missing_erp=Count("id", filter=Q(estimated_freight__isnull=True)),
+            missing_system=Count("id", filter=Q(system_estimated_freight__isnull=True)),
+            actual_total=Sum("actual_freight"),
+            erp_estimate_total=Sum("estimated_freight"),
+            system_estimate_total=Sum("system_estimated_freight"),
+            erp_variance_total=Sum("variance_amount"),
+            system_variance_total=Sum("system_variance_amount"),
+        )
+        return response.Response(
+            {
+                **summary,
+                "by_invoice_source": list(
+                    queryset.values("invoice_source_id", "invoice_source__name")
+                    .annotate(total=Count("id"))
+                    .order_by("-total", "invoice_source__name")[:20]
+                ),
+                "by_carrier": list(
+                    queryset.values("carrier_id", "carrier__name")
+                    .annotate(total=Count("id"))
+                    .order_by("-total", "carrier__name")[:20]
+                ),
+            }
+        )
+
+    def _bool_query_param(self, value: str | None) -> bool | None:
+        if value is None or value == "":
+            return None
+        return str(value).lower() in {"1", "true", "yes", "y"}
 
 
 @decorators.api_view(["POST"])

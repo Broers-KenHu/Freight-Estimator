@@ -569,6 +569,75 @@
   font-variant-numeric: tabular-nums;
 }
 
+.reconciliation-control-panel {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.reconciliation-control-panel .ant-segmented {
+  width: 100%;
+}
+
+.reconciliation-control-panel .ant-segmented-group {
+  flex-wrap: wrap;
+}
+
+.reconciliation-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(108px, 1fr));
+  gap: 6px;
+}
+
+.reconciliation-filter-field {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.reconciliation-filter-field > span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.reconciliation-column-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.reconciliation-column-controls .ant-checkbox-wrapper {
+  font-size: 12px;
+}
+
+.reconciliation-detail-panel {
+  display: grid;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.reconciliation-detail-panel .ant-descriptions-title {
+  margin-bottom: 6px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reconciliation-detail-panel .ant-descriptions-item-label,
+.reconciliation-detail-panel .ant-descriptions-item-content {
+  padding: 5px 7px !important;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
 .reconciliation-review-table .ant-table {
   border: 1px solid #e5e7eb;
   border-radius: 6px;
@@ -604,6 +673,17 @@
 
 .reconciliation-review-table .ant-pagination {
   margin: 8px 0 0;
+}
+
+@media (max-width: 1360px) {
+  .reconciliation-filter-grid {
+    grid-template-columns: repeat(4, minmax(126px, 1fr));
+  }
+
+  .reconciliation-column-controls {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .freight-audit-page {

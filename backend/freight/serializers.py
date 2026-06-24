@@ -721,6 +721,9 @@ class InvoiceReconciliationItemSerializer(serializers.ModelSerializer):
     quote_provider = serializers.CharField(source="quote_candidate.provider_name", read_only=True)
     estimated_freight_inc_gst = serializers.SerializerMethodField()
     estimated_freight_basis = serializers.SerializerMethodField()
+    amount_detail = serializers.SerializerMethodField()
+    invoice_match_detail = serializers.SerializerMethodField()
+    order_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = InvoiceReconciliationItem
@@ -748,6 +751,93 @@ class InvoiceReconciliationItemSerializer(serializers.ModelSerializer):
         if obj.invoice_order_match_snapshot_id or obj.invoice_charge_snapshot_id or str(obj.source_system or "").startswith("invoiceReader."):
             return "ERP_EX_GST"
         return "UNKNOWN"
+
+    def get_amount_detail(self, obj: InvoiceReconciliationItem) -> dict[str, str | None]:
+        erp_inc_gst = self.get_estimated_freight_inc_gst(obj)
+        erp_inc_gst_decimal = Decimal(str(erp_inc_gst)) if erp_inc_gst not in (None, "") else None
+        actual = obj.actual_freight
+        erp_variance = actual - erp_inc_gst_decimal if erp_inc_gst_decimal is not None else None
+        return {
+            "erp_estimate_ex_gst": self._decimal_text(obj.estimated_freight),
+            "erp_estimate_inc_gst": self._decimal_text(erp_inc_gst_decimal),
+            "erp_estimate_basis": self.get_estimated_freight_basis(obj),
+            "system_estimate_inc_gst": self._decimal_text(obj.system_estimated_freight),
+            "actual_invoice_inc_gst": self._decimal_text(obj.actual_freight),
+            "erp_variance_inc_gst": self._decimal_text(erp_variance),
+            "erp_variance_percent": self._decimal_text(obj.variance_percent),
+            "system_variance_inc_gst": self._decimal_text(obj.system_variance_amount),
+            "system_variance_percent": self._decimal_text(obj.system_variance_percent),
+        }
+
+    def get_invoice_match_detail(self, obj: InvoiceReconciliationItem) -> dict[str, str | None] | None:
+        match = obj.invoice_order_match_snapshot
+        if not match:
+            return None
+        return {
+            "source_external_id": match.source_external_id,
+            "source_key": match.source_key,
+            "source_label": match.source_label,
+            "invoice_no": match.invoice_no,
+            "tracking_no": match.tracking_no,
+            "match_tier": match.match_tier,
+            "match_method": match.match_method,
+            "match_confidence": match.match_confidence,
+            "match_reason": match.match_reason,
+            "erp_order_id": match.erp_order_id,
+            "erp_order_no": match.erp_order_no,
+            "erp_owner_order_no": match.erp_owner_order_no,
+            "third_party_order_no": match.third_party_order_no,
+            "platform_order_no": match.platform_order_no,
+            "warehouse_owner_code": match.warehouse_owner_code,
+            "distribution_owner_code": match.distribution_owner_code,
+            "carrier_name": match.carrier_name,
+            "carrier_channel": match.carrier_channel,
+            "carrier_channel_account": match.carrier_channel_account,
+            "amount_ex_gst": self._decimal_text(match.amount_ex_gst),
+            "amount_inc_gst": self._decimal_text(match.amount_inc_gst),
+            "erp_carrier_freight": self._decimal_text(match.erp_carrier_freight),
+            "matched_at": match.matched_at.isoformat() if match.matched_at else "",
+            "erp_outbound_at": match.erp_outbound_at.isoformat() if match.erp_outbound_at else "",
+        }
+
+    def get_order_detail(self, obj: InvoiceReconciliationItem) -> dict[str, str | int | None]:
+        order = obj.order
+        match = obj.invoice_order_match_snapshot
+        if not order:
+            return {
+                "local_order_id": None,
+                "erp_order_no": obj.order_no or (match.erp_owner_order_no if match else ""),
+                "erp_owner_order_no": match.erp_owner_order_no if match else "",
+                "platform_order_no": match.platform_order_no if match else "",
+                "third_party_order_no": match.third_party_order_no if match else "",
+                "warehouse_code": match.warehouse_owner_code if match else "",
+                "warehouse_name": "",
+                "platform_code": "",
+                "platform_name": "",
+                "shipping_option": "",
+                "destination": "",
+                "actual_carrier": "",
+            }
+        return {
+            "local_order_id": order.id,
+            "erp_order_no": order.erp_order_no or order.order_no,
+            "erp_owner_order_no": order.erp_owner_order_no,
+            "platform_order_no": order.platform_order_no,
+            "third_party_order_no": order.external_order_no,
+            "warehouse_code": order.warehouse.code if order.warehouse_id else "",
+            "warehouse_name": order.warehouse.name if order.warehouse_id else "",
+            "platform_code": order.platform.code if order.platform_id else "",
+            "platform_name": order.platform.name if order.platform_id else "",
+            "shipping_option": order.shipping_option,
+            "destination": ", ".join(part for part in [order.suburb, order.state, order.postcode] if part),
+            "actual_carrier": order.actual_carrier,
+            "source_updated_at": order.source_updated_at.isoformat() if order.source_updated_at else "",
+        }
+
+    def _decimal_text(self, value) -> str | None:
+        if value is None:
+            return None
+        return str(value)
 
 
 class InvoiceReconciliationBatchSerializer(serializers.ModelSerializer):

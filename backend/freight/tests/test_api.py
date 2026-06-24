@@ -17,6 +17,8 @@ from freight.models import (
     HistoricalOrderItem,
     HistoricalOrderShipment,
     ImportJob,
+    InvoiceReconciliationBatch,
+    InvoiceReconciliationItem,
     InvoiceSource,
     LspApiQuoteOption,
     LspApiQuoteSnapshot,
@@ -702,6 +704,66 @@ def test_invoice_sync_endpoint_returns_latest_job_and_batches(api, monkeypatch):
     assert response.status_code == 200
     assert response.data["import_job"]["job_type"] == ImportJob.JobType.INVOICE_SYNC
     assert response.data["batches"][0]["invoice_source_name"] == "Hunter Road Freight / broers"
+
+
+@pytest.mark.django_db
+def test_invoice_reconciliation_items_support_review_filters_summary_and_details(api):
+    carrier = Carrier.objects.first()
+    batch = InvoiceReconciliationBatch.objects.create(
+        name="InvoiceReader full match",
+        status=InvoiceReconciliationBatch.Status.COMPLETED,
+        total_rows=2,
+        matched_rows=1,
+        exception_rows=1,
+        source_system="invoiceReader.order_match_reconciliation",
+    )
+    InvoiceReconciliationItem.objects.create(
+        batch=batch,
+        carrier=carrier,
+        source_system="invoiceReader.order_match_reconciliation",
+        source_external_id="ITEM-OK",
+        order_no="ERP-REVIEW-1",
+        consignment_no="TRK-REVIEW-1",
+        invoice_no="INV-REVIEW-1",
+        estimated_freight=Decimal("10.00"),
+        actual_freight=Decimal("11.00"),
+        match_status=InvoiceReconciliationItem.MatchStatus.MATCHED,
+        variance_type=InvoiceReconciliationItem.VarianceType.OK,
+    )
+    InvoiceReconciliationItem.objects.create(
+        batch=batch,
+        carrier=carrier,
+        source_system="invoiceReader.order_match_reconciliation",
+        source_external_id="ITEM-OVER",
+        order_no="ERP-REVIEW-2",
+        consignment_no="TRK-REVIEW-2",
+        invoice_no="INV-REVIEW-2",
+        estimated_freight=Decimal("20.00"),
+        actual_freight=Decimal("44.00"),
+        variance_amount=Decimal("22.00"),
+        variance_percent=Decimal("100.00"),
+        match_status=InvoiceReconciliationItem.MatchStatus.EXCEPTION,
+        variance_type=InvoiceReconciliationItem.VarianceType.OVERCHARGE,
+        dispute_recommended=True,
+    )
+
+    response = api.get(
+        f"/api/invoice-reconciliation-items/?batch={batch.id}&data_view=overcharge&order_no=ERP-REVIEW-2"
+    )
+    rows = response.data["results"] if isinstance(response.data, dict) and "results" in response.data else response.data
+
+    assert response.status_code == 200
+    assert len(rows) == 1
+    assert rows[0]["order_no"] == "ERP-REVIEW-2"
+    assert rows[0]["amount_detail"]["erp_estimate_basis"] == "ERP_EX_GST"
+    assert rows[0]["order_detail"]["erp_order_no"] == "ERP-REVIEW-2"
+
+    summary = api.get(f"/api/invoice-reconciliation-items/summary/?batch={batch.id}&data_view=overcharge")
+
+    assert summary.status_code == 200
+    assert summary.data["total"] == 1
+    assert summary.data["overcharge"] == 1
+    assert summary.data["disputes"] == 1
 
 
 @pytest.mark.django_db
