@@ -35,6 +35,7 @@ for model in [
     models.AuditLog,
     models.InvoiceReconciliationBatch,
     models.InvoiceChargeSnapshot,
+    models.InvoiceOrderMatchSnapshot,
     models.InvoiceReconciliationItem,
     models.FreightAuditRow,
     models.FreightAuditResult,

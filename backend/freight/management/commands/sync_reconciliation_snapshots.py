@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -13,6 +14,7 @@ import psycopg
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connections, transaction
+from django.db.models import Q
 from django.utils import timezone
 from psycopg.rows import dict_row
 
@@ -35,6 +37,7 @@ from freight.models import (
     HistoricalOrder,
     ImportJob,
     InvoiceChargeSnapshot,
+    InvoiceOrderMatchSnapshot,
     InvoiceReconciliationBatch,
     InvoiceReconciliationItem,
     InvoiceSource,
@@ -45,7 +48,8 @@ from freight.quote_engine import json_safe
 SOURCE_TZ = ZoneInfo("Australia/Sydney")
 ERP_SHIPMENT_SYSTEM = f"{SOURCE_DATABASE}.{SOURCE_SCHEMA}.hpoms_owner_order_shipment_detail"
 INVOICE_CHARGE_SYSTEM_PREFIX = f"{INVOICE_DATABASE}.{INVOICE_SCHEMA}.invoice_charge_snapshot"
-RECONCILIATION_SYSTEM = "invoiceReader.tracking_reconciliation"
+INVOICE_ORDER_MATCH_SYSTEM = f"{INVOICE_DATABASE}.{INVOICE_SCHEMA}.erp_match_results"
+RECONCILIATION_SYSTEM = "invoiceReader.order_match_reconciliation"
 GST_MULTIPLIER = Decimal("1.10")
 
 
@@ -67,12 +71,13 @@ def parse_date(value: Any):
 
 
 class Command(BaseCommand):
-    help = "Build ERP shipment and InvoiceReader charge snapshots, then reconcile by tracking number."
+    help = "Build InvoiceReader charge/order-match snapshots, then reconcile from InvoiceReader's mapped ERP order results."
 
     def add_arguments(self, parser):
         parser.add_argument("--erp-only", action="store_true")
         parser.add_argument("--erp-from-invoices-only", action="store_true")
         parser.add_argument("--invoice-only", action="store_true")
+        parser.add_argument("--order-match-only", action="store_true")
         parser.add_argument("--reconcile-only", action="store_true")
         parser.add_argument("--clear-snapshots", action="store_true")
         parser.add_argument("--clear-reconciliation", action="store_true")
@@ -91,20 +96,23 @@ class Command(BaseCommand):
             options["erp_only"],
             options["erp_from_invoices_only"],
             options["invoice_only"],
+            options["order_match_only"],
             options["reconcile_only"],
         ]
         if sum(bool(item) for item in selected) > 1:
-            raise CommandError("--erp-only, --erp-from-invoices-only, --invoice-only, and --reconcile-only are mutually exclusive.")
+            raise CommandError("--erp-only, --erp-from-invoices-only, --invoice-only, --order-match-only, and --reconcile-only are mutually exclusive.")
 
         dry_run = bool(options["dry_run"])
         batch_size = max(100, int(options["batch_size"] or 1000))
+        if isinstance(options.get("source_config"), (list, tuple)):
+            options["source_config"] = next((clean(value) for value in options["source_config"] if clean(value)), "")
         job = None
         if not dry_run:
             job = ImportJob.objects.create(
                 job_type=ImportJob.JobType.INVOICE_SYNC,
                 status=ImportJob.Status.RUNNING,
                 report_json={
-                    "mode": "tracking_snapshot_reconciliation",
+                    "mode": "invoice_reader_order_match_reconciliation",
                     "source_config": options["source_config"],
                     "limit": options["limit"],
                     "batch_size": batch_size,
@@ -116,7 +124,8 @@ class Command(BaseCommand):
             if options["clear_snapshots"] and not dry_run:
                 erp_deleted = ErpShipmentSnapshot.objects.all().delete()[0]
                 invoice_deleted = InvoiceChargeSnapshot.objects.all().delete()[0]
-                report["cleared_snapshots"] = {"erp": erp_deleted, "invoice": invoice_deleted}
+                order_match_deleted = InvoiceOrderMatchSnapshot.objects.all().delete()[0]
+                report["cleared_snapshots"] = {"erp": erp_deleted, "invoice": invoice_deleted, "order_match": order_match_deleted}
             if options["clear_reconciliation"] and not dry_run:
                 items_deleted = InvoiceReconciliationItem.objects.filter(source_system__startswith="invoiceReader.").delete()[0]
                 batches_deleted = InvoiceReconciliationBatch.objects.filter(source_system__startswith="invoiceReader.").delete()[0]
@@ -140,14 +149,11 @@ class Command(BaseCommand):
                 )
             elif options["invoice_only"]:
                 report["invoice_charges"] = self._sync_invoice_charges(options, batch_size, dry_run)
+            elif options["order_match_only"]:
+                report["invoice_order_matches"] = self._sync_invoice_order_matches(options, batch_size, dry_run)
             else:
                 report["invoice_charges"] = self._sync_invoice_charges(options, batch_size, dry_run)
-                report["erp_shipments"] = self._sync_erp_shipments_for_invoice_charges(
-                    options["limit"],
-                    batch_size,
-                    dry_run,
-                    options.get("source_config") or "",
-                )
+                report["invoice_order_matches"] = self._sync_invoice_order_matches(options, batch_size, dry_run)
                 report["reconciliation"] = self._generate_reconciliation(
                     options["limit"],
                     batch_size,
@@ -166,11 +172,15 @@ class Command(BaseCommand):
         if job:
             total = sum(int(value.get("total", 0)) for value in report.values() if isinstance(value, dict))
             success = sum(int(value.get("success", 0)) for value in report.values() if isinstance(value, dict))
+            batch_ids = []
+            reconciliation_batch_id = (report.get("reconciliation") or {}).get("batch_id") if isinstance(report.get("reconciliation"), dict) else None
+            if reconciliation_batch_id:
+                batch_ids.append(reconciliation_batch_id)
             job.status = ImportJob.Status.COMPLETED
             job.total_rows = total
             job.success_rows = success
             job.progress = 100
-            job.report_json = {**job.report_json, **report}
+            job.report_json = {**job.report_json, **report, "batch_ids": batch_ids}
             job.save(update_fields=["status", "total_rows", "success_rows", "progress", "report_json", "updated_at"])
             self.stdout.write(self.style.SUCCESS(f"Snapshot reconciliation completed, job #{job.id}."))
         else:
@@ -428,6 +438,141 @@ class Command(BaseCommand):
             result["success"] = result["total"]
         return result
 
+    def _sync_invoice_order_matches(self, options: dict[str, Any], batch_size: int, dry_run: bool) -> dict[str, int]:
+        if not options["user"] or not options["password"]:
+            raise CommandError("SQL Server invoiceReader user/password are required.")
+        result = {"total": 0, "success": 0, "created": 0, "updated": 0}
+        invoice_cmd = InvoiceReaderCommand()
+        with invoice_cmd._connect(options) as conn:
+            columns = self._invoice_reader_columns(conn, "erp_match_results")
+            for rows in self._iter_invoice_order_match_batches(
+                conn,
+                columns,
+                options["limit"],
+                batch_size,
+                options.get("source_config") or "",
+            ):
+                result["total"] += len(rows)
+                if dry_run:
+                    continue
+                connections.close_all()
+                batch_result = self._upsert_invoice_order_matches(rows)
+                for key in ("success", "created", "updated"):
+                    result[key] += batch_result[key]
+        if dry_run:
+            result["success"] = result["total"]
+        return result
+
+    def _invoice_reader_columns(self, conn, table_name: str) -> set[str]:
+        with conn.cursor(as_dict=True) as cur:
+            cur.execute(
+                """
+                SELECT c.name
+                FROM sys.columns c
+                WHERE c.object_id = OBJECT_ID(%s)
+                """,
+                (f"{INVOICE_SCHEMA}.{table_name}",),
+            )
+            return {clean(row.get("name")) for row in cur.fetchall()}
+
+    def _iter_invoice_order_match_batches(
+        self,
+        conn,
+        columns: set[str],
+        limit: int | None,
+        batch_size: int,
+        source_config: str = "",
+    ) -> Iterable[list[dict[str, Any]]]:
+        required = {"id", "detail_tracking", "invoice_no", "erp_owner_order_no", "erp_rd3_order_id", "detail_amount_inc_gst"}
+        missing = sorted(required - columns)
+        if missing:
+            raise CommandError(f"invoiceReader.dbo.erp_match_results is missing required columns: {', '.join(missing)}")
+        limit_sql = f"TOP ({int(limit)})" if limit else ""
+        filter_sql, params = self._invoice_order_match_source_filter(columns, source_config)
+        query = f"""
+            SELECT {limit_sql}
+                {self._sql_text("id", columns, "source_row_id")},
+                {self._sql_text("invoice_no", columns)},
+                {self._sql_text("platform", columns)},
+                {self._sql_text("detail_tracking", columns)},
+                {self._sql_text("match_tier", columns)},
+                {self._sql_text("erp_order_id", columns)},
+                {self._sql_text("erp_owner_order_no", columns)},
+                {self._sql_text("erp_rd3_order_id", columns)},
+                {self._sql_text("erp_warehouse_owner_code", columns)},
+                {self._sql_text("erp_distribution_owner_code", columns)},
+                {self._sql_text("erp_shipping_signature", columns)},
+                {self._sql_text("erp_carrier", columns)},
+                {self._sql_text("erp_carrier_channel", columns)},
+                {self._sql_text("erp_carrier_channel_account", columns)},
+                {self._sql_decimal("erp_carrier_freight", columns)},
+                {self._sql_datetime("matched_at", columns)},
+                {self._sql_text("tier1_source", columns)},
+                {self._sql_text("tier2_source", columns)},
+                {self._sql_datetime("erp_outbound_at", columns)},
+                {self._sql_text("tier1_value", columns)},
+                {self._sql_text("tier2_value", columns)},
+                {self._sql_decimal("detail_amount_ex_gst", columns)},
+                {self._sql_decimal("detail_amount_inc_gst", columns)}
+            FROM [dbo].[erp_match_results]
+            WHERE NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(500), [detail_tracking]))), '') IS NOT NULL
+              AND [detail_amount_inc_gst] IS NOT NULL
+              {filter_sql}
+            ORDER BY [id]
+        """
+        with conn.cursor(as_dict=True) as cur:
+            cur.execute(query, tuple(params))
+            while True:
+                rows = cur.fetchmany(batch_size)
+                if not rows:
+                    break
+                yield list(rows)
+
+    def _sql_text(self, column: str, columns: set[str], alias: str | None = None) -> str:
+        alias = alias or column
+        if column in columns:
+            return f"CONVERT(NVARCHAR(500), [{column}]) AS [{alias}]"
+        return f"CAST(NULL AS NVARCHAR(500)) AS [{alias}]"
+
+    def _sql_decimal(self, column: str, columns: set[str], alias: str | None = None) -> str:
+        alias = alias or column
+        if column in columns:
+            return f"TRY_CONVERT(DECIMAL(18,4), [{column}]) AS [{alias}]"
+        return f"CAST(NULL AS DECIMAL(18,4)) AS [{alias}]"
+
+    def _sql_datetime(self, column: str, columns: set[str], alias: str | None = None) -> str:
+        alias = alias or column
+        if column in columns:
+            return f"TRY_CONVERT(DATETIME, [{column}]) AS [{alias}]"
+        return f"CAST(NULL AS DATETIME) AS [{alias}]"
+
+    def _invoice_order_match_source_filter(self, columns: set[str], source_config: str) -> tuple[str, list[Any]]:
+        source_config = clean(source_config)
+        if not source_config:
+            return "", []
+        searchable = [
+            column
+            for column in (
+                "platform",
+                "erp_carrier",
+                "erp_carrier_channel",
+                "erp_carrier_channel_account",
+                "tier1_source",
+                "tier2_source",
+            )
+            if column in columns
+        ]
+        if not searchable:
+            return "", []
+        tokens = [token for token in re.split(r"[^a-zA-Z0-9]+", source_config.lower()) if token]
+        if source_config.lower() == "dfe":
+            tokens.extend(["direct", "freight"])
+        if not tokens:
+            return "", []
+        text_sql = "LOWER(" + " + ' ' + ".join(f"COALESCE(CONVERT(NVARCHAR(500), [{column}]), '')" for column in searchable) + ")"
+        clauses = [f"{text_sql} LIKE %s" for _ in tokens]
+        return f"AND ({' OR '.join(clauses)})", [f"%{token}%" for token in tokens]
+
     @transaction.atomic
     def _upsert_invoice_charges(self, rows: list[dict[str, Any]], source_key: str) -> dict[str, int]:
         result = {"success": 0, "created": 0, "updated": 0}
@@ -484,6 +629,243 @@ class Command(BaseCommand):
         result["updated"] = len(to_update)
         result["success"] = len(to_create) + len(to_update)
         return result
+
+    @transaction.atomic
+    def _upsert_invoice_order_matches(self, rows: list[dict[str, Any]]) -> dict[str, int]:
+        result = {"success": 0, "created": 0, "updated": 0}
+        source_ids = [self._invoice_order_match_external_id(row) for row in rows]
+        existing = {
+            snapshot.source_external_id: snapshot
+            for snapshot in InvoiceOrderMatchSnapshot.objects.filter(
+                source_system=INVOICE_ORDER_MATCH_SYSTEM,
+                source_external_id__in=source_ids,
+            )
+        }
+        order_lookup = self._historical_order_lookup(rows)
+        invoice_sources: dict[str, InvoiceSource] = {}
+        to_create: list[InvoiceOrderMatchSnapshot] = []
+        to_update: list[InvoiceOrderMatchSnapshot] = []
+        for row in rows:
+            source_id = self._invoice_order_match_external_id(row)
+            order = self._resolve_order_for_match(row, order_lookup)
+            invoice_source = self._invoice_source_for_order_match(row, invoice_sources)
+            payload = self._invoice_order_match_payload(row, source_id, order, invoice_source)
+            snapshot = existing.get(source_id)
+            if snapshot:
+                for field, value in payload.items():
+                    setattr(snapshot, field, value)
+                to_update.append(snapshot)
+            else:
+                to_create.append(InvoiceOrderMatchSnapshot(**payload))
+        if to_create:
+            InvoiceOrderMatchSnapshot.objects.bulk_create(to_create, batch_size=500)
+        if to_update:
+            InvoiceOrderMatchSnapshot.objects.bulk_update(
+                to_update,
+                [
+                    "order",
+                    "invoice_source",
+                    "source_key",
+                    "source_label",
+                    "source_table",
+                    "invoice_no",
+                    "tracking_no",
+                    "erp_order_id",
+                    "erp_order_no",
+                    "erp_owner_order_no",
+                    "third_party_order_no",
+                    "platform_order_no",
+                    "warehouse_owner_code",
+                    "distribution_owner_code",
+                    "carrier_name",
+                    "carrier_channel",
+                    "carrier_channel_account",
+                    "service_name",
+                    "match_tier",
+                    "match_method",
+                    "match_confidence",
+                    "match_reason",
+                    "amount_ex_gst",
+                    "amount_inc_gst",
+                    "erp_carrier_freight",
+                    "matched_at",
+                    "erp_outbound_at",
+                    "raw_payload",
+                    "updated_at",
+                ],
+                batch_size=500,
+            )
+        result["created"] = len(to_create)
+        result["updated"] = len(to_update)
+        result["success"] = len(to_create) + len(to_update)
+        return result
+
+    def _invoice_order_match_external_id(self, row: dict[str, Any]) -> str:
+        source_row_id = clean(row.get("source_row_id"))
+        if source_row_id:
+            return source_row_id[:180]
+        natural = "|".join(
+            [
+                clean(row.get("invoice_no")),
+                clean(row.get("detail_tracking")),
+                clean(row.get("erp_owner_order_no")),
+                clean(row.get("erp_rd3_order_id")),
+                clean(row.get("detail_amount_inc_gst")),
+                clean(row.get("platform")),
+            ]
+        )
+        return short_hash(natural, 32)
+
+    def _invoice_order_match_payload(
+        self,
+        row: dict[str, Any],
+        source_id: str,
+        order: HistoricalOrder | None,
+        invoice_source: InvoiceSource | None,
+    ) -> dict[str, Any]:
+        platform = clean(row.get("platform"))
+        carrier_name = clean(row.get("erp_carrier"))
+        carrier_channel = clean(row.get("erp_carrier_channel"))
+        source_key = (platform or carrier_name or clean(row.get("tier1_source")) or "invoice_reader_match")[:80]
+        return {
+            "order": order,
+            "invoice_source": invoice_source,
+            "source_system": INVOICE_ORDER_MATCH_SYSTEM,
+            "source_external_id": source_id,
+            "source_key": source_key,
+            "source_label": (platform or carrier_name or "InvoiceReader ERP match")[:160],
+            "source_table": "erp_match_results",
+            "invoice_no": clean(row.get("invoice_no"))[:120],
+            "tracking_no": clean(row.get("detail_tracking"))[:120],
+            "erp_order_id": clean(row.get("erp_order_id"))[:160],
+            "erp_order_no": (order.erp_order_no if order else "")[:160],
+            "erp_owner_order_no": clean(row.get("erp_owner_order_no"))[:160],
+            "third_party_order_no": clean(row.get("erp_rd3_order_id"))[:160],
+            "platform_order_no": (order.platform_order_no if order else "")[:160],
+            "warehouse_owner_code": clean(row.get("erp_warehouse_owner_code"))[:100],
+            "distribution_owner_code": clean(row.get("erp_distribution_owner_code"))[:100],
+            "carrier_name": carrier_name[:160],
+            "carrier_channel": carrier_channel[:160],
+            "carrier_channel_account": clean(row.get("erp_carrier_channel_account"))[:120],
+            "service_name": carrier_channel[:160],
+            "match_tier": clean(row.get("match_tier"))[:80],
+            "match_method": clean(row.get("match_tier") or row.get("tier1_source") or row.get("tier2_source"))[:120],
+            "match_confidence": clean(row.get("match_tier"))[:80],
+            "match_reason": self._invoice_order_match_reason(row, order)[:255],
+            "amount_ex_gst": dec(row.get("detail_amount_ex_gst")),
+            "amount_inc_gst": dec(row.get("detail_amount_inc_gst")),
+            "erp_carrier_freight": dec(row.get("erp_carrier_freight")),
+            "matched_at": self._aware(row.get("matched_at")),
+            "erp_outbound_at": self._aware(row.get("erp_outbound_at")),
+            "raw_payload": json_safe(
+                {
+                    "mapping_source": INVOICE_ORDER_MATCH_SYSTEM,
+                    "source_row_id": row.get("source_row_id"),
+                    "platform": row.get("platform"),
+                    "match_tier": row.get("match_tier"),
+                    "erp_order_id": row.get("erp_order_id"),
+                    "erp_owner_order_no": row.get("erp_owner_order_no"),
+                    "erp_rd3_order_id": row.get("erp_rd3_order_id"),
+                    "erp_warehouse_owner_code": row.get("erp_warehouse_owner_code"),
+                    "erp_distribution_owner_code": row.get("erp_distribution_owner_code"),
+                    "erp_shipping_signature": row.get("erp_shipping_signature"),
+                    "erp_carrier": row.get("erp_carrier"),
+                    "erp_carrier_channel": row.get("erp_carrier_channel"),
+                    "erp_carrier_channel_account": row.get("erp_carrier_channel_account"),
+                    "erp_carrier_freight": row.get("erp_carrier_freight"),
+                    "tier1_source": row.get("tier1_source"),
+                    "tier2_source": row.get("tier2_source"),
+                    "tier1_value": row.get("tier1_value"),
+                    "tier2_value": row.get("tier2_value"),
+                    "local_order_id": order.id if order else None,
+                    "local_order_source_external_id": order.source_external_id if order else "",
+                }
+            ),
+        }
+
+    def _invoice_order_match_reason(self, row: dict[str, Any], order: HistoricalOrder | None) -> str:
+        base = "InvoiceReader ERP mapping"
+        if order:
+            return f"{base}; local HistoricalOrder resolved from mapped ERP/order refs"
+        refs = [clean(row.get("erp_order_id")), clean(row.get("erp_owner_order_no")), clean(row.get("erp_rd3_order_id"))]
+        visible_refs = ", ".join(ref for ref in refs if ref)
+        return f"{base}; local HistoricalOrder not found by mapped refs {visible_refs}".strip()
+
+    def _historical_order_lookup(self, rows: list[dict[str, Any]]) -> dict[tuple[str, str], HistoricalOrder]:
+        erp_order_ids = {clean(row.get("erp_order_id")) for row in rows if clean(row.get("erp_order_id"))}
+        owner_refs = {clean(row.get("erp_owner_order_no")) for row in rows if clean(row.get("erp_owner_order_no"))}
+        rd3_refs = {clean(row.get("erp_rd3_order_id")) for row in rows if clean(row.get("erp_rd3_order_id"))}
+        filters = Q()
+        if erp_order_ids:
+            filters |= Q(source_external_id__in=erp_order_ids) | Q(erp_order_no__in=erp_order_ids) | Q(order_no__in=erp_order_ids)
+        if owner_refs:
+            filters |= Q(erp_owner_order_no__in=owner_refs) | Q(erp_order_no__in=owner_refs) | Q(order_no__in=owner_refs)
+        if rd3_refs:
+            filters |= Q(external_order_no__in=rd3_refs) | Q(platform_order_no__in=rd3_refs)
+        if not filters:
+            return {}
+        lookup: dict[tuple[str, str], HistoricalOrder] = {}
+        for order in HistoricalOrder.objects.filter(filters).order_by("-source_updated_at", "-id"):
+            for kind, value in (
+                ("source_external_id", order.source_external_id),
+                ("erp_owner_order_no", order.erp_owner_order_no),
+                ("erp_order_no", order.erp_order_no),
+                ("order_no", order.order_no),
+                ("external_order_no", order.external_order_no),
+                ("platform_order_no", order.platform_order_no),
+            ):
+                key = self._lookup_key(kind, value)
+                if key[1] and key not in lookup:
+                    lookup[key] = order
+        return lookup
+
+    def _resolve_order_for_match(
+        self,
+        row: dict[str, Any],
+        lookup: dict[tuple[str, str], HistoricalOrder],
+    ) -> HistoricalOrder | None:
+        candidates = (
+            ("source_external_id", row.get("erp_order_id")),
+            ("erp_owner_order_no", row.get("erp_owner_order_no")),
+            ("erp_order_no", row.get("erp_owner_order_no")),
+            ("order_no", row.get("erp_owner_order_no")),
+            ("external_order_no", row.get("erp_rd3_order_id")),
+            ("platform_order_no", row.get("erp_rd3_order_id")),
+        )
+        for kind, value in candidates:
+            order = lookup.get(self._lookup_key(kind, value))
+            if order:
+                return order
+        return None
+
+    def _lookup_key(self, kind: str, value: Any) -> tuple[str, str]:
+        return kind, clean(value).upper()
+
+    def _invoice_source_for_order_match(self, row: dict[str, Any], cache: dict[str, InvoiceSource]) -> InvoiceSource | None:
+        source_platform = clean(row.get("platform") or row.get("erp_carrier"))[:160] or "InvoiceReader ERP match"
+        freight_account = clean(row.get("erp_carrier_channel_account"))[:120]
+        key = f"{normalize(source_platform)}|{normalize(freight_account)}"
+        if key in cache:
+            return cache[key]
+        carrier = self._carrier_for_text(" ".join([source_platform, clean(row.get("erp_carrier")), clean(row.get("erp_carrier_channel"))]))
+        service = self._service_for_text(carrier, source_platform, clean(row.get("erp_carrier_channel"))) if carrier else None
+        invoice_source, _ = InvoiceSource.objects.update_or_create(
+            code=f"INV_MATCH_{short_hash(key, 12)}",
+            defaults={
+                "name": f"{source_platform} / {freight_account}"[:200] if freight_account else source_platform[:200],
+                "source_platform": source_platform,
+                "freight_account": freight_account,
+                "carrier": carrier,
+                "carrier_service": service,
+                "source_system": INVOICE_ORDER_MATCH_SYSTEM,
+                "source_database": INVOICE_DATABASE,
+                "source_schema": INVOICE_SCHEMA,
+                "source_payload_json": {"mapping_mode": "invoice_reader_erp_match_results"},
+                "last_synced_at": timezone.now(),
+            },
+        )
+        cache[key] = invoice_source
+        return invoice_source
 
     def _invoice_snapshot_external_id(self, row: dict[str, Any]) -> str:
         natural = "|".join(
@@ -566,24 +948,24 @@ class Command(BaseCommand):
     ) -> dict[str, int]:
         result = {"total": 0, "success": 0, "matched": 0, "exceptions": 0, "unmatched": 0}
         if dry_run:
-            result["total"] = self._invoice_charge_queryset(limit, source_config).count()
+            result["total"] = self._invoice_order_match_queryset(limit, source_config).count()
             result["success"] = result["total"]
             return result
         batch = InvoiceReconciliationBatch.objects.create(
-            name="InvoiceReader tracking reconciliation",
+            name="InvoiceReader order match reconciliation",
             status=InvoiceReconciliationBatch.Status.PENDING,
             source_system=RECONCILIATION_SYSTEM,
             source_external_id=short_hash(timezone.now().isoformat(), 16),
         )
-        invoice_qs = self._invoice_charge_queryset(limit, source_config)
+        match_qs = self._invoice_order_match_queryset(limit, source_config)
         offset = 0
         while True:
-            charges = list(invoice_qs[offset : offset + batch_size])
-            if not charges:
+            matches = list(match_qs[offset : offset + batch_size])
+            if not matches:
                 break
             offset += batch_size
-            result["total"] += len(charges)
-            batch_result = self._create_reconciliation_items(batch, charges)
+            result["total"] += len(matches)
+            batch_result = self._create_reconciliation_items_from_order_matches(batch, matches)
             for key in ("success", "matched", "exceptions", "unmatched"):
                 result[key] += batch_result[key]
         batch.total_rows = result["success"]
@@ -591,7 +973,8 @@ class Command(BaseCommand):
         batch.exception_rows = result["exceptions"] + result["unmatched"]
         batch.status = InvoiceReconciliationBatch.Status.COMPLETED
         batch.report_json = {
-            "source": "erp_shipment_snapshot + invoice_charge_snapshot",
+            "source": "invoice_reader_erp_match_results",
+            "mapping_source": INVOICE_ORDER_MATCH_SYSTEM,
             "matched": result["matched"],
             "exceptions": result["exceptions"],
             "unmatched": result["unmatched"],
@@ -599,6 +982,194 @@ class Command(BaseCommand):
         batch.save(update_fields=["total_rows", "matched_rows", "exception_rows", "status", "report_json", "updated_at"])
         result["batch_id"] = batch.id
         return result
+
+    def _invoice_order_match_queryset(self, limit: int | None, source_config: str = ""):
+        qs = (
+            InvoiceOrderMatchSnapshot.objects.select_related(
+                "order",
+                "invoice_source",
+                "invoice_source__carrier",
+                "invoice_source__carrier_service",
+            )
+            .order_by("matched_at", "invoice_no", "tracking_no", "id")
+        )
+        if source_config:
+            tokens = [token for token in re.split(r"[^a-zA-Z0-9]+", source_config.lower()) if token]
+            filters = Q(source_key__icontains=source_config) | Q(source_label__icontains=source_config)
+            for token in tokens:
+                filters |= Q(source_key__icontains=token) | Q(source_label__icontains=token) | Q(carrier_name__icontains=token)
+            qs = qs.filter(filters)
+        if limit:
+            return qs[:limit]
+        return qs
+
+    @transaction.atomic
+    def _create_reconciliation_items_from_order_matches(
+        self,
+        batch: InvoiceReconciliationBatch,
+        matches: list[InvoiceOrderMatchSnapshot],
+    ) -> dict[str, int]:
+        result = {"success": 0, "matched": 0, "exceptions": 0, "unmatched": 0}
+        existing_ids = [match.source_external_id for match in matches]
+        InvoiceReconciliationItem.objects.filter(source_system=RECONCILIATION_SYSTEM, source_external_id__in=existing_ids).delete()
+        charge_map = self._invoice_charge_map(matches)
+        erp_map = self._erp_snapshot_map(matches)
+        items = []
+        for match in matches:
+            charge = charge_map.get((match.invoice_no, match.tracking_no))
+            erp_snapshot = erp_map.get((match.tracking_no, match.erp_owner_order_no))
+            item = self._reconciliation_item_from_order_match(batch, match, charge, erp_snapshot)
+            items.append(item)
+            result["success"] += 1
+            if item.match_status == InvoiceReconciliationItem.MatchStatus.MATCHED:
+                result["matched"] += 1
+            elif item.match_status == InvoiceReconciliationItem.MatchStatus.EXCEPTION:
+                result["exceptions"] += 1
+            else:
+                result["unmatched"] += 1
+        if items:
+            InvoiceReconciliationItem.objects.bulk_create(items, batch_size=500)
+        return result
+
+    def _invoice_charge_map(
+        self,
+        matches: list[InvoiceOrderMatchSnapshot],
+    ) -> dict[tuple[str, str], InvoiceChargeSnapshot]:
+        invoice_nos = {match.invoice_no for match in matches if match.invoice_no}
+        trackings = {match.tracking_no for match in matches if match.tracking_no}
+        if not invoice_nos or not trackings:
+            return {}
+        result = {}
+        qs = InvoiceChargeSnapshot.objects.select_related(
+            "invoice_source",
+            "invoice_source__carrier",
+            "invoice_source__carrier_service",
+        ).filter(invoice_no__in=invoice_nos, tracking_no__in=trackings)
+        for charge in qs.order_by("-updated_at", "-id"):
+            result.setdefault((charge.invoice_no, charge.tracking_no), charge)
+        return result
+
+    def _erp_snapshot_map(
+        self,
+        matches: list[InvoiceOrderMatchSnapshot],
+    ) -> dict[tuple[str, str], ErpShipmentSnapshot]:
+        trackings = {match.tracking_no for match in matches if match.tracking_no}
+        owners = {match.erp_owner_order_no for match in matches if match.erp_owner_order_no}
+        if not trackings or not owners:
+            return {}
+        result = {}
+        qs = ErpShipmentSnapshot.objects.select_related("order").filter(tracking_no__in=trackings, erp_owner_order_no__in=owners)
+        for snapshot in qs.order_by("-source_updated_at", "-id"):
+            result.setdefault((snapshot.tracking_no, snapshot.erp_owner_order_no), snapshot)
+        return result
+
+    def _reconciliation_item_from_order_match(
+        self,
+        batch: InvoiceReconciliationBatch,
+        match: InvoiceOrderMatchSnapshot,
+        charge: InvoiceChargeSnapshot | None,
+        erp_snapshot: ErpShipmentSnapshot | None,
+    ) -> InvoiceReconciliationItem:
+        order = match.order
+        estimate = self._erp_estimate_for_order(order)
+        actual = match.amount_inc_gst if match.amount_inc_gst is not None else (charge.actual_freight if charge else Decimal("0"))
+        variance_amount = None
+        variance_percent = None
+        match_status = InvoiceReconciliationItem.MatchStatus.UNMATCHED
+        variance_type = InvoiceReconciliationItem.VarianceType.UNMATCHED
+        dispute = False
+        if order is None:
+            reason = "InvoiceReader ERP mapping; local HistoricalOrder not found by mapped order refs"
+        elif estimate is None:
+            reason = "InvoiceReader ERP mapping; mapped order has no ERP estimate"
+        elif estimate == 0:
+            reason = "InvoiceReader ERP mapping; mapped order ERP estimate is zero"
+        else:
+            comparison_estimate = estimate * GST_MULTIPLIER
+            variance_amount = actual - comparison_estimate
+            variance_percent = (variance_amount / comparison_estimate) * Decimal("100") if comparison_estimate else None
+            if abs(variance_amount) <= Decimal("2.00") or abs(variance_percent) <= Decimal("5.00"):
+                match_status = InvoiceReconciliationItem.MatchStatus.MATCHED
+                variance_type = InvoiceReconciliationItem.VarianceType.OK
+                reason = "InvoiceReader ERP mapping; ERP estimate inc GST within tolerance"
+            else:
+                match_status = InvoiceReconciliationItem.MatchStatus.EXCEPTION
+                variance_type = (
+                    InvoiceReconciliationItem.VarianceType.OVERCHARGE
+                    if variance_amount > 0
+                    else InvoiceReconciliationItem.VarianceType.UNDERCHARGE
+                )
+                dispute = variance_amount > 0
+                reason = "InvoiceReader ERP mapping; ERP estimate inc GST variance outside tolerance"
+
+        invoice_source = match.invoice_source or (charge.invoice_source if charge else None)
+        order_no = self._display_order_no_for_match(match)
+        return InvoiceReconciliationItem(
+            batch=batch,
+            order=order,
+            erp_shipment_snapshot=erp_snapshot,
+            invoice_charge_snapshot=charge,
+            invoice_order_match_snapshot=match,
+            carrier=invoice_source.carrier if invoice_source else None,
+            carrier_service=invoice_source.carrier_service if invoice_source else None,
+            invoice_source=invoice_source,
+            consignment_no=match.tracking_no,
+            order_no=order_no[:100],
+            invoice_no=match.invoice_no,
+            invoice_date=charge.invoice_date if charge else None,
+            source_system=RECONCILIATION_SYSTEM,
+            source_external_id=match.source_external_id[:160],
+            estimated_freight=estimate,
+            actual_freight=actual,
+            variance_amount=variance_amount,
+            variance_percent=variance_percent,
+            match_status=match_status,
+            variance_type=variance_type,
+            dispute_recommended=dispute,
+            reason=reason[:255],
+            raw_payload=json_safe(
+                {
+                    "mapping_source": INVOICE_ORDER_MATCH_SYSTEM,
+                    "invoice_order_match_snapshot_id": match.id,
+                    "invoice_charge_snapshot_id": charge.id if charge else None,
+                    "erp_snapshot_id": erp_snapshot.id if erp_snapshot else None,
+                    "estimate_basis": "ERP_EX_GST",
+                    "actual_basis": "INVOICE_READER_DETAIL_INC_GST",
+                    "comparison_estimated_freight_inc_gst": str(estimate * GST_MULTIPLIER) if estimate is not None else "",
+                    "invoice_reader_match": {
+                        "source_row_id": match.source_external_id,
+                        "match_tier": match.match_tier,
+                        "source_key": match.source_key,
+                        "source_label": match.source_label,
+                        "detail_amount_ex_gst": str(match.amount_ex_gst or ""),
+                        "detail_amount_inc_gst": str(match.amount_inc_gst or ""),
+                    },
+                    "erp": {
+                        "erp_order_id": match.erp_order_id,
+                        "erp_order_no": order.erp_order_no if order else match.erp_order_no,
+                        "erp_owner_order_no": match.erp_owner_order_no,
+                        "third_party_order_no": match.third_party_order_no,
+                        "platform_order_no": order.platform_order_no if order else match.platform_order_no,
+                        "carrier_name": match.carrier_name,
+                        "carrier_channel": match.carrier_channel,
+                        "carrier_channel_account": match.carrier_channel_account,
+                        "warehouse_owner_code": match.warehouse_owner_code,
+                        "local_order_id": order.id if order else None,
+                        "local_order_source_external_id": order.source_external_id if order else "",
+                    },
+                }
+            ),
+        )
+
+    def _erp_estimate_for_order(self, order: HistoricalOrder | None) -> Decimal | None:
+        if not order:
+            return None
+        return order.postage_shipping_estimated_amount or order.source_estimated_freight
+
+    def _display_order_no_for_match(self, match: InvoiceOrderMatchSnapshot) -> str:
+        if match.order:
+            return clean(match.order.erp_order_no or match.order.order_no or match.order.erp_owner_order_no)
+        return clean(match.erp_order_no or match.erp_owner_order_no or match.erp_order_id)
 
     def _invoice_charge_queryset(self, limit: int | None, source_config: str = ""):
         qs = InvoiceChargeSnapshot.objects.select_related("invoice_source", "invoice_source__carrier", "invoice_source__carrier_service").order_by("invoice_date", "invoice_no", "tracking_no", "id")

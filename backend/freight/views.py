@@ -2443,7 +2443,8 @@ class InvoiceReconciliationBatchViewSet(
             "password": "password",
             "limit": "limit",
             "batch_size": "batch_size",
-            "source_keyword": "source_keyword",
+            "source_keyword": "source_config",
+            "source_config": "source_config",
         }
         for request_key, command_key in option_map.items():
             value = request.data.get(request_key)
@@ -2452,14 +2453,18 @@ class InvoiceReconciliationBatchViewSet(
         if request.data.get("dry_run"):
             kwargs["dry_run"] = True
         try:
-            call_command("sync_invoices_from_sqlserver", **kwargs)
+            call_command("sync_reconciliation_snapshots", **kwargs)
         except Exception as exc:  # noqa: BLE001
             return response.Response(
                 {"detail": str(exc), "output": stdout.getvalue()},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         job = ImportJob.objects.filter(job_type=ImportJob.JobType.INVOICE_SYNC).order_by("-id").first()
-        batch_ids = (job.report_json or {}).get("batch_ids", []) if job else []
+        report_json = (job.report_json or {}) if job else {}
+        batch_ids = report_json.get("batch_ids", [])
+        reconciliation_batch_id = (report_json.get("reconciliation") or {}).get("batch_id")
+        if reconciliation_batch_id and reconciliation_batch_id not in batch_ids:
+            batch_ids = [*batch_ids, reconciliation_batch_id]
         batches = self.get_queryset().filter(id__in=batch_ids)
         return response.Response(
             {
@@ -2480,7 +2485,8 @@ class InvoiceReconciliationBatchViewSet(
             "password": "password",
             "limit": "limit",
             "batch_size": "batch_size",
-            "source_keyword": "source_keyword",
+            "source_keyword": "source_config",
+            "source_config": "source_config",
         }
         for request_key, command_key in option_map.items():
             value = request.data.get(request_key)
@@ -2500,6 +2506,7 @@ class InvoiceReconciliationItemViewSet(viewsets.ReadOnlyModelViewSet):
             "carrier",
             "carrier_service",
             "invoice_source",
+            "invoice_order_match_snapshot",
             "order",
             "quote_candidate",
         )

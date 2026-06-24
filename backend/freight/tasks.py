@@ -28,7 +28,7 @@ def sync_orders_from_erp_task(**options: Any) -> dict[str, Any]:
 
 @shared_task(name="freight.sync_invoices_from_sqlserver")
 def sync_invoices_from_sqlserver_task(**options: Any) -> dict[str, Any]:
-    return run_management_command("sync_invoices_from_sqlserver", **options)
+    return run_management_command("sync_reconciliation_snapshots", **options)
 
 
 @shared_task(name="freight.sync_lsp_api_quotes")

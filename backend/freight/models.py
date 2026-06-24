@@ -1251,6 +1251,72 @@ class InvoiceChargeSnapshot(TimeStampedModel):
         return f"{self.source_label} {self.invoice_no} {self.tracking_no}"
 
 
+class InvoiceOrderMatchSnapshot(TimeStampedModel):
+    order = models.ForeignKey(
+        HistoricalOrder,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="invoice_order_match_snapshots",
+    )
+    invoice_source = models.ForeignKey(
+        InvoiceSource,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="order_match_snapshots",
+    )
+    source_system = models.CharField(max_length=160, blank=True)
+    source_external_id = models.CharField(max_length=180, blank=True)
+    source_key = models.CharField(max_length=80, blank=True)
+    source_label = models.CharField(max_length=160, blank=True)
+    source_table = models.CharField(max_length=120, blank=True)
+    invoice_no = models.CharField(max_length=120, blank=True)
+    tracking_no = models.CharField(max_length=120, blank=True)
+    erp_order_id = models.CharField(max_length=160, blank=True)
+    erp_order_no = models.CharField(max_length=160, blank=True)
+    erp_owner_order_no = models.CharField(max_length=160, blank=True)
+    third_party_order_no = models.CharField(max_length=160, blank=True)
+    platform_order_no = models.CharField(max_length=160, blank=True)
+    warehouse_owner_code = models.CharField(max_length=100, blank=True)
+    distribution_owner_code = models.CharField(max_length=100, blank=True)
+    carrier_name = models.CharField(max_length=160, blank=True)
+    carrier_channel = models.CharField(max_length=160, blank=True)
+    carrier_channel_account = models.CharField(max_length=120, blank=True)
+    service_name = models.CharField(max_length=160, blank=True)
+    match_tier = models.CharField(max_length=80, blank=True)
+    match_method = models.CharField(max_length=120, blank=True)
+    match_confidence = models.CharField(max_length=80, blank=True)
+    match_reason = models.CharField(max_length=255, blank=True)
+    amount_ex_gst = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    amount_inc_gst = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    erp_carrier_freight = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    matched_at = models.DateTimeField(null=True, blank=True)
+    erp_outbound_at = models.DateTimeField(null=True, blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "invoice_order_match_snapshot"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source_system", "source_external_id"],
+                condition=~models.Q(source_system="") & ~models.Q(source_external_id=""),
+                name="uniq_invoice_order_match_source",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["tracking_no"]),
+            models.Index(fields=["invoice_no"]),
+            models.Index(fields=["erp_owner_order_no"]),
+            models.Index(fields=["third_party_order_no"]),
+            models.Index(fields=["source_key"]),
+            models.Index(fields=["order"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.invoice_no} {self.tracking_no} -> {self.erp_owner_order_no}"
+
+
 class InvoiceReconciliationItem(TimeStampedModel):
     class MatchStatus(models.TextChoices):
         MATCHED = "MATCHED", "Matched"
@@ -1268,6 +1334,7 @@ class InvoiceReconciliationItem(TimeStampedModel):
     quote_candidate = models.ForeignKey(QuoteCandidate, null=True, blank=True, on_delete=models.SET_NULL)
     erp_shipment_snapshot = models.ForeignKey(ErpShipmentSnapshot, null=True, blank=True, on_delete=models.SET_NULL)
     invoice_charge_snapshot = models.ForeignKey(InvoiceChargeSnapshot, null=True, blank=True, on_delete=models.SET_NULL)
+    invoice_order_match_snapshot = models.ForeignKey(InvoiceOrderMatchSnapshot, null=True, blank=True, on_delete=models.SET_NULL)
     carrier = models.ForeignKey(Carrier, null=True, blank=True, on_delete=models.SET_NULL)
     carrier_service = models.ForeignKey(CarrierService, null=True, blank=True, on_delete=models.SET_NULL)
     invoice_source = models.ForeignKey(InvoiceSource, null=True, blank=True, on_delete=models.SET_NULL)
