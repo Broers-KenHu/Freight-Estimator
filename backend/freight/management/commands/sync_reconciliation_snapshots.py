@@ -127,8 +127,7 @@ class Command(BaseCommand):
                 order_match_deleted = InvoiceOrderMatchSnapshot.objects.all().delete()[0]
                 report["cleared_snapshots"] = {"erp": erp_deleted, "invoice": invoice_deleted, "order_match": order_match_deleted}
             if options["clear_reconciliation"] and not dry_run:
-                items_deleted = InvoiceReconciliationItem.objects.filter(source_system__startswith="invoiceReader.").delete()[0]
-                batches_deleted = InvoiceReconciliationBatch.objects.filter(source_system__startswith="invoiceReader.").delete()[0]
+                items_deleted, batches_deleted = self._clear_invoice_reader_reconciliation()
                 report["cleared_reconciliation"] = {"items": items_deleted, "batches": batches_deleted}
 
             if options["reconcile_only"]:
@@ -185,6 +184,36 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"Snapshot reconciliation completed, job #{job.id}."))
         else:
             self.stdout.write(self.style.WARNING(f"Dry run completed: {report}"))
+
+    def _clear_invoice_reader_reconciliation(self) -> tuple[int, int]:
+        with connections["default"].cursor() as cursor:
+            cursor.execute("SET statement_timeout = '10min'")
+            try:
+                cursor.execute(
+                    """
+                    UPDATE freight_audit_row
+                    SET invoice_reconciliation_item_id = NULL
+                    WHERE invoice_reconciliation_item_id IN (
+                        SELECT id
+                        FROM invoice_reconciliation_item
+                        WHERE source_system LIKE %s
+                    )
+                    """,
+                    ["invoiceReader.%"],
+                )
+                cursor.execute(
+                    "DELETE FROM invoice_reconciliation_item WHERE source_system LIKE %s",
+                    ["invoiceReader.%"],
+                )
+                items_deleted = cursor.rowcount
+                cursor.execute(
+                    "DELETE FROM invoice_reconciliation_batch WHERE source_system LIKE %s",
+                    ["invoiceReader.%"],
+                )
+                batches_deleted = cursor.rowcount
+            finally:
+                cursor.execute("SET statement_timeout = DEFAULT")
+        return items_deleted, batches_deleted
 
     def _sync_erp_shipments(self, limit: int | None, batch_size: int, dry_run: bool) -> dict[str, int]:
         result = {"total": 0, "success": 0, "created": 0, "updated": 0}
