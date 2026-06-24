@@ -364,7 +364,7 @@ export function InvoiceReconciliation() {
       columns.push(
         { title: 'ERP Est. inc GST', dataIndex: 'estimated_freight_inc_gst', width: 112, align: 'right', className: 'money-cell', render: erpEstimateMoney },
         { title: 'System Est.', dataIndex: 'system_estimated_freight', width: 92, align: 'right', className: 'money-cell', render: money },
-        { title: 'Actual', dataIndex: 'actual_freight', width: 86, align: 'right', className: 'money-cell', render: money },
+        { title: 'Actual inc GST', dataIndex: 'actual_freight', width: 100, align: 'right', className: 'money-cell', render: money },
       )
     }
     if (groups.has('differences')) {
@@ -524,7 +524,7 @@ export function InvoiceReconciliation() {
               <span>Overcharge {(summary?.overcharge ?? 0).toLocaleString()}</span>
               <span>Undercharge {(summary?.undercharge ?? 0).toLocaleString()}</span>
               <span>Unmatched {(summary?.unmatched ?? 0).toLocaleString()}</span>
-              <span>Actual {money(summary?.actual_total)}</span>
+              <span>Actual inc GST {money(summary?.actual_total)}</span>
               <span>System Est {money(summary?.system_estimate_total)}</span>
               <span>Loaded {selectedItems.length.toLocaleString()} / {selectedTotal.toLocaleString()}</span>
             </div>

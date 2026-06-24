@@ -2365,7 +2365,7 @@ class InvoiceReconciliationBatchViewSet(
             "ERP Estimated Freight inc GST",
             "Estimate Basis",
             "System Estimated Freight",
-            "Actual Freight",
+            "Actual Freight inc GST",
             "ERP Variance Amount",
             "ERP Variance Percent",
             "System Variance Amount",
