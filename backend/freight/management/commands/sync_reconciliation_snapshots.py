@@ -929,27 +929,28 @@ class Command(BaseCommand):
         charge: InvoiceChargeSnapshot | None,
     ) -> InvoiceReconciliationItem:
         order = match.order
-        estimate = self._erp_estimate_for_order(order)
+        estimate, estimate_basis = self._erp_estimate_for_match(match, order)
+        comparison_estimate = self._comparison_estimate(estimate, estimate_basis)
         actual = match.amount_inc_gst if match.amount_inc_gst is not None else (charge.actual_freight if charge else Decimal("0"))
         variance_amount = None
         variance_percent = None
         match_status = InvoiceReconciliationItem.MatchStatus.UNMATCHED
         variance_type = InvoiceReconciliationItem.VarianceType.UNMATCHED
         dispute = False
-        if order is None:
+        reason_suffix = "; local HistoricalOrder not found by mapped order refs" if order is None else ""
+        if estimate is None and order is None:
             reason = "InvoiceReader ERP mapping; local HistoricalOrder not found by mapped order refs"
         elif estimate is None:
             reason = "InvoiceReader ERP mapping; mapped order has no ERP estimate"
-        elif estimate == 0:
-            reason = "InvoiceReader ERP mapping; mapped order ERP estimate is zero"
+        elif comparison_estimate == 0:
+            reason = f"InvoiceReader ERP mapping; {estimate_basis} estimate is zero{reason_suffix}"
         else:
-            comparison_estimate = estimate * GST_MULTIPLIER
             variance_amount = actual - comparison_estimate
             variance_percent = (variance_amount / comparison_estimate) * Decimal("100") if comparison_estimate else None
             if abs(variance_amount) <= Decimal("2.00") or abs(variance_percent) <= Decimal("5.00"):
                 match_status = InvoiceReconciliationItem.MatchStatus.MATCHED
                 variance_type = InvoiceReconciliationItem.VarianceType.OK
-                reason = "InvoiceReader ERP mapping; ERP estimate inc GST within tolerance"
+                reason = f"InvoiceReader ERP mapping; {estimate_basis} within tolerance{reason_suffix}"
             else:
                 match_status = InvoiceReconciliationItem.MatchStatus.EXCEPTION
                 variance_type = (
@@ -958,7 +959,7 @@ class Command(BaseCommand):
                     else InvoiceReconciliationItem.VarianceType.UNDERCHARGE
                 )
                 dispute = variance_amount > 0
-                reason = "InvoiceReader ERP mapping; ERP estimate inc GST variance outside tolerance"
+                reason = f"InvoiceReader ERP mapping; {estimate_basis} variance outside tolerance{reason_suffix}"
 
         invoice_source = match.invoice_source or (charge.invoice_source if charge else None)
         order_no = self._display_order_no_for_match(match)
@@ -989,9 +990,9 @@ class Command(BaseCommand):
                     "mapping_source": INVOICE_ORDER_MATCH_SYSTEM,
                     "invoice_order_match_snapshot_id": match.id,
                     "invoice_charge_snapshot_id": charge.id if charge else None,
-                    "estimate_basis": "ERP_EX_GST",
+                    "estimate_basis": estimate_basis,
                     "actual_basis": "INVOICE_READER_DETAIL_INC_GST",
-                    "comparison_estimated_freight_inc_gst": str(estimate * GST_MULTIPLIER) if estimate is not None else "",
+                    "comparison_estimated_freight_inc_gst": str(comparison_estimate) if comparison_estimate is not None else "",
                     "invoice_reader_match": {
                         "source_row_id": match.source_external_id,
                         "match_tier": match.match_tier,
@@ -1016,6 +1017,22 @@ class Command(BaseCommand):
                 }
             ),
         )
+
+    def _erp_estimate_for_match(
+        self,
+        match: InvoiceOrderMatchSnapshot,
+        order: HistoricalOrder | None,
+    ) -> tuple[Decimal | None, str]:
+        if match.erp_carrier_freight is not None:
+            return match.erp_carrier_freight, "ERP_MATCH_RESULT_INC_GST"
+        return self._erp_estimate_for_order(order), "ERP_ORDER_EX_GST"
+
+    def _comparison_estimate(self, estimate: Decimal | None, estimate_basis: str) -> Decimal | None:
+        if estimate is None:
+            return None
+        if estimate_basis == "ERP_ORDER_EX_GST":
+            return estimate * GST_MULTIPLIER
+        return estimate
 
     def _erp_estimate_for_order(self, order: HistoricalOrder | None) -> Decimal | None:
         if not order:

@@ -195,7 +195,7 @@ function DetailDescriptions({ record }: { record: InvoiceReconciliationItem }) {
       </Descriptions>
 
       <Descriptions size="small" bordered column={4} title="Amount Basis">
-        <Descriptions.Item label="ERP Est ex GST">{money(amount.erp_estimate_ex_gst)}</Descriptions.Item>
+        <Descriptions.Item label="ERP Est source">{money(amount.erp_estimate_source || amount.erp_estimate_ex_gst)}</Descriptions.Item>
         <Descriptions.Item label="ERP Est inc GST">{money(amount.erp_estimate_inc_gst)}</Descriptions.Item>
         <Descriptions.Item label="System Est inc GST">{money(amount.system_estimate_inc_gst)}</Descriptions.Item>
         <Descriptions.Item label="Invoice Actual inc GST">{money(amount.actual_invoice_inc_gst || record.actual_freight)}</Descriptions.Item>

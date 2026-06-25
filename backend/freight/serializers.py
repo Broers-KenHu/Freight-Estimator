@@ -757,10 +757,12 @@ class InvoiceReconciliationItemSerializer(serializers.ModelSerializer):
         erp_inc_gst_decimal = Decimal(str(erp_inc_gst)) if erp_inc_gst not in (None, "") else None
         actual = obj.actual_freight
         erp_variance = actual - erp_inc_gst_decimal if erp_inc_gst_decimal is not None else None
+        estimate_basis = self.get_estimated_freight_basis(obj)
         return {
-            "erp_estimate_ex_gst": self._decimal_text(obj.estimated_freight),
+            "erp_estimate_source": self._decimal_text(obj.estimated_freight),
+            "erp_estimate_ex_gst": self._decimal_text(obj.estimated_freight if estimate_basis == "ERP_ORDER_EX_GST" else None),
             "erp_estimate_inc_gst": self._decimal_text(erp_inc_gst_decimal),
-            "erp_estimate_basis": self.get_estimated_freight_basis(obj),
+            "erp_estimate_basis": estimate_basis,
             "system_estimate_inc_gst": self._decimal_text(obj.system_estimated_freight),
             "actual_invoice_inc_gst": self._decimal_text(obj.actual_freight),
             "erp_variance_inc_gst": self._decimal_text(erp_variance),

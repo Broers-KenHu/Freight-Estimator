@@ -257,6 +257,7 @@ export type InvoiceReconciliationItem = {
   reason: string
   system_estimate_reason?: string
   amount_detail?: {
+    erp_estimate_source?: string | null
     erp_estimate_ex_gst?: string | null
     erp_estimate_inc_gst?: string | null
     erp_estimate_basis?: string | null

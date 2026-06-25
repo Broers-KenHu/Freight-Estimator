@@ -17,6 +17,7 @@ from freight.models import (
     HistoricalOrderItem,
     HistoricalOrderShipment,
     ImportJob,
+    InvoiceOrderMatchSnapshot,
     InvoiceReconciliationBatch,
     InvoiceReconciliationItem,
     InvoiceSource,
@@ -31,6 +32,7 @@ from freight.models import (
     WarehouseCarrier,
 )
 from freight.management.commands.sync_orders_from_erp import Command as SyncOrdersCommand
+from freight.management.commands.sync_reconciliation_snapshots import Command as SyncReconciliationSnapshotsCommand
 from freight.quote_engine import QuoteEngine
 
 
@@ -764,6 +766,32 @@ def test_invoice_reconciliation_items_support_review_filters_summary_and_details
     assert summary.data["total"] == 1
     assert summary.data["overcharge"] == 1
     assert summary.data["disputes"] == 1
+
+
+@pytest.mark.django_db
+def test_invoice_reader_erp_carrier_freight_is_used_without_gst_multiplier(api):
+    batch = InvoiceReconciliationBatch.objects.create(
+        name="InvoiceReader mapped carrier freight",
+        status=InvoiceReconciliationBatch.Status.PENDING,
+        source_system="invoiceReader.order_match_reconciliation",
+    )
+    match = InvoiceOrderMatchSnapshot.objects.create(
+        source_system="invoiceReader.dbo.erp_match_results",
+        source_external_id="MATCH-ERP-FREIGHT",
+        invoice_no="INV-ERP-FREIGHT",
+        tracking_no="TRK-ERP-FREIGHT",
+        amount_ex_gst=Decimal("100.00"),
+        amount_inc_gst=Decimal("110.00"),
+        erp_carrier_freight=Decimal("110.00"),
+    )
+
+    item = SyncReconciliationSnapshotsCommand()._reconciliation_item_from_order_match(batch, match, None)
+
+    assert item.estimated_freight == Decimal("110.00")
+    assert item.actual_freight == Decimal("110.00")
+    assert item.match_status == InvoiceReconciliationItem.MatchStatus.MATCHED
+    assert item.raw_payload["estimate_basis"] == "ERP_MATCH_RESULT_INC_GST"
+    assert Decimal(item.raw_payload["comparison_estimated_freight_inc_gst"]) == Decimal("110.00")
 
 
 @pytest.mark.django_db
