@@ -95,6 +95,7 @@ class Command(BaseCommand):
                 if full:
                     lsp_kwargs["full"] = True
                     log_kwargs["full"] = True
+                self._run_step("sync_lsp_package_estimates", lsp_kwargs, report)
                 self._run_step("sync_lsp_booking_orders", lsp_kwargs, report)
                 self._run_step("sync_lsp_api_quotes", lsp_kwargs, report)
                 self._run_step("sync_lsp_quote_logs", log_kwargs, report)

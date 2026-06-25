@@ -195,12 +195,12 @@ function DetailDescriptions({ record }: { record: InvoiceReconciliationItem }) {
       </Descriptions>
 
       <Descriptions size="small" bordered column={4} title="Amount Basis">
-        <Descriptions.Item label="ERP Est source">{money(amount.erp_estimate_source || amount.erp_estimate_ex_gst)}</Descriptions.Item>
-        <Descriptions.Item label="ERP Est inc GST">{money(amount.erp_estimate_inc_gst)}</Descriptions.Item>
+        <Descriptions.Item label="LSP Package Est">{money(amount.erp_estimate_source || amount.erp_estimate_ex_gst)}</Descriptions.Item>
+        <Descriptions.Item label="LSP Est inc GST">{money(amount.erp_estimate_inc_gst)}</Descriptions.Item>
         <Descriptions.Item label="System Est inc GST">{money(amount.system_estimate_inc_gst)}</Descriptions.Item>
         <Descriptions.Item label="Invoice Actual inc GST">{money(amount.actual_invoice_inc_gst || record.actual_freight)}</Descriptions.Item>
-        <Descriptions.Item label="ERP Diff inc GST">{money(amount.erp_variance_inc_gst)}</Descriptions.Item>
-        <Descriptions.Item label="ERP Diff %">{percent(amount.erp_variance_percent || record.variance_percent)}</Descriptions.Item>
+        <Descriptions.Item label="LSP Diff inc GST">{money(amount.erp_variance_inc_gst)}</Descriptions.Item>
+        <Descriptions.Item label="LSP Diff %">{percent(amount.erp_variance_percent || record.variance_percent)}</Descriptions.Item>
         <Descriptions.Item label="System Diff inc GST">{money(amount.system_variance_inc_gst)}</Descriptions.Item>
         <Descriptions.Item label="System Diff %">{percent(amount.system_variance_percent || record.system_variance_percent)}</Descriptions.Item>
       </Descriptions>
@@ -214,11 +214,13 @@ function DetailDescriptions({ record }: { record: InvoiceReconciliationItem }) {
         <Descriptions.Item label="Amount inc GST">{money(match.amount_inc_gst)}</Descriptions.Item>
         <Descriptions.Item label="ERP Carrier Freight">{money(match.erp_carrier_freight)}</Descriptions.Item>
         <Descriptions.Item label="Matched At">{detailText(match.matched_at)}</Descriptions.Item>
-        <Descriptions.Item label="LSP Booking Freight">{money(match.lsp_booking_freight)}</Descriptions.Item>
-        <Descriptions.Item label="LSP Booking Row">{detailText(match.lsp_booking_source_row_id)}</Descriptions.Item>
-        <Descriptions.Item label="LSP Shipment">{detailText(match.lsp_booking_shipment_code)}</Descriptions.Item>
-        <Descriptions.Item label="LSP Carrier">{detailText(match.lsp_booking_carrier_code)}</Descriptions.Item>
-        <Descriptions.Item label="LSP Warehouse">{detailText(match.lsp_booking_warehouse_code)}</Descriptions.Item>
+        <Descriptions.Item label="LSP Package Est">{money(match.lsp_package_estimate_total)}</Descriptions.Item>
+        <Descriptions.Item label="Packages">{detailText(match.lsp_package_count)}</Descriptions.Item>
+        <Descriptions.Item label="Package Codes" span={2}>{detailText(match.lsp_package_codes)}</Descriptions.Item>
+        <Descriptions.Item label="Estimate Rule">{detailText(match.lsp_package_estimate_rules)}</Descriptions.Item>
+        <Descriptions.Item label="LSP Carrier">{detailText(match.lsp_package_carrier_codes || match.lsp_booking_carrier_code)}</Descriptions.Item>
+        <Descriptions.Item label="LSP Tracking">{detailText(match.lsp_package_tracking_numbers)}</Descriptions.Item>
+        <Descriptions.Item label="LSP Package Row" span={2}>{detailText(match.lsp_package_source_row_ids)}</Descriptions.Item>
       </Descriptions>
     </div>
   )

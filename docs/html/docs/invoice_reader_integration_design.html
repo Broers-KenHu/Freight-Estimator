@@ -982,7 +982,7 @@
           </span>
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-calendar"/></svg>
-            2026-06-23
+            2026-06-25
           </span>
           <span class="doc-meta-item">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clock"/></svg>
@@ -1028,12 +1028,13 @@
 
 <p>InvoiceReader detail tables use different formats per carrier. The CourieDelivery importer therefore uses a documented declarative mapping instead of scanning every <code>invoice_detail%</code> table and guessing amount columns.</p>
 
-<p>The preferred reconciliation pipeline is now three-layered:</p>
+<p>The preferred reconciliation pipeline is now four-layered:</p>
 
 <ol>
-<li><code>erp_shipment_snapshot</code>: ERP shipment/order snapshot from <code>data_raw.erp.hpoms_owner_order_shipment_detail</code> plus owner order, order, platform, warehouse, carrier/channel, and shipping estimate fields.</li>
-<li><code>invoice_charge_snapshot</code>: InvoiceReader actual charge snapshot from <code>invoice_header_local_freight</code> plus mapped <code>invoice_detail_*</code> charge tables.</li>
-<li><code>invoice_reconciliation_item</code>: generated result rows matched from the two snapshots by tracking number and carrier/channel/service text.</li>
+<li><code>invoice_charge_snapshot</code>: InvoiceReader actual charge snapshot from <code>invoice_header_local_freight</code> plus mapped <code>invoice_detail_*</code> charge tables. This is retained for traceability to the charge rows.</li>
+<li><code>invoice_order_match_snapshot</code>: authoritative order-match snapshot from InvoiceReader <code>dbo.erp_match_results</code>.</li>
+<li><code>lsp_package_estimate_snapshot</code>: local package-level estimate snapshot built from the WMS/LSP bridge.</li>
+<li><code>invoice_reconciliation_item</code>: generated result rows from <code>invoice_order_match_snapshot</code>, with optional links back to charge snapshots and package estimate snapshots for display/debug only.</li>
 </ol>
 
 <p>The importer groups source lines by:</p>
@@ -1048,7 +1049,7 @@
 
 <p>The grouped row becomes one <code>InvoiceReconciliationItem</code>. This avoids comparing the same estimate multiple times when a carrier splits base freight, fuel, oversize, return, or adjustment charges into separate invoice rows.</p>
 
-<p>All imported <code>actual_freight</code> values are normalized to inc GST because quote candidates store <code>total_inc_gst</code>. ERP estimates from owner-order fields are stored in their original ex-GST basis, while API serializers, exports, and reconciliation variance calculations use an inc-GST comparison value.</p>
+<p>All imported <code>actual_freight</code> values are normalized to inc GST because quote candidates store <code>total_inc_gst</code>. The preferred comparison estimate is now LSP package-level estimated freight from local <code>LspPackageEstimateSnapshot</code>, used directly in its source basis and not multiplied again.</p>
 
 <p>Manual invoice upload supports CSV and XLSX. Direct PDF upload is intentionally not parsed in CourieDelivery yet; PDF invoice data should be parsed by InvoiceReader first and then synced from its operational tables.</p>
 
@@ -1151,21 +1152,31 @@
 
 <h2 id="matching-to-couriedelivery">Matching To CourieDelivery</h2>
 
-<p>For each grouped invoice row:</p>
+<p>Confirmed rule as of 2026-06-24: CourieDelivery must not decide invoice/order mapping from local tracking-to-order logic. That local path produced many conflicts. InvoiceReader <code>dbo.erp_match_results</code> is the authoritative mapping table.</p>
+
+<p>For each InvoiceReader matched row:</p>
 
 <ul>
-<li>Match <code>InvoiceChargeSnapshot.tracking_no</code> to <code>ErpShipmentSnapshot.tracking_no</code>.</li>
-<li>If multiple ERP shipment rows share the same tracking number, use carrier/channel/service text from <code>data_raw.erp.hpoms_owner_order_shipment_detail</code> and the invoice source to choose the best candidate.</li>
-<li>Use the matched ERP shipment snapshot to populate ERP order number, owner order number, third-party/rd3 order number, platform order number, platform, carrier/channel/service, warehouse, and saved shipping estimate.</li>
-<li>ERP snapshot estimates currently come from <code>hpoms_owner_order.postage_shipping_estimated_amount</code>, falling back to <code>hpoms_owner_order.shipping_estimated_amount</code>. Avoid per-row lateral lookups to <code>hpoms_order_shipping_estimated_detail</code> during large invoice reconciliation imports unless that table has suitable indexes.</li>
-<li>Compare <code>InvoiceChargeSnapshot.actual_freight</code> against <code>ErpShipmentSnapshot.estimated_freight * 1.10</code> because ERP freight estimates are imported ex GST.</li>
-<li>Optional system-estimate backfill compares <code>InvoiceChargeSnapshot.actual_freight</code> against CourieDelivery&#x27;s current quote engine result:</li>
-<li><code>estimated_freight</code> = ERP Est. in source basis.</li>
-<li><code>estimated_freight_inc_gst</code> = normalized ERP/System estimate for display and variance comparison.</li>
+<li>Import <code>dbo.erp_match_results</code> into <code>InvoiceOrderMatchSnapshot</code>.</li>
+<li>Use <code>detail_tracking</code> as tracking/consignment, <code>invoice_no</code> as invoice number, and <code>detail_amount_inc_gst</code> as actual invoice freight inc GST.</li>
+<li>Use <code>erp_order_id</code>, <code>erp_owner_order_no</code>, and <code>erp_rd3_order_id</code> to resolve the local <code>HistoricalOrder</code>. Tracking is not used to decide which order owns the invoice row.</li>
+<li>Store carrier context from <code>erp_carrier</code>, <code>erp_carrier_channel</code>, and <code>erp_carrier_channel_account</code>.</li>
+<li>Optionally link matching <code>InvoiceChargeSnapshot</code> only for traceability. This optional link must not override InvoiceReader&#x27;s order mapping.</li>
+<li>LSP package estimates come from <code>LspPackageEstimateSnapshot</code>, matched primarily by <code>InvoiceOrderMatchSnapshot.tracking_no</code>.</li>
+<li><code>LspPackageEstimateSnapshot</code> is built from <code>data_raw.wms.doc_order_details.dedi01 = data_raw.lsp.lsp_booking_order_package.package_code</code>, then joined to <code>data_raw.lsp.lsp_booking_order</code>.</li>
+<li>Consignment/package identity is WMS <code>dedi01</code> / LSP <code>package_code</code>. Do not allocate invoice-level fields such as <code>fuel_surcharge_inclu_gst</code> to individual packages.</li>
+<li>Estimate rule priority:</li>
+<li>use nonzero <code>lsp_booking_order_package.freight</code>;</li>
+<li>otherwise use nonzero <code>lsp_quote_task_package.predict_price</code> summed by package;</li>
+<li>only use <code>lsp_booking_order.freight</code> when the booking contains exactly one package.</li>
+<li>Compare <code>InvoiceOrderMatchSnapshot.amount_inc_gst</code> against the summed package estimate with basis <code>LSP_PACKAGE_ESTIMATE_FREIGHT</code>. Rows without a matched package estimate stay unmatched; do not fall back to <code>erp_match_results.erp_carrier_freight</code> or owner-order estimate fields by default.</li>
+<li>Optional system-estimate backfill compares invoice actual freight against CourieDelivery&#x27;s current quote engine result:</li>
+<li><code>estimated_freight</code> = LSP package estimate in source basis.</li>
+<li><code>estimated_freight_inc_gst</code> = package estimate value used for display and variance comparison.</li>
 <li><code>system_estimated_freight</code> = System Est. from current rate cards/calculators, already inc GST.</li>
 <li><code>system_variance_amount</code> = actual invoice freight minus System Est.</li>
 <li>Mark rows outside tolerance as reconciliation exceptions and recommend disputes only for overcharges.</li>
-<li>When invoice rows match by shipment tracking, write <code>ErpShipmentSnapshot.erp_order_no</code> back to <code>InvoiceReconciliationItem.order_no</code> so the UI can display the ERP order and the saved estimate.</li>
+<li><code>InvoiceReconciliationItem.invoice_order_match_snapshot</code> points to the authoritative InvoiceReader match. <code>InvoiceReconciliationItem.order_no</code> should display the mapped local ERP order number when available, otherwise the InvoiceReader mapped owner/order ref.</li>
 </ul>
 
 <p>ERP shipment tracking sync:</p>
@@ -1185,6 +1196,7 @@
 <p>Preferred snapshot/reconciliation command:</p>
 
 <pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery
+.\.venv\Scripts\python.exe backend\manage.py sync_lsp_package_estimates --full --batch-size 5000
 .\.venv\Scripts\python.exe backend\manage.py sync_reconciliation_snapshots --dry-run --limit 100
 .\.venv\Scripts\python.exe backend\manage.py sync_reconciliation_snapshots --invoice-only --dry-run --source-config HUNTER --limit 10</code></pre>
 
@@ -1192,24 +1204,31 @@
 
 <ol>
 <li>Import <code>InvoiceChargeSnapshot</code> rows from InvoiceReader using the documented source mapping.</li>
-<li>Read distinct invoice tracking numbers from the local invoice snapshot.</li>
-<li>Create a temporary tracking table in the <code>data_raw</code> PostgreSQL connection.</li>
-<li>Join <code>data_raw.erp.hpoms_owner_order_shipment_detail</code> to the temporary tracking table and sync only the matching <code>ErpShipmentSnapshot</code> rows.</li>
-<li>Generate <code>InvoiceReconciliationItem</code> rows from the two snapshots.</li>
+<li>Import <code>InvoiceOrderMatchSnapshot</code> rows from <code>invoiceReader.dbo.erp_match_results</code>.</li>
+<li>Resolve local <code>HistoricalOrder</code> only by InvoiceReader mapped ERP/order references.</li>
+<li>Match package estimates from <code>LspPackageEstimateSnapshot</code> by tracking/package/order identity.</li>
+<li>Generate <code>InvoiceReconciliationItem</code> rows from <code>InvoiceOrderMatchSnapshot</code>.</li>
 </ol>
 
-<p>This avoids an unnecessary full ERP shipment sync for normal invoice reconciliation runs. Use <code>--erp-only</code> only for diagnostics or controlled backfills.</p>
+<p>This avoids the incorrect local tracking-based matching path. The obsolete ERP shipment snapshot sync modes have been removed.</p>
 
 <p>Operational options:</p>
 
 <ul>
-<li><code>--erp-only</code>: refresh only ERP shipment snapshots.</li>
-<li><code>--erp-from-invoices-only</code>: refresh ERP shipment snapshots only for tracking numbers already present in <code>InvoiceChargeSnapshot</code>; use this to continue after invoice snapshots have already been imported.</li>
 <li><code>--invoice-only</code>: refresh only InvoiceReader charge snapshots.</li>
-<li><code>--reconcile-only</code>: regenerate reconciliation from existing snapshots.</li>
+<li><code>--order-match-only</code>: refresh only <code>InvoiceOrderMatchSnapshot</code> from <code>dbo.erp_match_results</code>.</li>
+<li><code>--reconcile-only</code>: regenerate reconciliation from existing <code>InvoiceOrderMatchSnapshot</code> rows.</li>
 <li><code>--clear-snapshots</code>: delete snapshot tables before rebuilding.</li>
 <li><code>--clear-reconciliation</code>: delete prior <code>invoiceReader.*</code> reconciliation batches/items before regenerating.</li>
 </ul>
+
+<p>LSP package estimate sync:</p>
+
+<pre><code class="language-powershell">cd C:\Users\KenHu\.vscode\CourieDelivery
+.\.venv\Scripts\python.exe backend\manage.py sync_lsp_package_estimates --full --batch-size 5000
+.\.venv\Scripts\python.exe backend\manage.py sync_lsp_package_estimates --batch-size 5000</code></pre>
+
+<p>The first command performs a full load. The second command is incremental and uses the latest local <code>source_updated_at</code> checkpoint.</p>
 
 <h2 id="command">Command</h2>
 

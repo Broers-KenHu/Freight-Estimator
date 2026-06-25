@@ -946,6 +946,63 @@ class LspBookingOrderSnapshot(TimeStampedModel):
         return f"{self.lsp_order_code or self.reference_no} / {self.tracking_no or '-'}"
 
 
+class LspPackageEstimateSnapshot(TimeStampedModel):
+    historical_order = models.ForeignKey(
+        HistoricalOrder,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="lsp_package_estimate_snapshots",
+    )
+    source_system = models.CharField(max_length=180)
+    source_external_id = models.CharField(max_length=120)
+    package_code = models.CharField(max_length=160)
+    wms_order_no = models.CharField(max_length=160, blank=True)
+    erp_order_no = models.CharField(max_length=160, blank=True)
+    warehouse_code = models.CharField(max_length=80, blank=True)
+    shipment_date = models.DateField(null=True, blank=True)
+    state = models.CharField(max_length=40, blank=True)
+    suburb = models.CharField(max_length=120, blank=True)
+    postcode = models.CharField(max_length=20, blank=True)
+    booking_order_id = models.CharField(max_length=120, blank=True)
+    lsp_order_code = models.CharField(max_length=160, blank=True)
+    lsp_shipment_code = models.CharField(max_length=160, blank=True)
+    reference_no = models.CharField(max_length=160, blank=True)
+    customer_reference = models.CharField(max_length=180, blank=True)
+    tracking_no = models.CharField(max_length=120, blank=True)
+    carrier_code = models.CharField(max_length=120, blank=True)
+    package_freight = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    booking_freight = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    predict_price = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    lsp_estimated_freight = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    package_weight_kg = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    package_cubic_weight = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    total_qty = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    total_dead_weight = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    total_cubic_m3 = models.DecimalField(max_digits=12, decimal_places=6, default=0)
+    line_count = models.PositiveIntegerField(default=0)
+    source_updated_at = models.DateTimeField(null=True, blank=True)
+    source_extracted_at = models.DateTimeField(null=True, blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "lsp_package_estimate_snapshot"
+        constraints = [
+            models.UniqueConstraint(fields=["source_system", "source_external_id"], name="uniq_lsp_package_est_source")
+        ]
+        indexes = [
+            models.Index(fields=["package_code"], name="lsp_pkg_package_idx"),
+            models.Index(fields=["tracking_no"], name="lsp_pkg_tracking_idx"),
+            models.Index(fields=["historical_order", "tracking_no"], name="lsp_pkg_order_track_idx"),
+            models.Index(fields=["erp_order_no"], name="lsp_pkg_erp_order_idx"),
+            models.Index(fields=["lsp_shipment_code"], name="lsp_pkg_shipment_idx"),
+            models.Index(fields=["source_updated_at"], name="lsp_pkg_updated_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.erp_order_no or self.wms_order_no} / {self.package_code}"
+
+
 class LspApiQuoteOption(TimeStampedModel):
     snapshot = models.ForeignKey(LspApiQuoteSnapshot, on_delete=models.CASCADE, related_name="options")
     option_index = models.PositiveIntegerField(default=0)
@@ -1037,6 +1094,7 @@ class ImportJob(TimeStampedModel):
         LSP_RATE_TABLE_IMPORT = "LSP_RATE_TABLE_IMPORT", "LSP Rate Table Import"
         LSP_API_QUOTE_SYNC = "LSP_API_QUOTE_SYNC", "LSP API Quote Sync"
         LSP_BOOKING_ORDER_SYNC = "LSP_BOOKING_ORDER_SYNC", "LSP Booking Order Sync"
+        LSP_PACKAGE_ESTIMATE_SYNC = "LSP_PACKAGE_ESTIMATE_SYNC", "LSP Package Estimate Sync"
         LSP_QUOTE_LOG_SYNC = "LSP_QUOTE_LOG_SYNC", "LSP Quote Log Sync"
         INVOICE_SYNC = "INVOICE_SYNC", "Invoice Sync"
 

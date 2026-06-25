@@ -23,7 +23,7 @@ from freight.models import (
     InvoiceSource,
     LspApiQuoteOption,
     LspApiQuoteSnapshot,
-    LspBookingOrderSnapshot,
+    LspPackageEstimateSnapshot,
     LspQuoteTaskLogItem,
     Platform,
     PlatformCarrier,
@@ -770,9 +770,9 @@ def test_invoice_reconciliation_items_support_review_filters_summary_and_details
 
 
 @pytest.mark.django_db
-def test_invoice_reader_estimate_uses_lsp_booking_freight(api):
+def test_invoice_reader_estimate_uses_lsp_package_estimates(api):
     batch = InvoiceReconciliationBatch.objects.create(
-        name="InvoiceReader mapped LSP booking freight",
+        name="InvoiceReader mapped LSP package estimate",
         status=InvoiceReconciliationBatch.Status.PENDING,
         source_system="invoiceReader.order_match_reconciliation",
     )
@@ -785,22 +785,36 @@ def test_invoice_reader_estimate_uses_lsp_booking_freight(api):
         amount_inc_gst=Decimal("110.00"),
         erp_carrier_freight=Decimal("999.00"),
     )
-    booking = LspBookingOrderSnapshot.objects.create(
-        source_system="data_raw.lsp.lsp_booking_order",
-        source_external_id="BO-ERP-FREIGHT",
+    LspPackageEstimateSnapshot.objects.create(
+        source_system="data_raw.wms_lsp.package_estimate",
+        source_external_id="PKG-ERP-FREIGHT-1",
+        package_code="PKG-ERP-FREIGHT-1",
         tracking_no="TRK-ERP-FREIGHT",
         lsp_order_code="O-ERP-FREIGHT",
-        freight=Decimal("110.00"),
+        lsp_estimated_freight=Decimal("60.00"),
+        raw_payload={"estimate_rule": "package_freight"},
+    )
+    LspPackageEstimateSnapshot.objects.create(
+        source_system="data_raw.wms_lsp.package_estimate",
+        source_external_id="PKG-ERP-FREIGHT-2",
+        package_code="PKG-ERP-FREIGHT-2",
+        tracking_no="TRK-ERP-FREIGHT",
+        lsp_order_code="O-ERP-FREIGHT",
+        lsp_estimated_freight=Decimal("50.00"),
+        raw_payload={"estimate_rule": "quote_task_package_predict_price"},
     )
 
-    item = SyncReconciliationSnapshotsCommand()._reconciliation_item_from_order_match(batch, match, None, booking)
+    command = SyncReconciliationSnapshotsCommand()
+    package_map = command._lsp_package_estimate_map([match])
+    item = command._reconciliation_item_from_order_match(batch, match, None, package_map[match.id])
 
     assert item.estimated_freight == Decimal("110.00")
     assert item.actual_freight == Decimal("110.00")
     assert item.match_status == InvoiceReconciliationItem.MatchStatus.MATCHED
-    assert item.raw_payload["estimate_basis"] == "LSP_BOOKING_ORDER_FREIGHT"
+    assert item.raw_payload["estimate_basis"] == "LSP_PACKAGE_ESTIMATE_FREIGHT"
     assert Decimal(item.raw_payload["comparison_estimated_freight_inc_gst"]) == Decimal("110.00")
-    assert item.raw_payload["lsp_booking_order"]["source_row_id"] == "BO-ERP-FREIGHT"
+    assert item.raw_payload["lsp_package_estimate"]["package_count"] == 2
+    assert set(item.raw_payload["lsp_package_estimate"]["package_codes"]) == {"PKG-ERP-FREIGHT-1", "PKG-ERP-FREIGHT-2"}
 
 
 @pytest.mark.django_db

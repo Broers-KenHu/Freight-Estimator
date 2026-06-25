@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Iterable
@@ -33,7 +34,7 @@ from freight.models import (
     InvoiceReconciliationBatch,
     InvoiceReconciliationItem,
     InvoiceSource,
-    LspBookingOrderSnapshot,
+    LspPackageEstimateSnapshot,
 )
 from freight.quote_engine import json_safe
 
@@ -43,7 +44,18 @@ INVOICE_CHARGE_SYSTEM_PREFIX = f"{INVOICE_DATABASE}.{INVOICE_SCHEMA}.invoice_cha
 INVOICE_ORDER_MATCH_SYSTEM = f"{INVOICE_DATABASE}.{INVOICE_SCHEMA}.erp_match_results"
 RECONCILIATION_SYSTEM = "invoiceReader.order_match_reconciliation"
 GST_MULTIPLIER = Decimal("1.10")
-LSP_BOOKING_ESTIMATE_BASIS = "LSP_BOOKING_ORDER_FREIGHT"
+LSP_PACKAGE_ESTIMATE_BASIS = "LSP_PACKAGE_ESTIMATE_FREIGHT"
+
+
+@dataclass(frozen=True)
+class LspPackageEstimateMatch:
+    total: Decimal
+    snapshots: tuple[LspPackageEstimateSnapshot, ...]
+    package_codes: tuple[str, ...]
+    source_row_ids: tuple[str, ...]
+    tracking_numbers: tuple[str, ...]
+    carrier_codes: tuple[str, ...]
+    estimate_rules: tuple[str, ...]
 
 
 def parse_date(value: Any):
@@ -890,11 +902,11 @@ class Command(BaseCommand):
         existing_ids = [match.source_external_id for match in matches]
         InvoiceReconciliationItem.objects.filter(source_system=RECONCILIATION_SYSTEM, source_external_id__in=existing_ids).delete()
         charge_map = self._invoice_charge_map(matches)
-        lsp_booking_map = self._lsp_booking_freight_map(matches)
+        lsp_package_map = self._lsp_package_estimate_map(matches)
         items = []
         for match in matches:
             charge = charge_map.get((match.invoice_no, match.tracking_no))
-            item = self._reconciliation_item_from_order_match(batch, match, charge, lsp_booking_map.get(match.id))
+            item = self._reconciliation_item_from_order_match(batch, match, charge, lsp_package_map.get(match.id))
             items.append(item)
             result["success"] += 1
             if item.match_status == InvoiceReconciliationItem.MatchStatus.MATCHED:
@@ -925,10 +937,10 @@ class Command(BaseCommand):
             result.setdefault((charge.invoice_no, charge.tracking_no), charge)
         return result
 
-    def _lsp_booking_freight_map(
+    def _lsp_package_estimate_map(
         self,
         matches: list[InvoiceOrderMatchSnapshot],
-    ) -> dict[int, LspBookingOrderSnapshot]:
+    ) -> dict[int, LspPackageEstimateMatch]:
         tracking_values = {clean(match.tracking_no) for match in matches if clean(match.tracking_no)}
         order_ids = {match.order_id for match in matches if match.order_id}
         identity_values: set[str] = set()
@@ -942,69 +954,104 @@ class Command(BaseCommand):
             filters |= Q(historical_order_id__in=order_ids)
         if identity_values:
             filters |= (
-                Q(lsp_order_code__in=identity_values)
+                Q(package_code__in=identity_values)
+                | Q(wms_order_no__in=identity_values)
+                | Q(erp_order_no__in=identity_values)
+                | Q(lsp_order_code__in=identity_values)
                 | Q(lsp_shipment_code__in=identity_values)
                 | Q(reference_no__in=identity_values)
                 | Q(customer_reference__in=identity_values)
-                | Q(consignment_code__in=identity_values)
             )
         if not filters:
             return {}
 
-        by_order_tracking: dict[tuple[int, str], LspBookingOrderSnapshot] = {}
-        by_tracking: dict[str, LspBookingOrderSnapshot] = {}
-        by_order: dict[int, LspBookingOrderSnapshot] = {}
-        by_identity: dict[str, LspBookingOrderSnapshot] = {}
+        by_order_tracking: dict[tuple[int, str], list[LspPackageEstimateSnapshot]] = {}
+        by_tracking: dict[str, list[LspPackageEstimateSnapshot]] = {}
+        by_order: dict[int, list[LspPackageEstimateSnapshot]] = {}
+        by_identity: dict[str, list[LspPackageEstimateSnapshot]] = {}
         snapshots = (
-            LspBookingOrderSnapshot.objects.filter(filters, freight__isnull=False)
+            LspPackageEstimateSnapshot.objects.filter(filters, lsp_estimated_freight__isnull=False)
             .order_by("-source_updated_at", "-id")
         )
         for snapshot in snapshots:
             tracking = clean(snapshot.tracking_no)
             if snapshot.historical_order_id and tracking:
-                by_order_tracking.setdefault((snapshot.historical_order_id, tracking), snapshot)
+                by_order_tracking.setdefault((snapshot.historical_order_id, tracking), []).append(snapshot)
             if tracking:
-                by_tracking.setdefault(tracking, snapshot)
+                by_tracking.setdefault(tracking, []).append(snapshot)
             if snapshot.historical_order_id:
-                by_order.setdefault(snapshot.historical_order_id, snapshot)
+                by_order.setdefault(snapshot.historical_order_id, []).append(snapshot)
             for value in (
+                snapshot.package_code,
+                snapshot.wms_order_no,
+                snapshot.erp_order_no,
                 snapshot.lsp_order_code,
                 snapshot.lsp_shipment_code,
                 snapshot.reference_no,
                 snapshot.customer_reference,
-                snapshot.consignment_code,
             ):
                 if clean(value):
-                    by_identity.setdefault(clean(value), snapshot)
+                    by_identity.setdefault(clean(value), []).append(snapshot)
 
-        result: dict[int, LspBookingOrderSnapshot] = {}
+        result: dict[int, LspPackageEstimateMatch] = {}
         for match in matches:
             tracking = clean(match.tracking_no)
-            booking = None
+            package_match = None
             if match.order_id and tracking:
-                booking = by_order_tracking.get((match.order_id, tracking))
-            if booking is None and tracking:
-                booking = by_tracking.get(tracking)
-            if booking is None:
+                package_match = self._aggregate_lsp_package_estimates(by_order_tracking.get((match.order_id, tracking), []))
+            if package_match is None and tracking:
+                package_match = self._aggregate_lsp_package_estimates(by_tracking.get(tracking, []))
+            if package_match is None and not tracking:
                 for value in self._match_identity_candidates(match):
-                    booking = by_identity.get(value)
-                    if booking:
+                    package_match = self._aggregate_lsp_package_estimates(by_identity.get(value, []))
+                    if package_match:
                         break
-            if booking is None and match.order_id:
-                booking = by_order.get(match.order_id)
-            if booking is not None:
-                result[match.id] = booking
+            if package_match is None and match.order_id and not tracking:
+                package_match = self._aggregate_lsp_package_estimates(by_order.get(match.order_id, []))
+            if package_match is not None:
+                result[match.id] = package_match
         return result
+
+    def _aggregate_lsp_package_estimates(
+        self,
+        snapshots: list[LspPackageEstimateSnapshot],
+    ) -> LspPackageEstimateMatch | None:
+        selected: list[LspPackageEstimateSnapshot] = []
+        seen: set[str] = set()
+        total = Decimal("0")
+        for snapshot in snapshots:
+            estimate = snapshot.lsp_estimated_freight
+            if estimate is None:
+                continue
+            identity = clean(snapshot.package_code) or clean(snapshot.source_external_id) or str(snapshot.id)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            selected.append(snapshot)
+            total += estimate
+        if not selected:
+            return None
+        return LspPackageEstimateMatch(
+            total=total,
+            snapshots=tuple(selected),
+            package_codes=tuple(clean(item.package_code) for item in selected if clean(item.package_code)),
+            source_row_ids=tuple(clean(item.source_external_id) for item in selected if clean(item.source_external_id)),
+            tracking_numbers=tuple(sorted({clean(item.tracking_no) for item in selected if clean(item.tracking_no)})),
+            carrier_codes=tuple(sorted({clean(item.carrier_code) for item in selected if clean(item.carrier_code)})),
+            estimate_rules=tuple(
+                sorted({clean((item.raw_payload or {}).get("estimate_rule")) for item in selected if clean((item.raw_payload or {}).get("estimate_rule"))})
+            ),
+        )
 
     def _reconciliation_item_from_order_match(
         self,
         batch: InvoiceReconciliationBatch,
         match: InvoiceOrderMatchSnapshot,
         charge: InvoiceChargeSnapshot | None,
-        lsp_booking: LspBookingOrderSnapshot | None = None,
+        lsp_package: LspPackageEstimateMatch | None = None,
     ) -> InvoiceReconciliationItem:
         order = match.order
-        estimate, estimate_basis = self._erp_estimate_for_match(match, order, lsp_booking)
+        estimate, estimate_basis = self._erp_estimate_for_match(match, order, lsp_package)
         comparison_estimate = self._comparison_estimate(estimate, estimate_basis)
         actual = match.amount_inc_gst if match.amount_inc_gst is not None else (charge.actual_freight if charge else Decimal("0"))
         variance_amount = None
@@ -1014,7 +1061,7 @@ class Command(BaseCommand):
         dispute = False
         reason_suffix = "; local HistoricalOrder not found by mapped order refs" if order is None else ""
         if estimate is None:
-            reason = f"InvoiceReader ERP mapping; no matched {LSP_BOOKING_ESTIMATE_BASIS} value{reason_suffix}"
+            reason = f"InvoiceReader ERP mapping; no matched {LSP_PACKAGE_ESTIMATE_BASIS} value{reason_suffix}"
         elif comparison_estimate == 0:
             reason = f"InvoiceReader ERP mapping; {estimate_basis} estimate is zero{reason_suffix}"
         else:
@@ -1075,18 +1122,37 @@ class Command(BaseCommand):
                         "detail_amount_inc_gst": str(match.amount_inc_gst or ""),
                         "erp_match_results_carrier_freight": str(match.erp_carrier_freight or ""),
                     },
-                    "lsp_booking_order": {
-                        "snapshot_id": lsp_booking.id if lsp_booking else None,
-                        "source_row_id": lsp_booking.source_external_id if lsp_booking else "",
-                        "order_code": lsp_booking.lsp_order_code if lsp_booking else "",
-                        "shipment_code": lsp_booking.lsp_shipment_code if lsp_booking else "",
-                        "reference_no": lsp_booking.reference_no if lsp_booking else "",
-                        "tracking_no": lsp_booking.tracking_no if lsp_booking else "",
-                        "carrier_code": lsp_booking.carrier_code if lsp_booking else "",
-                        "warehouse_code": lsp_booking.warehouse_code if lsp_booking else "",
-                        "status_code": lsp_booking.status_code if lsp_booking else None,
-                        "calc_mode": lsp_booking.calc_mode if lsp_booking else None,
-                        "freight": str(lsp_booking.freight or "") if lsp_booking else "",
+                    "lsp_package_estimate": {
+                        "total_lsp_estimated_freight": str(lsp_package.total) if lsp_package else "",
+                        "package_count": len(lsp_package.snapshots) if lsp_package else 0,
+                        "package_codes": list(lsp_package.package_codes) if lsp_package else [],
+                        "source_row_ids": list(lsp_package.source_row_ids) if lsp_package else [],
+                        "tracking_numbers": list(lsp_package.tracking_numbers) if lsp_package else [],
+                        "carrier_codes": list(lsp_package.carrier_codes) if lsp_package else [],
+                        "estimate_rules": list(lsp_package.estimate_rules) if lsp_package else [],
+                        "packages": [
+                            {
+                                "snapshot_id": snapshot.id,
+                                "source_row_id": snapshot.source_external_id,
+                                "package_code": snapshot.package_code,
+                                "wms_order_no": snapshot.wms_order_no,
+                                "erp_order_no": snapshot.erp_order_no,
+                                "booking_order_id": snapshot.booking_order_id,
+                                "lsp_order_code": snapshot.lsp_order_code,
+                                "shipment_code": snapshot.lsp_shipment_code,
+                                "reference_no": snapshot.reference_no,
+                                "customer_reference": snapshot.customer_reference,
+                                "tracking_no": snapshot.tracking_no,
+                                "carrier_code": snapshot.carrier_code,
+                                "warehouse_code": snapshot.warehouse_code,
+                                "package_freight": str(snapshot.package_freight or ""),
+                                "booking_freight": str(snapshot.booking_freight or ""),
+                                "predict_price": str(snapshot.predict_price or ""),
+                                "lsp_estimated_freight": str(snapshot.lsp_estimated_freight or ""),
+                                "estimate_rule": clean((snapshot.raw_payload or {}).get("estimate_rule")),
+                            }
+                            for snapshot in (lsp_package.snapshots if lsp_package else [])
+                        ],
                     },
                     "erp": {
                         "erp_order_id": match.erp_order_id,
@@ -1109,11 +1175,11 @@ class Command(BaseCommand):
         self,
         match: InvoiceOrderMatchSnapshot,
         order: HistoricalOrder | None,
-        lsp_booking: LspBookingOrderSnapshot | None,
+        lsp_package: LspPackageEstimateMatch | None,
     ) -> tuple[Decimal | None, str]:
-        if lsp_booking and lsp_booking.freight is not None:
-            return lsp_booking.freight, LSP_BOOKING_ESTIMATE_BASIS
-        return None, LSP_BOOKING_ESTIMATE_BASIS
+        if lsp_package:
+            return lsp_package.total, LSP_PACKAGE_ESTIMATE_BASIS
+        return None, LSP_PACKAGE_ESTIMATE_BASIS
 
     def _comparison_estimate(self, estimate: Decimal | None, estimate_basis: str) -> Decimal | None:
         if estimate is None:

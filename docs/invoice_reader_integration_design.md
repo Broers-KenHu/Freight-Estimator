@@ -29,11 +29,12 @@ Dimension/reference/staging tables are not imported as charge rows:
 
 InvoiceReader detail tables use different formats per carrier. The CourieDelivery importer therefore uses a documented declarative mapping instead of scanning every `invoice_detail%` table and guessing amount columns.
 
-The preferred reconciliation pipeline is now three-layered:
+The preferred reconciliation pipeline is now four-layered:
 
 1. `invoice_charge_snapshot`: InvoiceReader actual charge snapshot from `invoice_header_local_freight` plus mapped `invoice_detail_*` charge tables. This is retained for traceability to the charge rows.
 2. `invoice_order_match_snapshot`: authoritative order-match snapshot from InvoiceReader `dbo.erp_match_results`.
-3. `invoice_reconciliation_item`: generated result rows from `invoice_order_match_snapshot`, with optional links back to charge snapshots and local ERP shipment snapshots for display/debug only.
+3. `lsp_package_estimate_snapshot`: local package-level estimate snapshot built from the WMS/LSP bridge.
+4. `invoice_reconciliation_item`: generated result rows from `invoice_order_match_snapshot`, with optional links back to charge snapshots and package estimate snapshots for display/debug only.
 
 The importer groups source lines by:
 
@@ -45,7 +46,7 @@ The importer groups source lines by:
 
 The grouped row becomes one `InvoiceReconciliationItem`. This avoids comparing the same estimate multiple times when a carrier splits base freight, fuel, oversize, return, or adjustment charges into separate invoice rows.
 
-All imported `actual_freight` values are normalized to inc GST because quote candidates store `total_inc_gst`. ERP estimates from owner-order fields are stored in their original ex-GST basis, while API serializers, exports, and reconciliation variance calculations use an inc-GST comparison value.
+All imported `actual_freight` values are normalized to inc GST because quote candidates store `total_inc_gst`. The preferred comparison estimate is now LSP package-level estimated freight from local `LspPackageEstimateSnapshot`, used directly in its source basis and not multiplied again.
 
 Manual invoice upload supports CSV and XLSX. Direct PDF upload is intentionally not parsed in CourieDelivery yet; PDF invoice data should be parsed by InvoiceReader first and then synced from its operational tables.
 
@@ -77,11 +78,17 @@ For each InvoiceReader matched row:
 - Use `erp_order_id`, `erp_owner_order_no`, and `erp_rd3_order_id` to resolve the local `HistoricalOrder`. Tracking is not used to decide which order owns the invoice row.
 - Store carrier context from `erp_carrier`, `erp_carrier_channel`, and `erp_carrier_channel_account`.
 - Optionally link matching `InvoiceChargeSnapshot` only for traceability. This optional link must not override InvoiceReader's order mapping.
-- ERP estimates come from the mapped local order: `HistoricalOrder.postage_shipping_estimated_amount`, falling back to `HistoricalOrder.source_estimated_freight`.
-- Compare `InvoiceOrderMatchSnapshot.amount_inc_gst` against `HistoricalOrder ERP estimate * 1.10` because ERP freight estimates are imported ex GST.
+- LSP package estimates come from `LspPackageEstimateSnapshot`, matched primarily by `InvoiceOrderMatchSnapshot.tracking_no`.
+- `LspPackageEstimateSnapshot` is built from `data_raw.wms.doc_order_details.dedi01 = data_raw.lsp.lsp_booking_order_package.package_code`, then joined to `data_raw.lsp.lsp_booking_order`.
+- Consignment/package identity is WMS `dedi01` / LSP `package_code`. Do not allocate invoice-level fields such as `fuel_surcharge_inclu_gst` to individual packages.
+- Estimate rule priority:
+  - use nonzero `lsp_booking_order_package.freight`;
+  - otherwise use nonzero `lsp_quote_task_package.predict_price` summed by package;
+  - only use `lsp_booking_order.freight` when the booking contains exactly one package.
+- Compare `InvoiceOrderMatchSnapshot.amount_inc_gst` against the summed package estimate with basis `LSP_PACKAGE_ESTIMATE_FREIGHT`. Rows without a matched package estimate stay unmatched; do not fall back to `erp_match_results.erp_carrier_freight` or owner-order estimate fields by default.
 - Optional system-estimate backfill compares invoice actual freight against CourieDelivery's current quote engine result:
-  - `estimated_freight` = ERP Est. in source basis.
-  - `estimated_freight_inc_gst` = normalized ERP/System estimate for display and variance comparison.
+  - `estimated_freight` = LSP package estimate in source basis.
+  - `estimated_freight_inc_gst` = package estimate value used for display and variance comparison.
   - `system_estimated_freight` = System Est. from current rate cards/calculators, already inc GST.
   - `system_variance_amount` = actual invoice freight minus System Est.
 - Mark rows outside tolerance as reconciliation exceptions and recommend disputes only for overcharges.
@@ -109,6 +116,7 @@ Preferred snapshot/reconciliation command:
 
 ```powershell
 cd C:\Users\KenHu\.vscode\CourieDelivery
+.\.venv\Scripts\python.exe backend\manage.py sync_lsp_package_estimates --full --batch-size 5000
 .\.venv\Scripts\python.exe backend\manage.py sync_reconciliation_snapshots --dry-run --limit 100
 .\.venv\Scripts\python.exe backend\manage.py sync_reconciliation_snapshots --invoice-only --dry-run --source-config HUNTER --limit 10
 ```
@@ -118,7 +126,8 @@ Default command order:
 1. Import `InvoiceChargeSnapshot` rows from InvoiceReader using the documented source mapping.
 2. Import `InvoiceOrderMatchSnapshot` rows from `invoiceReader.dbo.erp_match_results`.
 3. Resolve local `HistoricalOrder` only by InvoiceReader mapped ERP/order references.
-4. Generate `InvoiceReconciliationItem` rows from `InvoiceOrderMatchSnapshot`.
+4. Match package estimates from `LspPackageEstimateSnapshot` by tracking/package/order identity.
+5. Generate `InvoiceReconciliationItem` rows from `InvoiceOrderMatchSnapshot`.
 
 This avoids the incorrect local tracking-based matching path. The obsolete ERP shipment snapshot sync modes have been removed.
 
@@ -129,6 +138,16 @@ Operational options:
 - `--reconcile-only`: regenerate reconciliation from existing `InvoiceOrderMatchSnapshot` rows.
 - `--clear-snapshots`: delete snapshot tables before rebuilding.
 - `--clear-reconciliation`: delete prior `invoiceReader.*` reconciliation batches/items before regenerating.
+
+LSP package estimate sync:
+
+```powershell
+cd C:\Users\KenHu\.vscode\CourieDelivery
+.\.venv\Scripts\python.exe backend\manage.py sync_lsp_package_estimates --full --batch-size 5000
+.\.venv\Scripts\python.exe backend\manage.py sync_lsp_package_estimates --batch-size 5000
+```
+
+The first command performs a full load. The second command is incremental and uses the latest local `source_updated_at` checkpoint.
 
 ## Command
 

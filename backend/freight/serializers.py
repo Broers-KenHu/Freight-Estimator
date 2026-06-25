@@ -775,7 +775,9 @@ class InvoiceReconciliationItemSerializer(serializers.ModelSerializer):
         match = obj.invoice_order_match_snapshot
         if not match:
             return None
-        lsp_booking = (obj.raw_payload or {}).get("lsp_booking_order") or {}
+        payload = obj.raw_payload or {}
+        lsp_booking = payload.get("lsp_booking_order") or {}
+        lsp_package = payload.get("lsp_package_estimate") or {}
         return {
             "source_external_id": match.source_external_id,
             "source_key": match.source_key,
@@ -799,6 +801,13 @@ class InvoiceReconciliationItemSerializer(serializers.ModelSerializer):
             "amount_ex_gst": self._decimal_text(match.amount_ex_gst),
             "amount_inc_gst": self._decimal_text(match.amount_inc_gst),
             "erp_carrier_freight": self._decimal_text(match.erp_carrier_freight),
+            "lsp_package_estimate_total": lsp_package.get("total_lsp_estimated_freight") or "",
+            "lsp_package_count": str(lsp_package.get("package_count") or ""),
+            "lsp_package_codes": ", ".join(lsp_package.get("package_codes") or []),
+            "lsp_package_source_row_ids": ", ".join(lsp_package.get("source_row_ids") or []),
+            "lsp_package_tracking_numbers": ", ".join(lsp_package.get("tracking_numbers") or []),
+            "lsp_package_carrier_codes": ", ".join(lsp_package.get("carrier_codes") or []),
+            "lsp_package_estimate_rules": ", ".join(lsp_package.get("estimate_rules") or []),
             "lsp_booking_source_row_id": lsp_booking.get("source_row_id") or "",
             "lsp_booking_order_code": lsp_booking.get("order_code") or "",
             "lsp_booking_shipment_code": lsp_booking.get("shipment_code") or "",
