@@ -214,6 +214,11 @@ function DetailDescriptions({ record }: { record: InvoiceReconciliationItem }) {
         <Descriptions.Item label="Amount inc GST">{money(match.amount_inc_gst)}</Descriptions.Item>
         <Descriptions.Item label="ERP Carrier Freight">{money(match.erp_carrier_freight)}</Descriptions.Item>
         <Descriptions.Item label="Matched At">{detailText(match.matched_at)}</Descriptions.Item>
+        <Descriptions.Item label="LSP Booking Freight">{money(match.lsp_booking_freight)}</Descriptions.Item>
+        <Descriptions.Item label="LSP Booking Row">{detailText(match.lsp_booking_source_row_id)}</Descriptions.Item>
+        <Descriptions.Item label="LSP Shipment">{detailText(match.lsp_booking_shipment_code)}</Descriptions.Item>
+        <Descriptions.Item label="LSP Carrier">{detailText(match.lsp_booking_carrier_code)}</Descriptions.Item>
+        <Descriptions.Item label="LSP Warehouse">{detailText(match.lsp_booking_warehouse_code)}</Descriptions.Item>
       </Descriptions>
     </div>
   )

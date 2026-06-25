@@ -902,6 +902,50 @@ class LspApiQuoteSnapshot(TimeStampedModel):
         return f"{self.erp_order_no or self.lsp_order_code} / {self.predicted_carrier_code or '-'}"
 
 
+class LspBookingOrderSnapshot(TimeStampedModel):
+    historical_order = models.ForeignKey(
+        HistoricalOrder,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="lsp_booking_order_snapshots",
+    )
+    source_system = models.CharField(max_length=160)
+    source_external_id = models.CharField(max_length=120)
+    lsp_order_code = models.CharField(max_length=160, blank=True)
+    lsp_shipment_code = models.CharField(max_length=160, blank=True)
+    reference_no = models.CharField(max_length=160, blank=True)
+    customer_reference = models.CharField(max_length=160, blank=True)
+    consignment_code = models.CharField(max_length=160, blank=True)
+    tracking_no = models.CharField(max_length=120, blank=True)
+    carrier_code = models.CharField(max_length=120, blank=True)
+    warehouse_code = models.CharField(max_length=80, blank=True)
+    status_code = models.PositiveIntegerField(null=True, blank=True)
+    calc_mode = models.PositiveIntegerField(null=True, blank=True)
+    freight = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    price_spread = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    source_created_at = models.DateTimeField(null=True, blank=True)
+    source_updated_at = models.DateTimeField(null=True, blank=True)
+    source_extracted_at = models.DateTimeField(null=True, blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "lsp_booking_order_snapshot"
+        constraints = [
+            models.UniqueConstraint(fields=["source_system", "source_external_id"], name="uniq_lsp_booking_order_source")
+        ]
+        indexes = [
+            models.Index(fields=["tracking_no"], name="lsp_booking_tracking_idx"),
+            models.Index(fields=["historical_order", "tracking_no"], name="lsp_booking_order_track_idx"),
+            models.Index(fields=["lsp_order_code", "lsp_shipment_code"], name="lsp_booking_order_ship_idx"),
+            models.Index(fields=["reference_no"], name="lsp_booking_reference_idx"),
+            models.Index(fields=["source_updated_at"], name="lsp_booking_updated_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.lsp_order_code or self.reference_no} / {self.tracking_no or '-'}"
+
+
 class LspApiQuoteOption(TimeStampedModel):
     snapshot = models.ForeignKey(LspApiQuoteSnapshot, on_delete=models.CASCADE, related_name="options")
     option_index = models.PositiveIntegerField(default=0)
@@ -992,6 +1036,7 @@ class ImportJob(TimeStampedModel):
         CARRIER_IMPORT = "CARRIER_IMPORT", "Carrier Import"
         LSP_RATE_TABLE_IMPORT = "LSP_RATE_TABLE_IMPORT", "LSP Rate Table Import"
         LSP_API_QUOTE_SYNC = "LSP_API_QUOTE_SYNC", "LSP API Quote Sync"
+        LSP_BOOKING_ORDER_SYNC = "LSP_BOOKING_ORDER_SYNC", "LSP Booking Order Sync"
         LSP_QUOTE_LOG_SYNC = "LSP_QUOTE_LOG_SYNC", "LSP Quote Log Sync"
         INVOICE_SYNC = "INVOICE_SYNC", "Invoice Sync"
 

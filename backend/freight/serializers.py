@@ -775,6 +775,7 @@ class InvoiceReconciliationItemSerializer(serializers.ModelSerializer):
         match = obj.invoice_order_match_snapshot
         if not match:
             return None
+        lsp_booking = (obj.raw_payload or {}).get("lsp_booking_order") or {}
         return {
             "source_external_id": match.source_external_id,
             "source_key": match.source_key,
@@ -798,6 +799,14 @@ class InvoiceReconciliationItemSerializer(serializers.ModelSerializer):
             "amount_ex_gst": self._decimal_text(match.amount_ex_gst),
             "amount_inc_gst": self._decimal_text(match.amount_inc_gst),
             "erp_carrier_freight": self._decimal_text(match.erp_carrier_freight),
+            "lsp_booking_source_row_id": lsp_booking.get("source_row_id") or "",
+            "lsp_booking_order_code": lsp_booking.get("order_code") or "",
+            "lsp_booking_shipment_code": lsp_booking.get("shipment_code") or "",
+            "lsp_booking_reference_no": lsp_booking.get("reference_no") or "",
+            "lsp_booking_tracking_no": lsp_booking.get("tracking_no") or "",
+            "lsp_booking_carrier_code": lsp_booking.get("carrier_code") or "",
+            "lsp_booking_warehouse_code": lsp_booking.get("warehouse_code") or "",
+            "lsp_booking_freight": lsp_booking.get("freight") or "",
             "matched_at": match.matched_at.isoformat() if match.matched_at else "",
             "erp_outbound_at": match.erp_outbound_at.isoformat() if match.erp_outbound_at else "",
         }

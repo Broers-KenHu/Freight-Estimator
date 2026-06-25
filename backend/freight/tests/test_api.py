@@ -23,6 +23,7 @@ from freight.models import (
     InvoiceSource,
     LspApiQuoteOption,
     LspApiQuoteSnapshot,
+    LspBookingOrderSnapshot,
     LspQuoteTaskLogItem,
     Platform,
     PlatformCarrier,
@@ -769,9 +770,9 @@ def test_invoice_reconciliation_items_support_review_filters_summary_and_details
 
 
 @pytest.mark.django_db
-def test_invoice_reader_erp_carrier_freight_is_used_without_gst_multiplier(api):
+def test_invoice_reader_estimate_uses_lsp_booking_freight(api):
     batch = InvoiceReconciliationBatch.objects.create(
-        name="InvoiceReader mapped carrier freight",
+        name="InvoiceReader mapped LSP booking freight",
         status=InvoiceReconciliationBatch.Status.PENDING,
         source_system="invoiceReader.order_match_reconciliation",
     )
@@ -782,16 +783,24 @@ def test_invoice_reader_erp_carrier_freight_is_used_without_gst_multiplier(api):
         tracking_no="TRK-ERP-FREIGHT",
         amount_ex_gst=Decimal("100.00"),
         amount_inc_gst=Decimal("110.00"),
-        erp_carrier_freight=Decimal("110.00"),
+        erp_carrier_freight=Decimal("999.00"),
+    )
+    booking = LspBookingOrderSnapshot.objects.create(
+        source_system="data_raw.lsp.lsp_booking_order",
+        source_external_id="BO-ERP-FREIGHT",
+        tracking_no="TRK-ERP-FREIGHT",
+        lsp_order_code="O-ERP-FREIGHT",
+        freight=Decimal("110.00"),
     )
 
-    item = SyncReconciliationSnapshotsCommand()._reconciliation_item_from_order_match(batch, match, None)
+    item = SyncReconciliationSnapshotsCommand()._reconciliation_item_from_order_match(batch, match, None, booking)
 
     assert item.estimated_freight == Decimal("110.00")
     assert item.actual_freight == Decimal("110.00")
     assert item.match_status == InvoiceReconciliationItem.MatchStatus.MATCHED
-    assert item.raw_payload["estimate_basis"] == "ERP_MATCH_RESULT_INC_GST"
+    assert item.raw_payload["estimate_basis"] == "LSP_BOOKING_ORDER_FREIGHT"
     assert Decimal(item.raw_payload["comparison_estimated_freight_inc_gst"]) == Decimal("110.00")
+    assert item.raw_payload["lsp_booking_order"]["source_row_id"] == "BO-ERP-FREIGHT"
 
 
 @pytest.mark.django_db

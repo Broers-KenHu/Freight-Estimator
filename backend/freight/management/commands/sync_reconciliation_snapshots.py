@@ -33,6 +33,7 @@ from freight.models import (
     InvoiceReconciliationBatch,
     InvoiceReconciliationItem,
     InvoiceSource,
+    LspBookingOrderSnapshot,
 )
 from freight.quote_engine import json_safe
 
@@ -42,6 +43,7 @@ INVOICE_CHARGE_SYSTEM_PREFIX = f"{INVOICE_DATABASE}.{INVOICE_SCHEMA}.invoice_cha
 INVOICE_ORDER_MATCH_SYSTEM = f"{INVOICE_DATABASE}.{INVOICE_SCHEMA}.erp_match_results"
 RECONCILIATION_SYSTEM = "invoiceReader.order_match_reconciliation"
 GST_MULTIPLIER = Decimal("1.10")
+LSP_BOOKING_ESTIMATE_BASIS = "LSP_BOOKING_ORDER_FREIGHT"
 
 
 def parse_date(value: Any):
@@ -888,10 +890,11 @@ class Command(BaseCommand):
         existing_ids = [match.source_external_id for match in matches]
         InvoiceReconciliationItem.objects.filter(source_system=RECONCILIATION_SYSTEM, source_external_id__in=existing_ids).delete()
         charge_map = self._invoice_charge_map(matches)
+        lsp_booking_map = self._lsp_booking_freight_map(matches)
         items = []
         for match in matches:
             charge = charge_map.get((match.invoice_no, match.tracking_no))
-            item = self._reconciliation_item_from_order_match(batch, match, charge)
+            item = self._reconciliation_item_from_order_match(batch, match, charge, lsp_booking_map.get(match.id))
             items.append(item)
             result["success"] += 1
             if item.match_status == InvoiceReconciliationItem.MatchStatus.MATCHED:
@@ -922,14 +925,86 @@ class Command(BaseCommand):
             result.setdefault((charge.invoice_no, charge.tracking_no), charge)
         return result
 
+    def _lsp_booking_freight_map(
+        self,
+        matches: list[InvoiceOrderMatchSnapshot],
+    ) -> dict[int, LspBookingOrderSnapshot]:
+        tracking_values = {clean(match.tracking_no) for match in matches if clean(match.tracking_no)}
+        order_ids = {match.order_id for match in matches if match.order_id}
+        identity_values: set[str] = set()
+        for match in matches:
+            identity_values.update(self._match_identity_candidates(match))
+
+        filters = Q()
+        if tracking_values:
+            filters |= Q(tracking_no__in=tracking_values)
+        if order_ids:
+            filters |= Q(historical_order_id__in=order_ids)
+        if identity_values:
+            filters |= (
+                Q(lsp_order_code__in=identity_values)
+                | Q(lsp_shipment_code__in=identity_values)
+                | Q(reference_no__in=identity_values)
+                | Q(customer_reference__in=identity_values)
+                | Q(consignment_code__in=identity_values)
+            )
+        if not filters:
+            return {}
+
+        by_order_tracking: dict[tuple[int, str], LspBookingOrderSnapshot] = {}
+        by_tracking: dict[str, LspBookingOrderSnapshot] = {}
+        by_order: dict[int, LspBookingOrderSnapshot] = {}
+        by_identity: dict[str, LspBookingOrderSnapshot] = {}
+        snapshots = (
+            LspBookingOrderSnapshot.objects.filter(filters, freight__isnull=False)
+            .order_by("-source_updated_at", "-id")
+        )
+        for snapshot in snapshots:
+            tracking = clean(snapshot.tracking_no)
+            if snapshot.historical_order_id and tracking:
+                by_order_tracking.setdefault((snapshot.historical_order_id, tracking), snapshot)
+            if tracking:
+                by_tracking.setdefault(tracking, snapshot)
+            if snapshot.historical_order_id:
+                by_order.setdefault(snapshot.historical_order_id, snapshot)
+            for value in (
+                snapshot.lsp_order_code,
+                snapshot.lsp_shipment_code,
+                snapshot.reference_no,
+                snapshot.customer_reference,
+                snapshot.consignment_code,
+            ):
+                if clean(value):
+                    by_identity.setdefault(clean(value), snapshot)
+
+        result: dict[int, LspBookingOrderSnapshot] = {}
+        for match in matches:
+            tracking = clean(match.tracking_no)
+            booking = None
+            if match.order_id and tracking:
+                booking = by_order_tracking.get((match.order_id, tracking))
+            if booking is None and tracking:
+                booking = by_tracking.get(tracking)
+            if booking is None:
+                for value in self._match_identity_candidates(match):
+                    booking = by_identity.get(value)
+                    if booking:
+                        break
+            if booking is None and match.order_id:
+                booking = by_order.get(match.order_id)
+            if booking is not None:
+                result[match.id] = booking
+        return result
+
     def _reconciliation_item_from_order_match(
         self,
         batch: InvoiceReconciliationBatch,
         match: InvoiceOrderMatchSnapshot,
         charge: InvoiceChargeSnapshot | None,
+        lsp_booking: LspBookingOrderSnapshot | None = None,
     ) -> InvoiceReconciliationItem:
         order = match.order
-        estimate, estimate_basis = self._erp_estimate_for_match(match, order)
+        estimate, estimate_basis = self._erp_estimate_for_match(match, order, lsp_booking)
         comparison_estimate = self._comparison_estimate(estimate, estimate_basis)
         actual = match.amount_inc_gst if match.amount_inc_gst is not None else (charge.actual_freight if charge else Decimal("0"))
         variance_amount = None
@@ -938,10 +1013,8 @@ class Command(BaseCommand):
         variance_type = InvoiceReconciliationItem.VarianceType.UNMATCHED
         dispute = False
         reason_suffix = "; local HistoricalOrder not found by mapped order refs" if order is None else ""
-        if estimate is None and order is None:
-            reason = "InvoiceReader ERP mapping; local HistoricalOrder not found by mapped order refs"
-        elif estimate is None:
-            reason = "InvoiceReader ERP mapping; mapped order has no ERP estimate"
+        if estimate is None:
+            reason = f"InvoiceReader ERP mapping; no matched {LSP_BOOKING_ESTIMATE_BASIS} value{reason_suffix}"
         elif comparison_estimate == 0:
             reason = f"InvoiceReader ERP mapping; {estimate_basis} estimate is zero{reason_suffix}"
         else:
@@ -1000,6 +1073,20 @@ class Command(BaseCommand):
                         "source_label": match.source_label,
                         "detail_amount_ex_gst": str(match.amount_ex_gst or ""),
                         "detail_amount_inc_gst": str(match.amount_inc_gst or ""),
+                        "erp_match_results_carrier_freight": str(match.erp_carrier_freight or ""),
+                    },
+                    "lsp_booking_order": {
+                        "snapshot_id": lsp_booking.id if lsp_booking else None,
+                        "source_row_id": lsp_booking.source_external_id if lsp_booking else "",
+                        "order_code": lsp_booking.lsp_order_code if lsp_booking else "",
+                        "shipment_code": lsp_booking.lsp_shipment_code if lsp_booking else "",
+                        "reference_no": lsp_booking.reference_no if lsp_booking else "",
+                        "tracking_no": lsp_booking.tracking_no if lsp_booking else "",
+                        "carrier_code": lsp_booking.carrier_code if lsp_booking else "",
+                        "warehouse_code": lsp_booking.warehouse_code if lsp_booking else "",
+                        "status_code": lsp_booking.status_code if lsp_booking else None,
+                        "calc_mode": lsp_booking.calc_mode if lsp_booking else None,
+                        "freight": str(lsp_booking.freight or "") if lsp_booking else "",
                     },
                     "erp": {
                         "erp_order_id": match.erp_order_id,
@@ -1022,10 +1109,11 @@ class Command(BaseCommand):
         self,
         match: InvoiceOrderMatchSnapshot,
         order: HistoricalOrder | None,
+        lsp_booking: LspBookingOrderSnapshot | None,
     ) -> tuple[Decimal | None, str]:
-        if match.erp_carrier_freight is not None:
-            return match.erp_carrier_freight, "ERP_MATCH_RESULT_INC_GST"
-        return self._erp_estimate_for_order(order), "ERP_ORDER_EX_GST"
+        if lsp_booking and lsp_booking.freight is not None:
+            return lsp_booking.freight, LSP_BOOKING_ESTIMATE_BASIS
+        return None, LSP_BOOKING_ESTIMATE_BASIS
 
     def _comparison_estimate(self, estimate: Decimal | None, estimate_basis: str) -> Decimal | None:
         if estimate is None:
@@ -1038,6 +1126,41 @@ class Command(BaseCommand):
         if not order:
             return None
         return order.postage_shipping_estimated_amount or order.source_estimated_freight
+
+    def _match_identity_candidates(self, match: InvoiceOrderMatchSnapshot) -> set[str]:
+        values = {
+            clean(match.erp_order_id),
+            clean(match.erp_order_no),
+            clean(match.erp_owner_order_no),
+            clean(match.third_party_order_no),
+            clean(match.platform_order_no),
+        }
+        if match.order:
+            values.update(
+                {
+                    clean(match.order.order_no),
+                    clean(match.order.erp_order_no),
+                    clean(match.order.erp_owner_order_no),
+                    clean(match.order.external_order_no),
+                    clean(match.order.platform_order_no),
+                    clean(match.order.source_external_id),
+                }
+            )
+        candidates: set[str] = set()
+        for value in values:
+            candidates.update(self._reference_candidates(value))
+        return candidates
+
+    def _reference_candidates(self, value: str) -> set[str]:
+        value = clean(value)
+        if not value:
+            return set()
+        candidates = {value}
+        for pattern in (r"_[0-9]+$", r"-P[0-9]+$", r"_P[0-9]+$", r"-[0-9]+$", r"/[0-9]+$"):
+            normalized = re.sub(pattern, "", value)
+            if normalized and normalized != value:
+                candidates.add(normalized)
+        return candidates
 
     def _display_order_no_for_match(self, match: InvoiceOrderMatchSnapshot) -> str:
         if match.order:
